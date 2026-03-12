@@ -1,0 +1,108 @@
+{
+  "pages": [
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationBarTitleText": "鲜食档案",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/fridge/list",
+      "style": {
+        "navigationBarTitleText": "我的冰箱",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/fridge/add",
+      "style": {
+        "navigationBarTitleText": "添加食材",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/fridge/edit",
+      "style": {
+        "navigationBarTitleText": "编辑食材",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/recipe/generate",
+      "style": {
+        "navigationBarTitleText": "菜谱推荐",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/recipe/result",
+      "style": {
+        "navigationBarTitleText": "智能菜谱",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/recipe/detail",
+      "style": {
+        "navigationBarTitleText": "菜谱详情",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/profile/index",
+      "style": {
+        "navigationBarTitleText": "我的",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/profile/takeout-records",
+      "style": {
+        "navigationBarTitleText": "取出记录",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/profile/favorites",
+      "style": {
+        "navigationBarTitleText": "收藏菜谱",
+        "navigationStyle": "custom"
+      }
+    }
+  ],
+  "tabBar": {
+    "color": "#7A7E83",
+    "selectedColor": "#4CAF50",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/fridge/list",
+        "text": "冰箱"
+      },
+      {
+        "pagePath": "pages/fridge/add",
+        "text": "添加"
+      },
+      {
+        "pagePath": "pages/recipe/generate",
+        "text": "菜谱"
+      },
+      {
+        "pagePath": "pages/profile/index",
+        "text": "我的"
+      }
+    ]
+  },
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#F7F8FA",
+    "backgroundColor": "#F4F6F8"
+  },
+  "uniIdRouter": {}
+}
