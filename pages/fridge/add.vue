@@ -96,7 +96,8 @@
 </template>
 
 <script>
-import { addIngredient } from '@/store/app-store'
+	
+import { createIngredient } from '@/api/modules/ingredients'
 import BottomNav from '@/components/bottom-nav.vue'
 
 export default {
@@ -136,21 +137,43 @@ export default {
 		onPurchaseDateChange(e) {
 			this.form.purchaseDate = e.detail.value
 		},
-		submit() {
+		async submit() {
 			if (!this.form.name || !this.form.category || !this.form.quantity || !this.form.unit || !this.form.location || !this.form.expireDate) {
 				uni.showToast({ title: '请先填写完整信息', icon: 'none' })
 				return
 			}
+		
 			const today = new Date().toISOString().slice(0, 10)
 			if (this.form.expireDate < today) {
 				uni.showToast({ title: '过期日期不能早于今天', icon: 'none' })
 				return
 			}
-			addIngredient(this.form)
-			uni.showToast({ title: '保存成功', icon: 'success' })
-			setTimeout(() => {
-				uni.switchTab({ url: '/pages/fridge/list' })
-			}, 300)
+		
+			try {
+				await createIngredient({
+					name: this.form.name,
+					category: this.form.category,
+					quantity: Number(this.form.quantity),
+					unit: this.form.unit,
+					location: this.form.location,
+					expireDate: this.form.expireDate || null,
+					userId: 1
+				})
+		
+				uni.showToast({ title: '保存成功', icon: 'success' })
+		
+				setTimeout(() => {
+					uni.navigateBack({
+						delta: 1
+					})
+				}, 300)
+			} catch (e) {
+				console.error('新增失败', e)
+				uni.showToast({
+					title: '保存失败',
+					icon: 'none'
+				})
+			}
 		}
 	}
 }

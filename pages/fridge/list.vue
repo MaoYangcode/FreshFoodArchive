@@ -74,7 +74,8 @@
 </template>
 
 <script>
-import { consumeIngredient, getIngredients } from '@/store/app-store'
+	
+import { getIngredientList ,consumeIngredient } from '@/api/modules/ingredients'
 import BottomNav from '@/components/bottom-nav.vue'
 
 export default {
@@ -138,26 +139,48 @@ export default {
 		}
 	},
 	methods: {
-		refreshList() {
-			this.list = getIngredients()
+		async refreshList() {
+			try {
+				const res = await getIngredientList()
+				this.list = Array.isArray(res) ? res : []
+			} catch (e) {
+				console.error('获取失败', e)
+				uni.showToast({
+					title: '加载失败',
+					icon: 'none'
+				})
+				this.list = []
+			}
 		},
+	
 		getEmoji(category) {
-			const map = { 蔬菜: '🥦', 水果: '🥑', 肉类: '🍗', 蛋奶: '🧀', 调料: '🧂', 其他: '🍽️' }
+			const map = {
+				蔬菜: '🥦',
+				水果: '🥑',
+				肉类: '🍗',
+				蛋奶: '🧀',
+				调料: '🧂',
+				其他: '🍽️'
+			}
 			return map[category] || '🍽️'
 		},
+	
 		getTagClass(expireDate) {
 			const days = this.getDays(expireDate)
 			if (days <= 0) return 'bad'
 			if (days <= 2) return 'warn'
 			return 'ok'
 		},
+	
 		getTagText(expireDate) {
 			const days = this.getDays(expireDate)
 			if (days <= 0) return `过期${Math.abs(days)}天`
 			if (days <= 2) return `剩${days}天`
 			return '新鲜'
 		},
+	
 		getDays(expireDate) {
+			if (!expireDate) return 999
 			const now = new Date()
 			now.setHours(0, 0, 0, 0)
 			const t = new Date(expireDate)
@@ -290,19 +313,32 @@ export default {
 				url: `/pages/fridge/edit?id=${item.id}`
 			})
 		},
-		consume(item) {
-			const ok = consumeIngredient(item.id)
-			this.openSwipeId = ''
-			if (!ok) {
-				uni.showToast({ title: '操作失败，请重试', icon: 'none' })
-				return
-			}
-			this.refreshList()
-			uni.showToast({ title: '已加入取出记录', icon: 'success' })
-		},
+
 		goAdd() {
 			uni.switchTab({ url: '/pages/fridge/add' })
-		}
+		},
+		async consume(item) {
+			try {
+				await consumeIngredient(item.id, {
+					quantity: 1
+				})
+		
+				this.openSwipeId = ''
+		
+				uni.showToast({
+					title: '已取出 1 份',
+					icon: 'success'
+				})
+		
+				this.refreshList()
+			} catch (e) {
+				console.error('取出失败', e)
+				uni.showToast({
+					title: '取出失败',
+					icon: 'none'
+				})
+			}
+		},
 	}
 }
 </script>

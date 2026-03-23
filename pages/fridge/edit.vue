@@ -12,62 +12,92 @@
 			</view>
 		</view>
 
-		<view class="card">
-			<view class="field">
-				<text class="label">食材名称<text class="req">*</text></text>
-				<input v-model="form.name" class="input" />
+		<view class="card form-card">
+			<view class="form-row">
+				<view class="row-left">
+					<text class="row-icon">◍</text>
+					<text class="row-label">食物名称</text>
+				</view>
+				<input v-model="form.name" class="row-input" placeholder="请输入食物名称" />
+				<text class="req side-req">*</text>
 			</view>
-			<view class="field">
-				<text class="label">食材类型<text class="req">*</text></text>
-				<picker :range="categories" @change="onCategoryChange">
-					<view class="picker">{{ form.category }}</view>
+
+			<view class="form-row">
+				<view class="row-left">
+					<text class="row-icon">☰</text>
+					<text class="row-label">食材类型</text>
+				</view>
+				<picker :range="categories" @change="onCategoryChange" class="flex-picker">
+					<view class="row-chip">{{ form.category || '请选择类型' }}</view>
 				</picker>
+				<text class="req side-req">*</text>
 			</view>
-			<view class="field two-col">
-				<view class="half">
-					<text class="label">数量<text class="req">*</text></text>
-					<input v-model="form.quantity" class="input" type="number" />
+
+			<view class="form-row">
+				<view class="row-left">
+					<text class="row-icon">◫</text>
+					<text class="row-label">数量</text>
 				</view>
-				<view class="half">
-					<text class="label">单位<text class="req">*</text></text>
-					<picker :range="units" @change="onUnitChange">
-						<view class="picker">{{ form.unit }}</view>
-					</picker>
-				</view>
+				<input v-model="form.quantity" class="qty-input" type="number" placeholder="请输入数量" />
+				<picker :range="units" @change="onUnitChange">
+					<view class="row-chip unit-chip">{{ form.unit || '选择单位' }}</view>
+				</picker>
+				<text class="req side-req">*</text>
 			</view>
-			<view class="field">
-				<text class="label">位置<text class="req">*</text></text>
-				<view class="radio-row">
+
+			<view class="form-row">
+				<view class="row-left">
+					<text class="row-icon">☰</text>
+					<text class="row-label">分区</text>
+				</view>
+				<view class="zone-row">
 					<view
 						v-for="loc in locations"
 						:key="loc"
-						class="radio-opt"
+						class="zone-opt"
 						:class="{ active: form.location === loc }"
 						@click="form.location = loc"
 					>
-						<text class="dot"></text>{{ loc }}
+						<text class="dot"></text>
+						<text>{{ loc }}</text>
 					</view>
 				</view>
+				<text class="req side-req">*</text>
 			</view>
-			<view class="field">
-				<text class="label">过期日期<text class="req">*</text></text>
-				<picker mode="date" :value="form.expireDate" @change="onDateChange">
-					<view class="picker">{{ form.expireDate }}</view>
-				</picker>
-				<text class="hint">提示：如修改为今天之前会被拦截</text>
-			</view>
-		</view>
 
-		<view class="grid2">
-			<button class="del-btn" @click="remove">删除</button>
-			<button class="save-btn" @click="save">更新</button>
+			<view class="form-row date-row">
+				<view class="row-left">
+					<text class="row-icon">◷</text>
+					<text class="row-label">购买时间</text>
+				</view>
+				<picker mode="date" :value="form.purchaseDate" @change="onPurchaseDateChange" class="flex-picker">
+					<view class="row-date">{{ form.purchaseDate || '选择购买时间（默认当天）' }}</view>
+				</picker>
+			</view>
+
+			<view class="form-row date-row">
+				<view class="row-left">
+					<text class="row-icon">◷</text>
+					<text class="row-label">过期时间</text>
+				</view>
+				<picker mode="date" :value="form.expireDate" @change="onDateChange" class="flex-picker">
+					<view class="row-date">{{ form.expireDate || '选择过期时间' }}</view>
+				</picker>
+				<text class="req side-req">*</text>
+			</view>
+			<text class="hint">提示：如修改为今天之前会被拦截</text>
+
+			<view class="grid2">
+				<button class="del-btn" @click="remove">删除</button>
+				<button class="save-btn" @click="save">更新</button>
+			</view>
 		</view>
 		<BottomNav current="fridge" />
 	</view>
 </template>
 
 <script>
-import { deleteIngredient, getIngredientById, updateIngredient } from '@/store/app-store'
+import { deleteIngredient, getIngredientDetail, getIngredientList, updateIngredient } from '@/api/modules/ingredients'
 import BottomNav from '@/components/bottom-nav.vue'
 
 export default {
@@ -79,31 +109,71 @@ export default {
 			units: ['个', '盒', '包', 'g', 'kg', 'ml'],
 			locations: ['冷藏', '冷冻', '常温'],
 			form: {
-				name: '西红柿',
-				category: '蔬菜',
-				quantity: '2',
-				unit: '个',
-				location: '冷藏',
-				expireDate: '2026-03-12'
+				name: '',
+				category: '',
+				quantity: '',
+				unit: '',
+				location: '',
+				purchaseDate: '',
+				expireDate: '',
+				createdAt: ''
 			}
 		}
 	},
-	onLoad(query) {
-		if (query && query.id) {
-			this.ingredientId = query.id
-			const item = getIngredientById(query.id)
-			if (item) {
-				this.form = { ...item }
-				return
-			}
+	onLoad(options) {
+		const rawId = options?.id ?? options?.ingredientId ?? ''
+		const id = `${rawId}`.trim()
+		if (id && id !== 'undefined' && id !== 'null') {
+			this.ingredientId = id
+			this.fetchDetail()
+			return
 		}
-		uni.showToast({ title: '未找到食材，使用默认值', icon: 'none' })
+		uni.showToast({
+			title: '食材ID缺失',
+			icon: 'none'
+		})
 	},
 	methods: {
+		pickPayload(source) {
+			if (!source || typeof source !== 'object') return source
+			if (source.data && typeof source.data === 'object') {
+				const nested = source.data
+				if (nested.data && typeof nested.data === 'object') return nested.data
+				return nested
+			}
+			return source
+		},
+		getField(data, keys) {
+			for (const key of keys) {
+				if (data && data[key] !== undefined && data[key] !== null) return data[key]
+			}
+			return ''
+		},
+		applyDetail(data) {
+			this.form.name = this.getField(data, ['name', 'ingredientName'])
+			this.form.category = this.getField(data, ['category', 'type'])
+			this.form.quantity = this.getField(data, ['quantity', 'qty'])
+			this.form.unit = this.getField(data, ['unit'])
+			this.form.location = this.getField(data, ['location', 'zone'])
+			const expireDate = this.getField(data, ['expireDate', 'expire_date'])
+			const purchaseDate = this.getField(data, ['purchaseDate', 'purchase_date', 'createdAt', 'created_at'])
+			const createdAt = this.getField(data, ['createdAt', 'created_at', 'purchaseDate', 'purchase_date'])
+			this.form.expireDate = expireDate ? `${expireDate}`.slice(0, 10) : ''
+			this.form.purchaseDate = purchaseDate ? `${purchaseDate}`.slice(0, 10) : ''
+			this.form.createdAt = createdAt ? `${createdAt}`.slice(0, 10) : ''
+		},
 		getEmoji(category) {
-			const map = { 蔬菜: '🥦', 水果: '🥑', 肉类: '🥩', 蛋奶: '🥚', 调料: '🧂', 其他: '🍽️' }
+			const map = {
+				蔬菜: '🥦',
+				水果: '🥑',
+				肉类: '🥩',
+				蛋奶: '🥚',
+				调料: '🧂',
+				其他: '🍽️'
+			}
 			return map[category] || '🍽️'
 		},
+		
 		onCategoryChange(e) {
 			this.form.category = this.categories[e.detail.value]
 		},
@@ -116,40 +186,93 @@ export default {
 		onDateChange(e) {
 			this.form.expireDate = e.detail.value
 		},
-		save() {
+		onPurchaseDateChange(e) {
+			this.form.purchaseDate = e.detail.value
+		},
+		async fetchDetail() {
+			try {
+				const res = await getIngredientDetail(this.ingredientId)
+				const data = this.pickPayload(res)
+				this.applyDetail(data)
+			} catch (e) {
+				// Fallback for backends without GET /ingredients/:id.
+				try {
+					const listRes = await getIngredientList()
+					const list = Array.isArray(listRes) ? listRes : []
+					const current = list.find((x) => `${x.id}` === `${this.ingredientId}`)
+					if (!current) {
+						uni.showToast({
+							title: '未找到食材数据',
+							icon: 'none'
+						})
+						return
+					}
+					this.applyDetail(current)
+				} catch (fallbackErr) {
+					console.error('获取食材失败', fallbackErr)
+					uni.showToast({
+						title: '获取食材失败',
+						icon: 'none'
+					})
+				}
+			}
+		},
+		async save() {
 			const today = new Date().toISOString().slice(0, 10)
+
+			if (!this.form.name || !this.form.category || !this.form.quantity || !this.form.unit || !this.form.location || !this.form.expireDate) {
+				uni.showToast({ title: '请先填写完整信息', icon: 'none' })
+				return
+			}
+
 			if (this.form.expireDate < today) {
 				uni.showToast({ title: '过期日期不能早于今天', icon: 'none' })
 				return
 			}
+
 			if (!this.ingredientId) {
 				uni.showToast({ title: '食材ID缺失', icon: 'none' })
 				return
 			}
-			const ok = updateIngredient(this.ingredientId, this.form)
-			if (!ok) {
+
+			try {
+				await updateIngredient(this.ingredientId, {
+					name: this.form.name,
+					category: this.form.category,
+					quantity: Number(this.form.quantity),
+					unit: this.form.unit,
+					location: this.form.location,
+					expireDate: this.form.expireDate
+				})
+
+				uni.showToast({ title: '已保存', icon: 'success' })
+
+				setTimeout(() => {
+					uni.navigateBack()
+				}, 300)
+			} catch (e) {
+				console.error('更新失败', e)
 				uni.showToast({ title: '保存失败', icon: 'none' })
-				return
 			}
-			uni.showToast({ title: '已保存', icon: 'success' })
-			setTimeout(() => {
-				uni.navigateBack()
-			}, 300)
 		},
-		remove() {
+		async remove() {
 			if (!this.ingredientId) {
 				uni.showToast({ title: '食材ID缺失', icon: 'none' })
 				return
 			}
-			const ok = deleteIngredient(this.ingredientId)
-			if (!ok) {
+
+			try {
+				await deleteIngredient(this.ingredientId)
+
+				uni.showToast({ title: '已删除', icon: 'success' })
+
+				setTimeout(() => {
+					uni.navigateBack()
+				}, 300)
+			} catch (e) {
+				console.error('删除失败', e)
 				uni.showToast({ title: '删除失败', icon: 'none' })
-				return
 			}
-			uni.showToast({ title: '已删除', icon: 'success' })
-			setTimeout(() => {
-				uni.navigateBack()
-			}, 300)
 		}
 	}
 }
@@ -193,25 +316,25 @@ export default {
 
 .top-card {
 	display: grid;
-	grid-template-columns: 86rpx 1fr;
+	grid-template-columns: 72px 1fr;
 	gap: 12rpx;
 	align-items: center;
 }
 
 .food-ico {
-	width: 86rpx;
-	height: 86rpx;
-	border-radius: 20rpx;
+	width: 72px;
+	height: 72px;
+	border-radius: 14px;
 	background: #f1f8f2;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 46rpx;
+	font-size: 34px;
 }
 
 .food-name {
 	font-weight: 700;
-	font-size: 14px;
+	font-size: 16px;
 }
 
 .food-time {
@@ -221,75 +344,138 @@ export default {
 	margin-top: 6rpx;
 }
 
-.field {
-	margin-bottom: 20rpx;
-}
-
-.label {
-	display: block;
-	font-size: 13px;
-	font-weight: 600;
-	color: #324137;
-	margin-bottom: 8rpx;
+.form-card {
+	padding: 10px;
 }
 
 .req {
 	color: #e15c5c;
-	margin-left: 4rpx;
+	margin-left: 6rpx;
 }
 
-.input,
-.picker {
-	border: 1rpx solid #e7eceb;
-	border-radius: 12px;
-	background: #fff;
-	padding: 16rpx 18rpx;
-}
-
-.two-col {
+.form-row {
 	display: flex;
-	gap: 12rpx;
+	align-items: center;
+	background: #f4f8f5;
+	border-radius: 8px;
+	padding: 10px 12px;
+	margin-bottom: 12rpx;
+	min-height: 52px;
+	box-sizing: border-box;
 }
 
-.half {
+.row-left {
+	display: inline-flex;
+	align-items: center;
+	min-width: 132px;
+	flex-shrink: 0;
+}
+
+.row-icon {
+	color: #6aa97a;
+	font-size: 18px;
+	width: 30px;
+	text-align: center;
+	margin-right: 8rpx;
+}
+
+.row-label {
+	font-size: 15px;
+	font-weight: 600;
+	color: #26352d;
+}
+
+.row-input {
+	flex: 1;
+	font-size: 14px;
+	color: #2e3b33;
+	padding: 0 8rpx;
+}
+
+.side-req {
+	font-size: 18px;
+	line-height: 1;
+	margin-left: 8rpx;
+}
+
+.flex-picker {
 	flex: 1;
 }
 
-.radio-row {
-	display: flex;
-	align-items: center;
-	gap: 18rpx;
-	border: 1rpx solid #e7eceb;
-	border-radius: 12px;
-	background: #fff;
-	padding: 14rpx 16rpx;
+.row-chip {
+	background: linear-gradient(135deg, #70c977, #4cae57);
+	color: #fff;
+	border-radius: 10px;
+	padding: 12rpx 10rpx;
+	text-align: center;
+	font-size: 14px;
+	font-weight: 600;
 }
 
-.radio-opt {
+.qty-input {
+	flex: 1;
+	font-size: 14px;
+	color: #2e3b33;
+	padding-left: 8rpx;
+}
+
+.unit-chip {
+	min-width: 96px;
+	padding: 12rpx 0;
+}
+
+.zone-row {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	gap: 14rpx;
+}
+
+.zone-opt {
 	display: inline-flex;
 	align-items: center;
-	gap: 8rpx;
+	gap: 7rpx;
 	font-size: 14px;
-	color: #2e3a32;
+	color: #2d3a32;
 }
 
 .dot {
-	width: 24rpx;
-	height: 24rpx;
+	width: 26px;
+	height: 26px;
 	border-radius: 50%;
-	border: 2rpx solid #d1d9d4;
+	border: 2rpx solid #cfd8d2;
 	background: #fff;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
-.radio-opt.active .dot {
-	border-color: #5b8fea;
-	background: radial-gradient(circle, #5b8fea 40%, #fff 42%);
+.zone-opt.active .dot {
+	border-color: #67b374;
+	background: #67b374;
+}
+
+.zone-opt.active .dot::after {
+	content: '✓';
+	color: #fff;
+	font-size: 14px;
+	font-weight: 700;
+}
+
+.date-row {
+	background: #f4f8f5;
+}
+
+.row-date {
+	font-size: 14px;
+	color: #7c8880;
+	padding-left: 6rpx;
 }
 
 .hint {
-	font-size: 11px;
-	color: #8a978f;
-	margin-top: 6rpx;
+	font-size: 12px;
+	color: #88958d;
+	margin: 2rpx 0 8rpx;
 	display: block;
 }
 
