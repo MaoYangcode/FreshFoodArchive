@@ -2,15 +2,17 @@ import { request } from '../request'
 
 export function recommendRecipes(payload) {
 	return request({
-		url: '/api/ai/recommend-recipes',
+		url: '/ai/generate-recipe',
 		method: 'POST',
 		data: payload
 	})
 }
 
+export const generateRecipes = recommendRecipes
+
 export function getRecipeDetail(payload) {
 	return request({
-		url: '/api/ai/recipe-detail',
+		url: '/ai/generate-recipe',
 		method: 'POST',
 		data: payload
 	})

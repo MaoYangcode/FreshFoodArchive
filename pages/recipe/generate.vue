@@ -23,6 +23,15 @@
 
 <script>
 import BottomNav from '@/components/bottom-nav.vue'
+import { getIngredientList } from '@/api/modules/ingredients'
+import { recommendRecipes } from '@/api/modules/recipes'
+
+function unwrapListPayload(source) {
+	if (Array.isArray(source)) return source
+	if (source && Array.isArray(source.data)) return source.data
+	if (source && source.data && Array.isArray(source.data.data)) return source.data.data
+	return []
+}
 
 export default {
 	components: { BottomNav },
@@ -32,13 +41,49 @@ export default {
 		}
 	},
 	methods: {
-		generate() {
+		async generate() {
 			if (this.isGenerating) return
 			this.isGenerating = true
-			setTimeout(() => {
-				this.isGenerating = false
+			try {
+				const listRes = await getIngredientList()
+				const ingredientsRaw = unwrapListPayload(listRes)
+				const ingredients = ingredientsRaw
+					.filter((x) => x && x.name)
+					.map((x) => ({
+						name: x.name,
+						quantity: Number(x.quantity || 1),
+						unit: x.unit || ''
+					}))
+
+				if (!ingredients.length) {
+					uni.showToast({ title: '暂无可用食材', icon: 'none' })
+					return
+				}
+
+				const aiRes = await recommendRecipes({
+					ingredients,
+					tastePreference: '家常',
+					cookingTime: 30,
+					count: 3
+				})
+				const recipes = Array.isArray(aiRes?.data?.recipes) ? aiRes.data.recipes : []
+				if (!recipes.length) {
+					uni.showToast({ title: '未生成菜谱，请重试', icon: 'none' })
+					return
+				}
+
+				uni.setStorageSync('latestGeneratedRecipes', recipes)
+				uni.setStorageSync(
+					'latestPantryTags',
+					ingredients.slice(0, 6).map((x) => x.name).filter(Boolean)
+				)
 				uni.navigateTo({ url: '/pages/recipe/result' })
-			}, 800)
+			} catch (e) {
+				console.error('生成失败', e)
+				uni.showToast({ title: '生成失败，请稍后重试', icon: 'none' })
+			} finally {
+				this.isGenerating = false
+			}
 		}
 	}
 }

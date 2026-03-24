@@ -98,6 +98,7 @@
 <script>
 	
 import { createIngredient } from '@/api/modules/ingredients'
+import { recognizeIngredientsByUpload } from '@/api/modules/ai'
 import BottomNav from '@/components/bottom-nav.vue'
 
 export default {
@@ -119,8 +120,41 @@ export default {
 		}
 	},
 	methods: {
-		mockRecognize() {
-			uni.showToast({ title: '后续接入 AI 识别', icon: 'none' })
+		chooseLocalImage() {
+			return new Promise((resolve, reject) => {
+				uni.chooseImage({
+					count: 1,
+					sizeType: ['compressed'],
+					sourceType: ['camera', 'album'],
+					success: (res) => resolve(res),
+					fail: (err) => reject(err)
+				})
+			})
+		},
+		async mockRecognize() {
+			try {
+				const chooseRes = await this.chooseLocalImage()
+				const filePath = chooseRes?.tempFilePaths?.[0]
+				if (!filePath) return
+
+				uni.showLoading({ title: '识别中...' })
+				const res = await recognizeIngredientsByUpload(filePath)
+				const list = Array.isArray(res?.data?.ingredients) ? res.data.ingredients : []
+				if (!list.length) {
+					uni.showToast({ title: '未识别到食材', icon: 'none' })
+					return
+				}
+
+				const first = list[0] || {}
+				if (!this.form.name && first.name) this.form.name = first.name
+				if (!this.form.category && first.category) this.form.category = first.category
+				uni.showToast({ title: `识别到${list.length}种食材`, icon: 'none' })
+			} catch (e) {
+				console.error('识别失败', e)
+				uni.showToast({ title: '识别失败，请重试', icon: 'none' })
+			} finally {
+				uni.hideLoading()
+			}
 		},
 		onCategoryChange(e) {
 			this.form.category = this.categories[e.detail.value]

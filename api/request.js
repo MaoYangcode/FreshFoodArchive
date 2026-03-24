@@ -1,4 +1,4 @@
-const BASE_URL = 'http://127.0.0.1:3000'
+export const BASE_URL = 'http://127.0.0.1:3000'
 
 export function request({ url, method = 'GET', data = {}, header = {} }) {
 	return new Promise((resolve, reject) => {

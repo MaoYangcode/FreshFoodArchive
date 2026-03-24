@@ -62,6 +62,25 @@ export default {
 		}
 	},
 	onLoad(query) {
+		const cached = uni.getStorageSync('latestRecipeDetail')
+		if (cached && typeof cached === 'object') {
+			const ingredientText = Array.isArray(cached.ingredients)
+				? cached.ingredients
+						.map((x) => `${x?.name || ''}${x?.quantity ?? ''}${x?.unit || ''}`.trim())
+						.filter(Boolean)
+						.join('、')
+				: ''
+			const stepList = Array.isArray(cached.steps) ? cached.steps.map((x) => `${x || ''}`.trim()).filter(Boolean) : []
+			this.recipe = {
+				...this.recipe,
+				name: cached.name || this.recipe.name,
+				duration: Number(cached.duration || this.recipe.duration),
+				difficulty: cached.difficulty || this.recipe.difficulty,
+				ingredientsText: ingredientText || this.recipe.ingredientsText,
+				ingredients: ingredientText ? ingredientText.split('、') : this.recipe.ingredients,
+				steps: stepList.length ? stepList : this.recipe.steps
+			}
+		}
 		if (query && query.name) {
 			this.recipe.name = decodeURIComponent(query.name)
 		}
