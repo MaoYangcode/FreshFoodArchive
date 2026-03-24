@@ -4,42 +4,154 @@
 			<text class="top-title">取出记录</text>
 			<view class="capsule" @click="goBack"><text>←</text></view>
 		</view>
-		<view v-if="records.length === 0" class="card">
-			<text class="meta">暂无记录，右滑食材并点击“已取出”后会显示在这里。</text>
+		<view v-if="records.length > 0" class="filter-card">
+			<view class="range-inline">
+				<text class="range-label">取出时间：</text>
+				<picker mode="date" :value="startDate" @change="onStartDateChange">
+					<view class="range-btn">{{ startDate || '开始日期' }}</view>
+				</picker>
+				<text class="range-sep">~</text>
+				<picker mode="date" :value="endDate" @change="onEndDateChange">
+					<view class="range-btn">{{ endDate || '结束日期' }}</view>
+				</picker>
+			</view>
+			<view class="quick-row">
+				<view class="quick-chip" :class="{ active: quickRange === 'all' }" @click="applyQuickRange('all')">全部</view>
+				<view class="quick-chip" :class="{ active: quickRange === '7d' }" @click="applyQuickRange('7d')">近7天</view>
+				<view class="quick-chip" :class="{ active: quickRange === '30d' }" @click="applyQuickRange('30d')">近30天</view>
+			</view>
 		</view>
-		<view class="row" v-for="record in records" :key="record.id">
-			<view class="ico">🗒</view>
-			<view>
+		<view v-if="filteredRecords.length === 0" class="card">
+			<text class="meta">{{ records.length === 0 ? '暂无记录，右滑食材并点击“已取出”后会显示在这里。' : '当前时间范围内暂无记录，可切换到“全部”查看。' }}</text>
+		</view>
+		<view class="row" v-for="record in filteredRecords" :key="record.id">
+			<view class="ico">{{ getEmoji(record.category) }}</view>
+			<view class="body">
 				<text class="name">{{ record.name }}</text>
 				<text class="meta">{{ record.quantity }}{{ record.unit }} · {{ record.location }}</text>
 			</view>
-			<text class="tag ok">{{ formatTime(record.time) }}</text>
+			<view class="time-wrap">
+				<text class="time-label">取出时间</text>
+				<text class="time-value">{{ formatDateTime(record.time) }}</text>
+			</view>
 		</view>
 		<BottomNav current="profile" />
 	</view>
 </template>
 
 <script>
-import { getTakeoutRecords } from '@/store/app-store'
+	
+import { getTakeoutRecords } from '@/api/modules/ingredients'
 import BottomNav from '@/components/bottom-nav.vue'
 
 export default {
 	components: { BottomNav },
 	data() {
 		return {
-			records: []
+			records: [],
+			startDate: '',
+			endDate: '',
+			quickRange: 'all'
 		}
 	},
-	onShow() {
-		this.records = getTakeoutRecords()
+	computed: {
+		filteredRecords() {
+			const start = this.startDate
+			const end = this.endDate
+			return this.records.filter((record) => {
+				const day = this.extractDay(record.time)
+				if (!day) return false
+				if (start && day < start) return false
+				if (end && day > end) return false
+				return true
+			})
+		}
+	},
+	async onShow() {
+	  try {
+	    const res = await getTakeoutRecords()
+	    this.records = Array.isArray(res)
+	      ? res
+	      : (Array.isArray(res?.data) ? res.data : (Array.isArray(res?.data?.data) ? res.data.data : []))
+	  } catch (e) {
+	    this.records = []
+	    uni.showToast({ title: '加载记录失败', icon: 'none' })
+	  }
 	},
 	methods: {
 		goBack() {
 			uni.navigateBack()
 		},
-		formatTime(time) {
-			if (!time) return '--:--'
-			return `${time}`.slice(11, 16)
+		getEmoji(category) {
+			const map = {
+				蔬菜: '🥦',
+				水果: '🥑',
+				肉类: '🍗',
+				蛋奶: '🧀',
+				调料: '🧂',
+				其他: '🍽️'
+			}
+			return map[category] || '🗒'
+		},
+		formatDateTime(time) {
+			if (!time) return '--'
+			const date = new Date(time)
+			if (Number.isFinite(date.getTime())) {
+				const pad = (n) => `${n}`.padStart(2, '0')
+				const y = date.getFullYear()
+				const m = pad(date.getMonth() + 1)
+				const d = pad(date.getDate())
+				const hh = pad(date.getHours())
+				const mm = pad(date.getMinutes())
+				return `${y}-${m}-${d} ${hh}:${mm}`
+			}
+			const text = `${time}`
+			if (text.includes('T')) return text.replace('T', ' ').slice(0, 16)
+			return text.slice(0, 16)
+		},
+		extractDay(time) {
+			if (!time) return ''
+			const date = new Date(time)
+			if (Number.isFinite(date.getTime())) {
+				const pad = (n) => `${n}`.padStart(2, '0')
+				const y = date.getFullYear()
+				const m = pad(date.getMonth() + 1)
+				const d = pad(date.getDate())
+				return `${y}-${m}-${d}`
+			}
+			const text = `${time}`
+			if (text.includes('T')) return text.slice(0, 10)
+			return text.slice(0, 10)
+		},
+		onStartDateChange(e) {
+			this.startDate = e.detail.value
+			this.quickRange = 'custom'
+			if (this.endDate && this.startDate > this.endDate) {
+				this.endDate = this.startDate
+			}
+		},
+		onEndDateChange(e) {
+			this.endDate = e.detail.value
+			this.quickRange = 'custom'
+			if (this.startDate && this.endDate < this.startDate) {
+				this.startDate = this.endDate
+			}
+		},
+		applyQuickRange(type) {
+			this.quickRange = type
+			if (type === 'all') {
+				this.startDate = ''
+				this.endDate = ''
+				return
+			}
+			const today = new Date()
+			const pad = (n) => `${n}`.padStart(2, '0')
+			const format = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+			const end = new Date(today)
+			const start = new Date(today)
+			start.setDate(today.getDate() - (type === '7d' ? 6 : 29))
+			this.startDate = format(start)
+			this.endDate = format(end)
 		}
 	}
 }
@@ -79,11 +191,69 @@ export default {
 	padding: 10px;
 }
 
+.filter-card {
+	background: #fff;
+	border: 1rpx solid #e8edf0;
+	border-radius: 14px;
+	padding: 10px;
+	margin-bottom: 10rpx;
+}
+
+.range-inline {
+	display: flex;
+	align-items: center;
+	gap: 8rpx;
+	flex-wrap: wrap;
+}
+
+.range-label {
+	font-size: 13px;
+	font-weight: 600;
+	color: #536173;
+}
+
+.range-btn {
+	min-width: 160rpx;
+	text-align: center;
+	background: #f3f7fb;
+	border: 1rpx solid #e2e8ef;
+	border-radius: 999rpx;
+	padding: 8rpx 12rpx;
+	font-size: 12px;
+	color: #5d6775;
+}
+
+.range-sep {
+	color: #9aa4b2;
+	font-size: 13px;
+}
+
+.quick-row {
+	display: flex;
+	gap: 8rpx;
+	margin-top: 8rpx;
+}
+
+.quick-chip {
+	background: #f3f6f8;
+	color: #6b7583;
+	border: 1rpx solid #e6ebef;
+	border-radius: 999rpx;
+	padding: 4rpx 12rpx;
+	font-size: 11px;
+}
+
+.quick-chip.active {
+	background: #e8f0ff;
+	color: #4a73d9;
+	border-color: #d9e5ff;
+}
+
 .row {
 	display: grid;
 	grid-template-columns: 40px 1fr auto;
 	gap: 10rpx;
-	align-items: center;
+	align-items: start;
 	border: 1rpx solid #eef3f0;
 	border-radius: 14px;
 	padding: 9px;
@@ -108,6 +278,10 @@ export default {
 	font-weight: 700;
 }
 
+.body {
+	min-width: 0;
+}
+
 .meta {
 	display: block;
 	font-size: 12px;
@@ -115,14 +289,24 @@ export default {
 	margin-top: 4rpx;
 }
 
-.tag {
-	border-radius: 999rpx;
-	font-size: 11px;
-	padding: 4rpx 10rpx;
+.time-wrap {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	padding-top: 2rpx;
 }
 
-.ok {
-	background: #e9f8ec;
+.time-label {
+	font-size: 11px;
+	color: #93a198;
+}
+
+.time-value {
+	margin-top: 4rpx;
+	font-size: 12px;
 	color: #3f9f4d;
+	background: #e9f8ec;
+	border-radius: 999rpx;
+	padding: 4rpx 10rpx;
 }
 </style>

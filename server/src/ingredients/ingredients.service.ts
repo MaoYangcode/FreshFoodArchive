@@ -43,10 +43,28 @@ export class IngredientsService {
   }
 
   async remove(id: number) {
-    return this.prisma.ingredient.delete({
-      where: { id },
-    })
+  const item = await this.prisma.ingredient.findUnique({
+    where: { id },
+  })
+
+  if (!item) {
+    throw new NotFoundException('食材不存在')
   }
+
+  try {
+    const [, deleted] = await this.prisma.$transaction([
+      this.prisma.takeoutRecord.deleteMany({
+        where: { ingredientId: id },
+      }),
+      this.prisma.ingredient.delete({
+        where: { id },
+      }),
+    ])
+    return deleted
+  } catch (e) {
+    throw new BadRequestException('删除失败：该食材存在关联记录或数据异常')
+  }
+}
 
   async update(id: number, data: any) {
     return this.prisma.ingredient.update({
@@ -97,4 +115,29 @@ export class IngredientsService {
 
     return updatedIngredient
   }
+  async getTakeoutRecords() {
+  const records = await this.prisma.takeoutRecord.findMany({
+    orderBy: {time: 'desc' }, 
+    include: {
+      ingredient: {
+        select: {
+          name: true,
+          category: true,
+          unit: true,
+          location: true,
+        },
+      },
+    },
+  })
+
+  return records.map((x) => ({
+    id: x.id,
+    name: x.ingredient?.name || '已删除食材',
+    category: x.ingredient?.category || '其他',
+    quantity: x.quantity,
+    unit: x.ingredient?.unit || '',
+    location: x.ingredient?.location || '',
+    time: x.time, 
+  }))
+}
 }

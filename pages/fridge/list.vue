@@ -1,15 +1,9 @@
 <template>
-	<view class="container" @click="closeSwipe">
+	<view class="container" @click.self="closeSwipe">
 		<view class="top">
 			<text class="top-title">我的冰箱</text>
 			<view class="capsule"><text>🔎</text></view>
 		</view>
-		<input
-			class="search"
-			type="text"
-			v-model.trim="keyword"
-			placeholder="搜索食材名称（可与位置、类别组合筛选）"
-		/>
 		<view class="location-wrap">
 			<view class="chips location-chips">
 				<button
@@ -23,18 +17,35 @@
 				</button>
 			</view>
 		</view>
-		<view class="chips">
+		<view class="chips category-chips">
 			<button
 				v-for="cat in categories"
 				:key="cat"
-				class="chip"
-				:class="{ active: selectedCategory === cat }"
+				class="chip category-chip"
+				:class="{ active: selectedCategory === cat, 'all-category-chip': cat === '全部类别' }"
 				@click.stop="selectedCategory = cat"
 			>
-				{{ cat }}
+				<text>{{ cat }}</text>
+				<text v-if="cat !== '全部类别'" class="chip-count">{{ categoryCounts[cat] || 0 }}</text>
 			</button>
 		</view>
-		<text class="status filter-summary">当前筛选：{{ selectedLocation }} · {{ selectedCategory }}（{{ filteredList.length }}）</text>
+		<view class="summary-row">
+			<view class="search-wrap">
+				<text class="search-ico">🔎</text>
+				<input
+					class="search-input"
+					type="text"
+					:value="keyword"
+					@input="onKeywordInput"
+					placeholder="输入关键字搜索食材"
+					confirm-type="search"
+				/>
+			</view>
+			<view class="sort-icon-btn" @click.stop="toggleSortMode">
+				<view class="tri up" :class="{ on: sortDirection === 'asc' }"></view>
+				<view class="tri down" :class="{ on: sortDirection === 'desc' }"></view>
+			</view>
+		</view>
 
 		<view v-if="filteredList.length === 0" class="card empty">
 			<text class="empty-icon">🧊</text>
@@ -44,7 +55,7 @@
 
 		<view v-else class="card">
 			<view v-for="item in filteredList" :key="item.id" class="swipe-item">
-				<view class="swipe-action" @click.stop="consume(item)">已取出</view>
+				<view class="swipe-action" @click.stop="openConsumeDialog(item)">已取出</view>
 				<view
 					class="row swipe-content"
 					:class="{ open: openSwipeId === item.id }"
@@ -68,7 +79,24 @@
 				</view>
 			</view>
 		</view>
-		<button class="add-btn" @click="goAdd">+ 新增食材</button>
+		<view v-if="consumeDialogVisible" class="consume-mask" @click="closeConsumeDialog">
+			<view class="consume-card" @click.stop>
+				<text class="consume-title">食材取出数量</text>
+				<view class="consume-line">
+					<text class="consume-name">{{ formatConsumeName(pendingConsumeItem ? pendingConsumeItem.name : '') }}</text>
+					<view class="qty-wrap">
+						<button class="qty-btn" @click="changeConsumeQty(-1)">-</button>
+						<input class="qty-input" type="number" v-model="consumeQty" @input="onConsumeQtyInput" @blur="normalizeConsumeQty" />
+						<button class="qty-btn" @click="changeConsumeQty(1)">+</button>
+						<text class="qty-unit">{{ pendingConsumeItem ? pendingConsumeItem.unit : '' }}</text>
+					</view>
+				</view>
+				<view class="consume-actions">
+					<button class="confirm-btn" @click="confirmConsume">取出</button>
+					<button class="cancel-btn" @click="closeConsumeDialog">取消</button>
+				</view>
+			</view>
+		</view>
 		<BottomNav current="fridge" />
 	</view>
 </template>
@@ -87,6 +115,7 @@ export default {
 			categories: ['全部类别', '蔬菜', '水果', '肉类', '蛋奶', '其他'],
 			selectedLocation: '全部位置',
 			selectedCategory: '全部类别',
+			sortDirection: 'asc',
 			list: [],
 			openSwipeId: '',
 			touchStartX: 0,
@@ -102,7 +131,11 @@ export default {
 			preventNextClick: false,
 			mousePressTimer: null,
 			isDesktop: true,
-			lastTouchAt: 0
+			lastTouchAt: 0,
+			consumeDialogVisible: false,
+			consumeQty: 1,
+			pendingConsumeItem: null,
+			lastQtyLimitToastAt: 0
 		}
 	},
 	onLoad() {
@@ -129,12 +162,57 @@ export default {
 		this.refreshList()
 	},
 	computed: {
+		categoryCounts() {
+			const rawKeyword = `${this.keyword || ''}`
+			const keywordText = rawKeyword.trim().toLowerCase()
+			const compactKeyword = keywordText.replace(/\s+/g, '')
+			const tokens = keywordText.split(/\s+/).filter(Boolean)
+			const counts = {}
+			this.categories.forEach((cat) => {
+				counts[cat] = 0
+			})
+			let total = 0
+			this.list.forEach((item) => {
+				const locationHit = this.selectedLocation === '全部位置' || item.location === this.selectedLocation
+				const haystack = `${item.name || ''} ${item.category || ''} ${item.location || ''}`.toLowerCase()
+				const compactHaystack = haystack.replace(/\s+/g, '')
+				const fuzzyHit =
+					!compactKeyword ||
+					compactHaystack.includes(compactKeyword) ||
+					Array.from(compactKeyword).every((char) => compactHaystack.includes(char))
+				const tokenHit = tokens.length === 0 || tokens.every((token) => haystack.includes(token))
+				const keywordHit = fuzzyHit && tokenHit
+				if (!locationHit || !keywordHit) return
+				total += 1
+				if (counts[item.category] !== undefined) {
+					counts[item.category] += 1
+				}
+			})
+			counts['全部类别'] = total
+			return counts
+		},
 		filteredList() {
-			return this.list.filter((item) => {
+			const rawKeyword = `${this.keyword || ''}`
+			const keywordText = rawKeyword.trim().toLowerCase()
+			const compactKeyword = keywordText.replace(/\s+/g, '')
+			const tokens = keywordText.split(/\s+/).filter(Boolean)
+			const filtered = this.list.filter((item) => {
 				const locationHit = this.selectedLocation === '全部位置' || item.location === this.selectedLocation
 				const categoryHit = this.selectedCategory === '全部类别' || item.category === this.selectedCategory
-				const keywordHit = !this.keyword || item.name.includes(this.keyword)
+				const haystack = `${item.name || ''} ${item.category || ''} ${item.location || ''}`.toLowerCase()
+				const compactHaystack = haystack.replace(/\s+/g, '')
+				const fuzzyHit =
+					!compactKeyword ||
+					compactHaystack.includes(compactKeyword) ||
+					Array.from(compactKeyword).every((char) => compactHaystack.includes(char))
+				const tokenHit = tokens.length === 0 || tokens.every((token) => haystack.includes(token))
+				const keywordHit = fuzzyHit && tokenHit
 				return locationHit && categoryHit && keywordHit
+			})
+			return [...filtered].sort((a, b) => {
+				const ta = a && a.expireDate ? new Date(a.expireDate).getTime() : Number.POSITIVE_INFINITY
+				const tb = b && b.expireDate ? new Date(b.expireDate).getTime() : Number.POSITIVE_INFINITY
+				return this.sortDirection === 'asc' ? ta - tb : tb - ta
 			})
 		}
 	},
@@ -163,6 +241,12 @@ export default {
 				其他: '🍽️'
 			}
 			return map[category] || '🍽️'
+		},
+		onKeywordInput(e) {
+			this.keyword = e && e.detail ? `${e.detail.value || ''}` : ''
+		},
+		toggleSortMode() {
+			this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc'
 		},
 	
 		getTagClass(expireDate) {
@@ -314,19 +398,101 @@ export default {
 			})
 		},
 
-		goAdd() {
-			uni.switchTab({ url: '/pages/fridge/add' })
+		openConsumeDialog(item) {
+			this.pendingConsumeItem = item
+			this.consumeQty = 1
+			this.openSwipeId = ''
+			this.consumeDialogVisible = true
 		},
-		async consume(item) {
+		closeConsumeDialog() {
+			this.consumeDialogVisible = false
+			this.pendingConsumeItem = null
+			this.consumeQty = 1
+		},
+		changeConsumeQty(delta) {
+			const max = this.getMaxConsumeQty()
+			const current = Number(this.consumeQty || 1)
+			const next = current + delta
+			if (next < 1) {
+				this.consumeQty = 1
+				return
+			}
+			if (delta > 0 && current >= max) {
+				const now = Date.now()
+				if (now - this.lastQtyLimitToastAt > 1000) {
+					this.lastQtyLimitToastAt = now
+					uni.showToast({
+						title: `当前最多可取 ${max}${this.pendingConsumeItem?.unit || ''}`,
+						icon: 'none'
+					})
+				}
+				return
+			}
+			this.consumeQty = next > max ? max : next
+		},
+		getMaxConsumeQty() {
+			const raw = this.pendingConsumeItem ? Number(this.pendingConsumeItem.quantity) : 1
+			if (!raw || raw < 1) return 1
+			return Math.floor(raw)
+		},
+		formatConsumeName(name) {
+			const text = `${name || ''}`.trim()
+			if (!text) return ''
+			const chunkSize = 5
+			const parts = []
+			for (let i = 0; i < text.length; i += chunkSize) {
+				parts.push(text.slice(i, i + chunkSize))
+			}
+			return parts.join('\n')
+		},
+		normalizeConsumeQty() {
+			const max = this.getMaxConsumeQty()
+			const value = Number(this.consumeQty)
+			if (!value || value < 1) {
+				this.consumeQty = 1
+				return
+			}
+			this.consumeQty = value > max ? max : Math.floor(value)
+		},
+		onConsumeQtyInput(e) {
+			const raw = e && e.detail ? `${e.detail.value || ''}` : `${this.consumeQty || ''}`
+			const digits = raw.replace(/[^\d]/g, '')
+			if (!digits) {
+				this.consumeQty = ''
+				return
+			}
+			this.consumeQty = `${Math.max(1, parseInt(digits, 10))}`
+		},
+		async confirmConsume() {
+			const item = this.pendingConsumeItem
+			const quantity = Number(this.consumeQty || 0)
+			const max = this.getMaxConsumeQty()
+			if (!item) return
+			if (!quantity || quantity <= 0) {
+				uni.showToast({
+					title: '请输入正确数量',
+					icon: 'none'
+				})
+				return
+			}
+			if (quantity > max) {
+				this.consumeQty = max
+				uni.showToast({
+					title: `库存不足，当前最多可取 ${max}${item.unit || ''}`,
+					icon: 'none'
+				})
+				return
+			}
 			try {
 				await consumeIngredient(item.id, {
-					quantity: 1
+					quantity
 				})
 		
 				this.openSwipeId = ''
+				this.closeConsumeDialog()
 		
 				uni.showToast({
-					title: '已取出 1 份',
+					title: `已取出 ${quantity}${item.unit || ''}`,
 					icon: 'success'
 				})
 		
@@ -384,17 +550,32 @@ export default {
 	box-shadow: 0 8rpx 20rpx rgba(18, 37, 63, 0.05);
 }
 
-.search {
-	display: block;
-	width: 100%;
-	border: 1rpx solid #e8ebee;
-	border-radius: 14px;
-	background: #fff;
-	color: #404b57;
-	font-size: 13px;
-	padding: 10px 14px;
+.search-wrap {
+	display: flex;
+	align-items: center;
+	gap: 8rpx;
+	flex: 1;
+	min-width: 0;
+	border: 1rpx solid #e2e8f2;
+	border-radius: 999rpx;
+	background: #f2f6fb;
+	padding: 0 10px;
 	box-sizing: border-box;
-	margin-bottom: 16rpx;
+	margin-bottom: 0;
+	height: 32px;
+}
+
+.search-ico {
+	font-size: 12px;
+	color: #7c8aa0;
+}
+
+.search-input {
+	flex: 1;
+	height: 32px;
+	line-height: 32px;
+	font-size: 12px;
+	color: #5d6d82;
 }
 
 .location-wrap {
@@ -412,10 +593,24 @@ export default {
 	margin-bottom: 12rpx;
 }
 
+.category-chips {
+	flex-wrap: nowrap;
+	overflow-x: auto;
+	overflow-y: visible;
+	-webkit-overflow-scrolling: touch;
+	padding-top: 10rpx;
+	padding-bottom: 2rpx;
+}
+
+.category-chips::-webkit-scrollbar {
+	display: none;
+}
+
 .location-chips {
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: 6rpx;
+	margin-bottom: 0;
 }
 
 .chip {
@@ -430,6 +625,41 @@ export default {
 	display: flex;
 	align-items: center;
 	justify-content: center;
+}
+
+.category-chip {
+	position: relative;
+	overflow: visible;
+	min-width: 112rpx;
+	white-space: nowrap;
+}
+
+.all-category-chip {
+	min-width: 138rpx;
+}
+
+.category-chip text {
+	white-space: nowrap;
+}
+
+.chip-count {
+	position: absolute;
+	top: 0;
+	right: -6rpx;
+	transform: translateY(-50%);
+	min-width: 24rpx;
+	height: 24rpx;
+	padding: 0 5rpx;
+	border-radius: 999rpx;
+	background: #ffe7a3;
+	color: #8a6b18;
+	font-size: 9px;
+	font-weight: 700;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border: 2rpx solid #fff6d8;
+	z-index: 2;
 }
 
 .location-chips .chip {
@@ -459,7 +689,54 @@ export default {
 	display: block;
 	font-size: 12px;
 	color: #66707c;
+	margin: 0;
+	flex: 1;
+	min-width: 0;
+}
+
+.summary-row {
+	display: flex;
+	align-items: center;
+	gap: 8rpx;
 	margin: 2rpx 2rpx 12rpx;
+}
+
+.sort-icon-btn {
+	flex-shrink: 0;
+	margin-left: auto;
+	background: #f2f6fb;
+	border: 1rpx solid #e2e8f2;
+	border-radius: 999rpx;
+	width: 58rpx;
+	height: 58rpx;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 4rpx;
+}
+
+.tri {
+	width: 0;
+	height: 0;
+	border-left: 7rpx solid transparent;
+	border-right: 7rpx solid transparent;
+}
+
+.tri.up {
+	border-bottom: 10rpx solid #9da9ba;
+}
+
+.tri.down {
+	border-top: 10rpx solid #9da9ba;
+}
+
+.tri.on.up {
+	border-bottom-color: #4f8fe8;
+}
+
+.tri.on.down {
+	border-top-color: #4f8fe8;
 }
 
 .name {
@@ -586,19 +863,139 @@ export default {
 	color: #ce5454;
 }
 
-.add-btn {
-	width: 100%;
-	border: none;
-	border-radius: 14px;
-	padding: 12px 12px;
-	color: #fff;
-	font-size: 14px;
-	font-weight: 700;
-	background: linear-gradient(135deg, #70c977, #4cae57);
-	box-shadow: 0 8rpx 16rpx rgba(58, 116, 66, 0.22);
-}
-
 .status {
 	user-select: none;
+}
+
+.consume-mask {
+	position: fixed;
+	left: 0;
+	right: 0;
+	top: 0;
+	bottom: 0;
+	background: rgba(18, 28, 20, 0.45);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 16px;
+	z-index: 99;
+}
+
+.consume-card {
+	width: 100%;
+	max-width: 710rpx;
+	background: #fff;
+	border-radius: 20px;
+	padding: 16px 14px;
+	box-shadow: 0 16rpx 32rpx rgba(15, 28, 20, 0.22);
+}
+
+.consume-title {
+	display: block;
+	color: #6f9fea;
+	font-size: 20px;
+	font-weight: 700;
+	margin-bottom: 12px;
+}
+
+.consume-line {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 8px;
+	margin-bottom: 14px;
+}
+
+.consume-name {
+	flex: 1;
+	min-width: 108px;
+	max-width: 132px;
+	font-size: 18px;
+	font-weight: 700;
+	color: #1f2329;
+	line-height: 1.35;
+	white-space: pre-line;
+	word-break: keep-all;
+	padding-top: 8px;
+	padding-right: 4px;
+}
+
+.qty-wrap {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-shrink: 1;
+	min-width: 0;
+}
+
+.qty-btn {
+	width: 34px;
+	height: 40px;
+	line-height: 40px;
+	border: none;
+	border-radius: 12px;
+	background: #f7faff;
+	color: #202b38;
+	font-size: 20px;
+	font-weight: 700;
+	padding: 0;
+}
+
+.qty-input {
+	width: 64px;
+	height: 40px;
+	border: 1rpx solid #dfe6f3;
+	border-radius: 12px;
+	background: #fff;
+	text-align: center;
+	font-size: 20px;
+	color: #202b38;
+}
+
+.qty-unit {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 40px;
+	height: 40px;
+	border-radius: 12px;
+	background: linear-gradient(135deg, #83b4ff, #5f95f2);
+	color: #fff;
+	font-size: 16px;
+	font-weight: 700;
+	padding: 0 8px;
+}
+
+.consume-actions {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 12px;
+}
+
+.confirm-btn,
+.cancel-btn {
+	height: 46px;
+	width: 100%;
+	border: none;
+	border-radius: 999rpx;
+	color: #fff;
+	font-size: 18px;
+	font-weight: 700;
+}
+
+.confirm-btn {
+	background: linear-gradient(135deg, #83b4ff, #5f95f2);
+}
+
+.cancel-btn {
+	background: #f3f6fb;
+	color: #5f6b7a;
+	border: 1rpx solid #dce4ef;
+}
+
+.qty-btn::after,
+.confirm-btn::after,
+.cancel-btn::after {
+	border: none;
 }
 </style>

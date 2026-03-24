@@ -39,6 +39,13 @@ export function consumeIngredient(id, payload) {
 	})
 }
 
+export function getTakeoutRecords() {
+	return request({
+		url: '/ingredients/takeout-records',
+		method: 'GET'
+	})
+}
+
 export async function getIngredientDetail(id) {
 	try {
 		return await request({

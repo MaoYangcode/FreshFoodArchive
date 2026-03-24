@@ -10,6 +10,11 @@ export class IngredientsController {
     return this.ingredientsService.findAll()
   }
 
+  @Get('takeout-records')
+  getTakeoutRecords() {
+    return this.ingredientsService.getTakeoutRecords()
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.ingredientsService.findOne(id)
