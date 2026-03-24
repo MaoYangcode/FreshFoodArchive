@@ -62,7 +62,7 @@
 </template>
 
 <script>
-import { getRecentIngredients, getStats } from '@/store/app-store'
+import { getIngredientList } from '@/api/modules/ingredients'
 import BottomNav from '@/components/bottom-nav.vue'
 
 export default {
@@ -81,9 +81,33 @@ export default {
 		this.refreshData()
 	},
 	methods: {
-		refreshData() {
-			this.stats = getStats()
-			this.latestIngredients = getRecentIngredients(3)
+		async refreshData() {
+			try {
+				const res = await getIngredientList()
+				const list = Array.isArray(res)
+					? res
+					: (Array.isArray(res?.data) ? res.data : (Array.isArray(res?.data?.data) ? res.data.data : []))
+				const total = list.length
+				const now = new Date()
+				now.setHours(0, 0, 0, 0)
+				const threeDaysMs = 3 * 24 * 60 * 60 * 1000
+				const expiring = list.filter((item) => {
+					const t = new Date(item.expireDate).getTime()
+					if (!Number.isFinite(t)) return false
+					return t - now.getTime() <= threeDaysMs
+				}).length
+				const fresh = Math.max(total - expiring, 0)
+				this.stats = { total, fresh, expiring }
+				const toTs = (item) => {
+					const t = new Date(item.expireDate).getTime()
+					return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY
+				}
+				this.latestIngredients = [...list].sort((a, b) => toTs(a) - toTs(b)).slice(0, 3)
+			} catch (e) {
+				this.stats = { total: 0, fresh: 0, expiring: 0 }
+				this.latestIngredients = []
+				uni.showToast({ title: '首页加载失败', icon: 'none' })
+			}
 		},
 		getEmoji(category) {
 			const map = { 蔬菜: '🥦', 水果: '🥑', 肉类: '🥩', 蛋奶: '🥚', 调料: '🧂', 其他: '🍽️' }
