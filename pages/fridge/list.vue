@@ -147,6 +147,39 @@ import FridgeViewControls from '@/components/fridge-view-controls.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import LocationIcon from '@/components/location-icon.vue'
 
+const PINYIN_CHAR_MAP = {
+	全: 'quan', 部: 'bu', 位: 'wei', 置: 'zhi', 类: 'lei', 别: 'bie',
+	水: 'shui', 果: 'guo', 蔬: 'shu', 菜: 'cai', 肉: 'rou', 蛋: 'dan', 奶: 'nai', 海: 'hai', 鲜: 'xian',
+	饮: 'yin', 料: 'liao', 调: 'tiao', 味: 'wei', 品: 'pin', 其: 'qi', 他: 'ta',
+	冷: 'leng', 藏: 'cang', 冻: 'dong', 常: 'chang', 温: 'wen',
+	苹: 'ping', 香: 'xiang', 蕉: 'jiao', 牛: 'niu', 西: 'xi', 兰: 'lan', 花: 'hua',
+	椰: 'ye', 胡: 'hu', 萝: 'luo', 卜: 'bu', 鸡: 'ji', 胸: 'xiong', 黄: 'huang', 瓜: 'gua',
+	生: 'sheng', 蘑: 'mo', 菇: 'gu', 面: 'mian', 条: 'tiao', 洋: 'yang', 葱: 'cong', 橙: 'cheng',
+	子: 'zi', 猪: 'zhu', 土: 'tu', 豆: 'dou', 马: 'ma', 铃: 'ling', 薯: 'shu', 大: 'da',
+	米: 'mi', 饭: 'fan', 虾: 'xia', 腐: 'fu', 番: 'fan', 茄: 'qie', 红: 'hong', 柿: 'shi',
+	梨: 'li', 桃: 'tao', 柚: 'you', 橘: 'ju', 柑: 'gan', 葡: 'pu', 萄: 'tao', 柠: 'ning', 檬: 'meng',
+	青: 'qing', 白: 'bai', 黑: 'hei', 玉: 'yu', 芹: 'qin', 蒜: 'suan', 姜: 'jiang', 葵: 'kui',
+	南: 'nan', 笋: 'sun', 包: 'bao', 心: 'xin'
+}
+
+function buildPinyinIndex(text) {
+	const raw = `${text || ''}`.toLowerCase()
+	let full = ''
+	let initials = ''
+	for (const ch of raw) {
+		if (/[a-z0-9]/.test(ch)) {
+			full += ch
+			initials += ch
+			continue
+		}
+		const py = PINYIN_CHAR_MAP[ch]
+		if (!py) continue
+		full += py
+		initials += py[0]
+	}
+	return { full, initials }
+}
+
 export default {
 	components: { BottomNav, FridgeViewControls, IngredientIcon, LocationIcon },
 	data() {
@@ -215,14 +248,7 @@ export default {
 			let total = 0
 			this.list.forEach((item) => {
 				const locationHit = this.selectedLocation === '全部位置' || item.location === this.selectedLocation
-				const haystack = `${item.name || ''} ${item.category || ''} ${item.location || ''}`.toLowerCase()
-				const compactHaystack = haystack.replace(/\s+/g, '')
-				const fuzzyHit =
-					!compactKeyword ||
-					compactHaystack.includes(compactKeyword) ||
-					Array.from(compactKeyword).every((char) => compactHaystack.includes(char))
-				const tokenHit = tokens.length === 0 || tokens.every((token) => haystack.includes(token))
-				const keywordHit = fuzzyHit && tokenHit
+				const keywordHit = this.matchKeyword(item, compactKeyword, tokens)
 				if (!locationHit || !keywordHit) return
 				total += 1
 				if (counts[item.category] !== undefined) {
@@ -242,14 +268,7 @@ export default {
 				const hasAll = this.selectedCategories.includes('全部类别')
 				const categoryHit =
 					hasAll || this.selectedCategories.length === 0 || this.selectedCategories.includes(item.category)
-				const haystack = `${item.name || ''} ${item.category || ''} ${item.location || ''}`.toLowerCase()
-				const compactHaystack = haystack.replace(/\s+/g, '')
-				const fuzzyHit =
-					!compactKeyword ||
-					compactHaystack.includes(compactKeyword) ||
-					Array.from(compactKeyword).every((char) => compactHaystack.includes(char))
-				const tokenHit = tokens.length === 0 || tokens.every((token) => haystack.includes(token))
-				const keywordHit = fuzzyHit && tokenHit
+				const keywordHit = this.matchKeyword(item, compactKeyword, tokens)
 				return locationHit && categoryHit && keywordHit
 			})
 			return [...filtered].sort((a, b) => {
@@ -260,6 +279,28 @@ export default {
 		}
 	},
 	methods: {
+		matchKeyword(item, compactKeyword, tokens) {
+			if (!compactKeyword && (!tokens || !tokens.length)) return true
+			const haystack = `${item?.name || ''} ${item?.category || ''} ${item?.location || ''}`.toLowerCase()
+			const compactHaystack = haystack.replace(/\s+/g, '')
+			const { full: pinyinFull, initials: pinyinInitials } = buildPinyinIndex(haystack)
+			const fuzzyHit =
+				!compactKeyword ||
+				compactHaystack.includes(compactKeyword) ||
+				pinyinFull.includes(compactKeyword) ||
+				pinyinInitials.includes(compactKeyword) ||
+				Array.from(compactKeyword).every((char) => compactHaystack.includes(char))
+			const tokenHit =
+				tokens.length === 0 ||
+				tokens.every(
+					(token) =>
+						haystack.includes(token) ||
+						compactHaystack.includes(token) ||
+						pinyinFull.includes(token) ||
+						pinyinInitials.includes(token)
+				)
+			return fuzzyHit && tokenHit
+		},
 		isCategorySelected(cat) {
 			return this.selectedCategories.includes(cat)
 		},
