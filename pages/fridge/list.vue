@@ -25,8 +25,8 @@
 				v-for="cat in categories"
 				:key="cat"
 				class="chip category-chip"
-				:class="{ active: selectedCategory === cat, 'all-category-chip': cat === '全部类别' }"
-				@click.stop="selectedCategory = cat"
+				:class="{ active: isCategorySelected(cat), 'all-category-chip': cat === '全部类别' }"
+				@click.stop="toggleCategory(cat)"
 			>
 				<text>{{ cat }}</text>
 				<text v-if="cat !== '全部类别'" class="chip-count">{{ categoryCounts[cat] || 0 }}</text>
@@ -53,7 +53,10 @@
 		</view>
 
 		<view v-if="filteredList.length === 0" class="card empty">
-			<text class="empty-icon">🧊</text>
+			<svg v-if="emptySymbolReady" class="empty-icon-svg" aria-hidden="true">
+				<use href="#icon-bingxiang"></use>
+			</svg>
+			<text v-else class="empty-icon">🧊</text>
 			<text class="empty-title">没有符合条件的食材</text>
 			<text class="empty-sub">换个关键词或者切换位置/类别试试</text>
 		</view>
@@ -152,7 +155,7 @@ export default {
 			locations: ['全部位置', '冷藏', '冷冻'],
 			categories: ['全部类别', '水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'],
 			selectedLocation: '全部位置',
-			selectedCategory: '全部类别',
+			selectedCategories: ['全部类别'],
 			viewMode: 'list',
 			sortDirection: 'asc',
 			list: [],
@@ -174,7 +177,8 @@ export default {
 			consumeDialogVisible: false,
 			consumeQty: 1,
 			pendingConsumeItem: null,
-			lastQtyLimitToastAt: 0
+			lastQtyLimitToastAt: 0,
+			emptySymbolReady: false
 		}
 	},
 	onLoad() {
@@ -187,6 +191,7 @@ export default {
 	},
 	mounted() {
 		this.bindWindowEvents()
+		this.ensureIconfontSymbol()
 	},
 	beforeUnmount() {
 		this.unbindWindowEvents()
@@ -234,7 +239,9 @@ export default {
 			const tokens = keywordText.split(/\s+/).filter(Boolean)
 			const filtered = this.list.filter((item) => {
 				const locationHit = this.selectedLocation === '全部位置' || item.location === this.selectedLocation
-				const categoryHit = this.selectedCategory === '全部类别' || item.category === this.selectedCategory
+				const hasAll = this.selectedCategories.includes('全部类别')
+				const categoryHit =
+					hasAll || this.selectedCategories.length === 0 || this.selectedCategories.includes(item.category)
 				const haystack = `${item.name || ''} ${item.category || ''} ${item.location || ''}`.toLowerCase()
 				const compactHaystack = haystack.replace(/\s+/g, '')
 				const fuzzyHit =
@@ -253,6 +260,47 @@ export default {
 		}
 	},
 	methods: {
+		isCategorySelected(cat) {
+			return this.selectedCategories.includes(cat)
+		},
+		toggleCategory(cat) {
+			if (cat === '全部类别') {
+				this.selectedCategories = ['全部类别']
+				return
+			}
+			const next = this.selectedCategories.filter((x) => x !== '全部类别')
+			if (next.includes(cat)) {
+				this.selectedCategories = next.filter((x) => x !== cat)
+				if (!this.selectedCategories.length) this.selectedCategories = ['全部类别']
+				return
+			}
+			this.selectedCategories = [...next, cat]
+		},
+		ensureIconfontSymbol() {
+			if (typeof window === 'undefined' || typeof document === 'undefined') return
+			const markReady = () => {
+				this.emptySymbolReady = !!document.getElementById('icon-bingxiang')
+			}
+			markReady()
+			if (this.emptySymbolReady) return
+			if (window.__ffaIconfontLoading) {
+				setTimeout(markReady, 160)
+				return
+			}
+			window.__ffaIconfontLoading = true
+			const script = document.createElement('script')
+			script.src = '/static/iconfont/iconfont.js'
+			script.async = true
+			script.onload = () => {
+				window.__ffaIconfontLoading = false
+				markReady()
+			}
+			script.onerror = () => {
+				window.__ffaIconfontLoading = false
+				markReady()
+			}
+			document.body.appendChild(script)
+		},
 		bindWindowEvents() {
 			if (typeof window === 'undefined') return
 			window.addEventListener('mousemove', this.onWindowMouseMove)
@@ -840,6 +888,12 @@ export default {
 
 .empty-icon {
 	font-size: 92rpx;
+}
+
+.empty-icon-svg {
+	width: 96rpx;
+	height: 96rpx;
+	display: block;
 }
 
 .empty-title {
