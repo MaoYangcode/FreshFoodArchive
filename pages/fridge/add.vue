@@ -9,10 +9,17 @@
 				<text class="section-title">食材识别</text>
 				<text class="ai-tag">AI智能</text>
 			</view>
-			<view class="recognize" @click="mockRecognize">
-				<text class="camera">📷</text>
-				<text class="recognize-title">拍照识别 / 上传图片</text>
-				<text class="recognize-meta">AI 自动识别食材</text>
+			<view class="recognize-row">
+				<view class="recognize-btn" @click="recognizeIngredient">
+					<text class="camera">📷</text>
+					<text class="recognize-title">图片识别</text>
+					<text class="recognize-meta">拍照 / 上传食材图片</text>
+				</view>
+				<view class="recognize-btn receipt" @click="recognizeReceipt">
+					<text class="camera">🧾</text>
+					<text class="recognize-title">小票识别</text>
+					<text class="recognize-meta">拍照 / 上传购物小票</text>
+				</view>
 			</view>
 		</view>
 
@@ -98,7 +105,7 @@
 <script>
 	
 import { createIngredient } from '@/api/modules/ingredients'
-import { recognizeIngredientsByUpload } from '@/api/modules/ai'
+import { recognizeIngredientsByUpload, recognizeReceiptByUpload } from '@/api/modules/ai'
 import BottomNav from '@/components/bottom-nav.vue'
 
 export default {
@@ -131,17 +138,28 @@ export default {
 				})
 			})
 		},
-		async mockRecognize() {
+		recognizeIngredient() {
+			this.startRecognize('ingredient')
+		},
+		recognizeReceipt() {
+			this.startRecognize('receipt')
+		},
+		async startRecognize(mode = 'ingredient') {
 			try {
 				const chooseRes = await this.chooseLocalImage()
 				const filePath = chooseRes?.tempFilePaths?.[0]
 				if (!filePath) return
 
-				uni.showLoading({ title: '识别中...' })
-				const res = await recognizeIngredientsByUpload(filePath)
+				const loadingText = mode === 'receipt' ? '小票识别中...' : '识别中...'
+				uni.showLoading({ title: loadingText })
+				const res =
+					mode === 'receipt'
+						? await recognizeReceiptByUpload(filePath)
+						: await recognizeIngredientsByUpload(filePath)
 				const list = Array.isArray(res?.data?.ingredients) ? res.data.ingredients : []
 				if (!list.length) {
-					uni.showToast({ title: '未识别到食材', icon: 'none' })
+					const msg = mode === 'receipt' ? '未识别到小票食材条目' : '未识别到食材'
+					uni.showToast({ title: msg, icon: 'none' })
 					return
 				}
 
@@ -269,7 +287,13 @@ export default {
 	font-size: 11px;
 }
 
-.recognize {
+.recognize-row {
+	display: flex;
+	gap: 12rpx;
+}
+
+.recognize-btn {
+	flex: 1;
 	border: 2rpx dashed #c7ddcc;
 	border-radius: 20px;
 	min-height: 230rpx;
@@ -278,6 +302,11 @@ export default {
 	align-items: center;
 	justify-content: center;
 	background: #fbfdfb;
+}
+
+.recognize-btn.receipt {
+	border-color: #cfd8f2;
+	background: #fbfcff;
 }
 
 .camera {
