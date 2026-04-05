@@ -11,6 +11,8 @@
 <script>
 import { getCategoryEmoji, getIngredientImagePath, getIngredientSymbolId } from '@/utils/ingredient-image'
 
+const ICONFONT_VERSION = '20260405-3'
+
 export default {
 	name: 'IngredientIcon',
 	props: {
@@ -84,7 +86,7 @@ export default {
 
 			window.__ffaIconfontLoading = true
 			const script = document.createElement('script')
-			script.src = '/static/iconfont/iconfont.js'
+			script.src = `/static/iconfont/iconfont.js?v=${ICONFONT_VERSION}`
 			script.async = true
 			script.onload = () => {
 				window.__ffaIconfontLoading = false

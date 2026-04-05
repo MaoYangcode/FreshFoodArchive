@@ -18,7 +18,10 @@
 		</view>
 
 		<view class="section">
-			<text>优先提醒 ⚠</text>
+			<view class="section-title-wrap">
+				<text>优先提醒</text>
+				<text class="home-iconfont warn-ico">&#xe629;</text>
+			</view>
 			<text class="green-link" @click="goFridge">查看全部</text>
 		</view>
 
@@ -32,7 +35,9 @@
 				<text class="tag ok">空</text>
 			</view>
 			<view v-for="item in latestIngredients" :key="item.id" class="row">
-				<view class="ico">{{ getEmoji(item.category) }}</view>
+				<view class="ico">
+					<IngredientIcon :name="item.name" :category="item.category" :size="40" />
+				</view>
 				<view class="body">
 					<text class="name">{{ item.name }}</text>
 					<text class="meta">{{ item.quantity }}{{ item.unit }} · {{ item.category }} · {{ item.location }}</text>
@@ -64,9 +69,10 @@
 <script>
 import { getIngredientList } from '@/api/modules/ingredients'
 import BottomNav from '@/components/bottom-nav.vue'
+import IngredientIcon from '@/components/ingredient-icon.vue'
 
 export default {
-	components: { BottomNav },
+	components: { BottomNav, IngredientIcon },
 	data() {
 		return {
 			stats: {
@@ -109,10 +115,6 @@ export default {
 				uni.showToast({ title: '首页加载失败', icon: 'none' })
 			}
 		},
-		getEmoji(category) {
-			const map = { 蔬菜: '🥦', 水果: '🥑', 肉类: '🥩', 蛋奶: '🥚', 调料: '🧂', 其他: '🍽️' }
-			return map[category] || '🍽️'
-		},
 		getTagClass(expireDate) {
 			const days = this.getDays(expireDate)
 			if (days <= 0) return 'bad'
@@ -140,6 +142,11 @@ export default {
 </script>
 
 <style scoped>
+@font-face {
+	font-family: "home-iconfont";
+	src: url('/static/iconfont/iconfont.ttf') format('truetype');
+}
+
 .container {
 	padding: 10px 12px 88px;
 }
@@ -218,6 +225,26 @@ export default {
 	font-size: 14px;
 	font-weight: 700;
 	margin: 8rpx 4rpx 10rpx;
+}
+
+.section-title-wrap {
+	display: inline-flex;
+	align-items: center;
+	gap: 6rpx;
+}
+
+.home-iconfont {
+	font-family: "home-iconfont" !important;
+	font-style: normal;
+	font-weight: 400;
+	line-height: 1;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+.warn-ico {
+	font-size: 16px;
+	color: #223a33;
 }
 
 .green-link {

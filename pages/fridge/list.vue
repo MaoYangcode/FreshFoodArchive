@@ -147,6 +147,8 @@ import FridgeViewControls from '@/components/fridge-view-controls.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import LocationIcon from '@/components/location-icon.vue'
 
+const ICONFONT_VERSION = '20260405-3'
+
 const PINYIN_CHAR_MAP = {
 	全: 'quan', 部: 'bu', 位: 'wei', 置: 'zhi', 类: 'lei', 别: 'bie',
 	水: 'shui', 果: 'guo', 蔬: 'shu', 菜: 'cai', 肉: 'rou', 蛋: 'dan', 奶: 'nai', 海: 'hai', 鲜: 'xian',
@@ -330,7 +332,7 @@ export default {
 			}
 			window.__ffaIconfontLoading = true
 			const script = document.createElement('script')
-			script.src = '/static/iconfont/iconfont.js'
+			script.src = `/static/iconfont/iconfont.js?v=${ICONFONT_VERSION}`
 			script.async = true
 			script.onload = () => {
 				window.__ffaIconfontLoading = false
