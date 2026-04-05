@@ -6,17 +6,20 @@
 		</view>
 		<view class="card">
 			<view class="head-row">
-				<text class="section-title">食材识别</text>
+				<view class="section-title-wrap">
+					<text class="ai-iconfont">&#xe620;</text>
+					<text class="section-title">AI识别</text>
+				</view>
 				<text class="ai-tag">AI智能</text>
 			</view>
 			<view class="recognize-row">
 				<view class="recognize-btn" @click="recognizeIngredient">
-					<text class="camera">📷</text>
-					<text class="recognize-title">图片识别</text>
+					<text class="camera ai-iconfont">&#xe694;</text>
+					<text class="recognize-title">食材识别</text>
 					<text class="recognize-meta">拍照 / 上传食材图片</text>
 				</view>
 				<view class="recognize-btn receipt" @click="recognizeReceipt">
-					<text class="camera">🧾</text>
+					<text class="camera ai-iconfont">&#xe693;</text>
 					<text class="recognize-title">小票识别</text>
 					<text class="recognize-meta">拍照 / 上传购物小票</text>
 				</view>
@@ -74,13 +77,16 @@
 		</view>
 
 		<view class="card form-card">
+			<view class="manual-head">
+				<text class="ai-iconfont manual-icon">&#xe698;</text>
+				<text class="manual-title">手动添加</text>
+			</view>
 			<view class="form-row">
 				<view class="row-left">
 					<text class="row-icon">◍</text>
 					<text class="row-label">食物名称</text>
 				</view>
-				<input v-model="form.name" class="row-input" placeholder="请输入食物名称" />
-				<text class="req side-req">*</text>
+				<input v-model="form.name" class="row-input" placeholder="请输入食物名称" placeholder-style="color:#a5b1aa;" />
 			</view>
 
 			<view class="form-row">
@@ -91,7 +97,6 @@
 				<picker :range="categories" @change="onCategoryChange" class="flex-picker">
 					<view class="row-chip">{{ form.category || '请选择类型' }}</view>
 				</picker>
-				<text class="req side-req">*</text>
 			</view>
 
 			<view class="form-row">
@@ -99,11 +104,10 @@
 					<text class="row-icon">◫</text>
 					<text class="row-label">数量</text>
 				</view>
-				<input v-model="form.quantity" class="qty-input" type="number" placeholder="1" />
+				<input v-model="form.quantity" class="qty-input" type="number" placeholder="1" placeholder-style="color:#b4beb8;" />
 				<picker :range="units" @change="onUnitChange">
 					<view class="row-chip unit-chip">{{ form.unit || '份' }}</view>
 				</picker>
-				<text class="req side-req">*</text>
 			</view>
 
 			<view class="form-row">
@@ -123,22 +127,11 @@
 						<text>{{ loc }}</text>
 					</view>
 				</view>
-				<text class="req side-req">*</text>
 			</view>
 
 			<view class="form-row date-row">
 				<view class="row-left">
-					<text class="row-icon">◷</text>
-					<text class="row-label">购买时间</text>
-				</view>
-				<picker mode="date" :value="form.purchaseDate" @change="onPurchaseDateChange" class="flex-picker">
-					<view class="row-date">{{ form.purchaseDate || '选择购买时间（默认当天）' }}</view>
-				</picker>
-			</view>
-
-			<view class="form-row date-row">
-				<view class="row-left">
-					<text class="row-icon">◷</text>
+					<text class="row-icon ai-iconfont">&#xe621;</text>
 					<text class="row-label">过期时间</text>
 				</view>
 				<picker mode="date" :value="form.expireDate" @change="onDateChange" class="flex-picker">
@@ -174,7 +167,6 @@ export default {
 				quantity: '',
 				unit: '',
 				location: '',
-				purchaseDate: '',
 				expireDate: ''
 			}
 		}
@@ -356,9 +348,6 @@ export default {
 		onDateChange(e) {
 			this.form.expireDate = e.detail.value
 		},
-		onPurchaseDateChange(e) {
-			this.form.purchaseDate = e.detail.value
-		},
 		async submit() {
 			if (!this.form.name || !this.form.category || !this.form.quantity || !this.form.unit || !this.form.location || !this.form.expireDate) {
 				uni.showToast({ title: '请先填写完整信息', icon: 'none' })
@@ -402,6 +391,11 @@ export default {
 </script>
 
 <style scoped>
+@font-face {
+	font-family: "add-iconfont";
+	src: url('/static/iconfont/iconfont.ttf') format('truetype');
+}
+
 .container {
 	padding: 10px 12px 88px;
 }
@@ -442,6 +436,12 @@ export default {
 	font-weight: 700;
 }
 
+.section-title-wrap {
+	display: inline-flex;
+	align-items: center;
+	gap: 6rpx;
+}
+
 .head-row {
 	display: flex;
 	justify-content: space-between;
@@ -464,19 +464,19 @@ export default {
 
 .recognize-btn {
 	flex: 1;
-	border: 2rpx dashed #c7ddcc;
+	border: 2rpx dashed #cfe0fa;
 	border-radius: 20px;
 	min-height: 230rpx;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-	background: #fbfdfb;
+	background: #f4f8ff;
 }
 
 .recognize-btn.receipt {
-	border-color: #cfd8f2;
-	background: #fbfcff;
+	border-color: #cfe0fa;
+	background: #f4f8ff;
 }
 
 .batch-card {
@@ -652,8 +652,49 @@ export default {
 	margin-top: 4rpx;
 }
 
+.ai-iconfont {
+	font-family: "add-iconfont" !important;
+	font-style: normal;
+	font-weight: 400;
+	line-height: 1;
+	color: #4cae57;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+.section-title-wrap .ai-iconfont {
+	color: #4f8fe8;
+	font-size: 19px;
+}
+
+.recognize-btn .camera.ai-iconfont {
+	color: #4f8fe8;
+}
+
+.recognize-btn.receipt .camera.ai-iconfont {
+	color: #4f8fe8;
+}
+
 .form-card {
 	padding: 10px;
+}
+
+.manual-head {
+	display: inline-flex;
+	align-items: center;
+	gap: 6rpx;
+	margin-bottom: 12rpx;
+}
+
+.manual-icon {
+	color: #4cae57;
+	font-size: 20px;
+}
+
+.manual-title {
+	font-size: 14px;
+	font-weight: 700;
+	color: #24362b;
 }
 
 .req {
@@ -681,27 +722,27 @@ export default {
 
 .row-icon {
 	color: #6aa97a;
-	font-size: 18px;
+	font-size: 19px;
 	width: 30px;
 	text-align: center;
 	margin-right: 8rpx;
 }
 
 .row-label {
-	font-size: 15px;
+	font-size: 14px;
 	font-weight: 600;
 	color: #26352d;
 }
 
 .row-input {
 	flex: 1;
-	font-size: 14px;
+	font-size: 13px;
 	color: #2e3b33;
 	padding: 0 8rpx;
 }
 
 .side-req {
-	font-size: 18px;
+	font-size: 16px;
 	line-height: 1;
 	margin-left: 8rpx;
 }
@@ -716,13 +757,13 @@ export default {
 	border-radius: 10px;
 	padding: 12rpx 10rpx;
 	text-align: center;
-	font-size: 14px;
+	font-size: 13px;
 	font-weight: 600;
 }
 
 .qty-input {
 	flex: 1;
-	font-size: 14px;
+	font-size: 13px;
 	color: #2e3b33;
 	padding-left: 8rpx;
 }
@@ -743,13 +784,13 @@ export default {
 	display: inline-flex;
 	align-items: center;
 	gap: 7rpx;
-	font-size: 14px;
+	font-size: 13px;
 	color: #2d3a32;
 }
 
 .dot {
-	width: 26px;
-	height: 26px;
+	width: 22px;
+	height: 22px;
 	border-radius: 50%;
 	border: 2rpx solid #cfd8d2;
 	background: #fff;
@@ -766,7 +807,7 @@ export default {
 .zone-opt.active .dot::after {
 	content: '✓';
 	color: #fff;
-	font-size: 14px;
+	font-size: 11px;
 	font-weight: 700;
 }
 
@@ -775,13 +816,13 @@ export default {
 }
 
 .row-date {
-	font-size: 14px;
-	color: #7c8880;
+	font-size: 13px;
+	color: #98a39d;
 	padding-left: 6rpx;
 }
 
 .hint {
-	font-size: 12px;
+	font-size: 11px;
 	color: #88958d;
 	margin: 2rpx 0 8rpx;
 	display: block;
@@ -793,6 +834,6 @@ export default {
 	border-radius: 999rpx;
 	margin-top: 10rpx;
 	font-weight: 700;
-	font-size: 14px;
+	font-size: 13px;
 }
 </style>
