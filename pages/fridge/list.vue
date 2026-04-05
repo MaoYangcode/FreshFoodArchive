@@ -77,7 +77,7 @@
 						@click.stop="onRowClick(item)"
 					>
 						<view class="ico">
-							<IngredientIcon :name="item.name" :category="item.category" :size="40" />
+							<IngredientIcon :name="item.name" :category="item.category" :size="46" />
 						</view>
 						<view class="body">
 							<text class="name">{{ item.name }}</text>
@@ -885,8 +885,8 @@ export default {
 
 .row {
 	display: grid;
-	grid-template-columns: 78rpx 1fr auto;
-	gap: 14rpx;
+	grid-template-columns: 90rpx 1fr auto;
+	gap: 20rpx;
 	align-items: center;
 	border: 1rpx solid #eceff2;
 	border-radius: 16px;
@@ -1003,13 +1003,13 @@ export default {
 }
 
 .ico {
-	width: 42px;
-	height: 42px;
+	width: 48px;
+	height: 48px;
 	border-radius: 12px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: #f4f8f5;
+	background: #f8fbff;
 	font-size: 38rpx;
 }
 
