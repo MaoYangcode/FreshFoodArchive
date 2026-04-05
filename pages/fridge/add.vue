@@ -43,9 +43,9 @@
 						<view class="batch-line1">
 							<input v-model="item.name" class="batch-name" placeholder="食材名称" />
 							<view class="batch-stepper">
-								<text class="step-btn" @click="decreaseBatchQty(idx)">-</text>
+								<view class="step-btn" @click="decreaseBatchQty(idx)"><view class="step-sign minus-sign"></view></view>
 								<text class="step-val">{{ getBatchQuantity(item) }}</text>
-								<text class="step-btn" @click="increaseBatchQty(idx)">+</text>
+								<view class="step-btn" @click="increaseBatchQty(idx)"><view class="step-sign plus-sign"></view></view>
 							</view>
 							<picker :range="units" @change="onBatchUnitChange(idx, $event)">
 								<text class="batch-unit">{{ item.unit || '单位' }}</text>
@@ -54,16 +54,19 @@
 						<view class="batch-line2">
 							<picker :range="locations" @change="onBatchLocationChange(idx, $event)">
 								<view class="batch-meta">
+									<LocationIcon :location="item.location" :size="14" color="#6f9fea" />
 									<text class="batch-meta-txt">{{ item.location || '分区' }}</text>
 								</view>
 							</picker>
 							<picker :range="categories" @change="onBatchCategoryChange(idx, $event)">
 								<view class="batch-meta">
+									<text class="batch-meta-dot">·</text>
 									<text class="batch-meta-txt">{{ item.category || '类型' }}</text>
 								</view>
 							</picker>
 							<picker mode="date" :value="item.expireDate" @change="onBatchExpireDateChange(idx, $event)">
 								<view class="batch-meta">
+									<text class="ai-iconfont batch-meta-ico">&#xe621;</text>
 									<text class="batch-meta-txt">{{ item.expireDate || '过期时间' }}</text>
 								</view>
 							</picker>
@@ -131,7 +134,7 @@
 
 			<view class="form-row date-row">
 				<view class="row-left">
-					<text class="row-icon ai-iconfont">&#xe621;</text>
+					<text class="row-icon ai-iconfont expire-icon">&#xe621;</text>
 					<text class="row-label">过期时间</text>
 				</view>
 				<picker mode="date" :value="form.expireDate" @change="onDateChange" class="flex-picker">
@@ -150,9 +153,10 @@
 import { createIngredient } from '@/api/modules/ingredients'
 import { recognizeIngredientsByUpload, recognizeReceiptByUpload } from '@/api/modules/ai'
 import BottomNav from '@/components/bottom-nav.vue'
+import LocationIcon from '@/components/location-icon.vue'
 
 export default {
-	components: { BottomNav },
+	components: { BottomNav, LocationIcon },
 	data() {
 		return {
 			categories: ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'],
@@ -534,8 +538,8 @@ export default {
 }
 
 .batch-selector.on {
-	border-color: #9cc4ff;
-	background: #9cc4ff;
+	border-color: #5f95f2;
+	background: #5f95f2;
 }
 
 .batch-selector-check {
@@ -546,10 +550,10 @@ export default {
 
 .batch-item {
 	flex: 1;
-	border: 1rpx solid #e3eee6;
+	border: 1rpx solid #d9e6fb;
 	border-radius: 12px;
 	padding: 10px;
-	background: #fff;
+	background: #f6f9ff;
 }
 
 .batch-item.muted {
@@ -587,10 +591,43 @@ export default {
 	border-radius: 8rpx;
 	background: #eef5ff;
 	color: #4a73d9;
-	text-align: center;
-	line-height: 28rpx;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 1;
 	font-size: 18px;
 	font-weight: 700;
+	position: relative;
+}
+
+.step-sign {
+	position: relative;
+	width: 16rpx;
+	height: 16rpx;
+	display: block;
+}
+
+.minus-sign::before,
+.plus-sign::before,
+.plus-sign::after {
+	content: '';
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	background: #4a73d9;
+	border-radius: 999rpx;
+	transform: translate(-50%, -50%);
+}
+
+.minus-sign::before,
+.plus-sign::before {
+	width: 14rpx;
+	height: 3rpx;
+}
+
+.plus-sign::after {
+	width: 3rpx;
+	height: 14rpx;
 }
 
 .step-val {
@@ -607,10 +644,10 @@ export default {
 	height: 44rpx;
 	padding: 0 12rpx;
 	border-radius: 999rpx;
-	background: #e9f7ef;
-	border: 1rpx solid #cfead9;
+	background: #e7f1ff;
+	border: 1rpx solid #bdd4f8;
 	font-size: 13px;
-	color: #2e6a4a;
+	color: #4a86df;
 	font-weight: 600;
 }
 
@@ -624,6 +661,7 @@ export default {
 .batch-meta {
 	display: inline-flex;
 	align-items: center;
+	gap: 4rpx;
 	height: 42rpx;
 	padding: 0 8rpx;
 	border-radius: 8px;
@@ -634,6 +672,19 @@ export default {
 	font-size: 13px;
 	color: #6e8175;
 	white-space: nowrap;
+}
+
+.batch-meta-dot {
+	font-size: 15px;
+	font-weight: 700;
+	color: #6e8175;
+	line-height: 1;
+}
+
+.batch-meta-ico {
+	font-size: 14px;
+	color: #4f8fe8;
+	line-height: 1;
 }
 
 .camera {
@@ -675,6 +726,17 @@ export default {
 	color: #4f8fe8;
 }
 
+/* Keep colors separated by area:
+   - batch result expire icon: blue
+   - manual form expire icon: green */
+.batch-meta .batch-meta-ico {
+	color: #4f8fe8 !important;
+}
+
+.row-icon.expire-icon {
+	color: #4cae57 !important;
+}
+
 .form-card {
 	padding: 10px;
 }
@@ -714,24 +776,38 @@ export default {
 }
 
 .row-left {
-	display: inline-flex;
+	display: grid;
+	grid-template-columns: 30px auto;
 	align-items: center;
 	min-width: 132px;
 	flex-shrink: 0;
+	column-gap: 8rpx;
 }
 
 .row-icon {
 	color: #6aa97a;
 	font-size: 19px;
 	width: 30px;
+	height: 30px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 1;
 	text-align: center;
-	margin-right: 8rpx;
+	transform: translateY(-2px);
+}
+
+.expire-icon {
+	color: #4f8fe8;
 }
 
 .row-label {
 	font-size: 14px;
 	font-weight: 600;
 	color: #26352d;
+	line-height: 1.2;
+	display: inline-flex;
+	align-items: center;
 }
 
 .row-input {
