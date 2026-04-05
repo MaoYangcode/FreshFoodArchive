@@ -1,6 +1,6 @@
 <template>
 	<view class="loc-wrap" :style="wrapStyle">
-		<text class="fallback" :style="iconStyle">{{ fallbackEmoji }}</text>
+		<text class="loc-font" :style="iconStyle">{{ iconChar }}</text>
 	</view>
 </template>
 
@@ -9,7 +9,6 @@ function kindFromLocation(loc) {
 	const s = `${loc || ''}`.trim()
 	if (s.includes('冷冻')) return 'frozen'
 	if (s.includes('冷藏')) return 'cold'
-	if (s.includes('常温')) return 'room'
 	return ''
 }
 
@@ -18,29 +17,33 @@ export default {
 	props: {
 		location: { type: String, default: '' },
 		size: { type: Number, default: 18 },
-		color: { type: String, default: '#6f8f7e' }
+		color: { type: String, default: '#8fb7e8' }
 	},
 	computed: {
+		iconChar() {
+			const kind = kindFromLocation(this.location)
+			if (kind === 'frozen') return '\ue636'
+			if (kind === 'cold') return '\ue64d'
+			return '•'
+		},
 		wrapStyle() {
 			const n = Math.max(12, Number(this.size) || 18)
 			return { width: `${n}px`, height: `${n}px` }
 		},
 		iconStyle() {
 			const n = Math.max(12, Number(this.size) || 18)
-			return { fontSize: `${n}px`, color: this.color }
-		},
-		fallbackEmoji() {
-			const kind = kindFromLocation(this.location)
-			if (kind === 'frozen') return '❄'
-			if (kind === 'cold') return '🧊'
-			if (kind === 'room') return '🌡'
-			return '•'
+			return { fontSize: `${n}px`, lineHeight: '1', color: this.color }
 		}
 	}
 }
 </script>
 
 <style scoped>
+@font-face {
+	font-family: "loc-iconfont";
+	src: url('/static/iconfont/iconfont.ttf') format('truetype');
+}
+
 .loc-wrap {
 	flex-shrink: 0;
 	display: inline-flex;
@@ -48,9 +51,12 @@ export default {
 	justify-content: center;
 }
 
-.fallback {
-	font-weight: 600;
+.loc-font {
+	font-family: "loc-iconfont" !important;
+	font-weight: 400;
 	line-height: 1;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 </style>
 

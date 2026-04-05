@@ -164,7 +164,7 @@ export default {
 		return {
 			categories: ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'],
 			units: ['个', '盒', '包', 'g', 'kg', 'ml'],
-			locations: ['冷藏', '冷冻', '常温'],
+			locations: ['冷藏', '冷冻'],
 			batchVisible: false,
 			batchSubmitting: false,
 			batchItems: [],

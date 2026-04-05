@@ -107,7 +107,7 @@ export default {
 			ingredientId: '',
 			categories: ['蔬菜', '水果', '肉类', '蛋奶', '调料', '其他'],
 			units: ['个', '盒', '包', 'g', 'kg', 'ml'],
-			locations: ['冷藏', '冷冻', '常温'],
+			locations: ['冷藏', '冷冻'],
 			form: {
 				name: '',
 				category: '',
@@ -154,7 +154,8 @@ export default {
 			this.form.category = this.getField(data, ['category', 'type'])
 			this.form.quantity = this.getField(data, ['quantity', 'qty'])
 			this.form.unit = this.getField(data, ['unit'])
-			this.form.location = this.getField(data, ['location', 'zone'])
+			const location = this.getField(data, ['location', 'zone'])
+			this.form.location = this.locations.includes(location) ? location : '冷藏'
 			const expireDate = this.getField(data, ['expireDate', 'expire_date'])
 			const purchaseDate = this.getField(data, ['purchaseDate', 'purchase_date', 'createdAt', 'created_at'])
 			const createdAt = this.getField(data, ['createdAt', 'created_at', 'purchaseDate', 'purchase_date'])

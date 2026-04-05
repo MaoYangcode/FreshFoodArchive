@@ -14,8 +14,8 @@
 					@click.stop="selectedLocation = loc"
 				>
 					<view class="loc-chip">
+						<LocationIcon v-if="loc !== '全部位置'" :location="loc" :size="18" color="#8fb7e8" />
 						<text>{{ loc }}</text>
-						<LocationIcon v-if="loc !== '全部位置'" :location="loc" :size="14" color="#8fb7e8" />
 					</view>
 				</button>
 			</view>
@@ -81,7 +81,11 @@
 						</view>
 						<view class="body">
 							<text class="name">{{ item.name }}</text>
-							<text class="meta">{{ item.quantity }}{{ item.unit }} · {{ item.category }} · {{ item.location }}</text>
+							<view class="meta">
+								<text>{{ item.quantity }}{{ item.unit }} · {{ item.category }} · </text>
+								<LocationIcon :location="item.location" :size="14" color="#8fb7e8" />
+								<text>{{ item.location }}</text>
+							</view>
 						</view>
 						<text class="tag" :class="getTagClass(item.expireDate)">{{ getTagText(item.expireDate) }}</text>
 					</view>
@@ -90,16 +94,16 @@
 			<view v-else class="grid">
 				<view v-for="item in filteredList" :key="`tile-${item.id}`" class="tile" @click.stop="goEdit(item)">
 					<view class="tile-inner">
+						<text class="qty-badge">{{ formatQty(item) }}</text>
 						<view class="tile-ico">
-							<IngredientIcon :name="item.name" :category="item.category" :size="34" />
+							<IngredientIcon :name="item.name" :category="item.category" :size="40" />
 						</view>
 						<view class="tile-right">
 							<view class="tile-head">
 								<text class="tile-name">{{ item.name }}</text>
-								<text class="qty-badge">{{ formatQty(item) }}</text>
 							</view>
 							<view class="fresh-row">
-								<text class="fresh-star">✶</text>
+								<LocationIcon :location="item.location" :size="14" color="#8fb7e8" />
 								<text class="tile-meta">{{ item.location }}</text>
 							</view>
 							<view class="bar-track">
@@ -145,7 +149,7 @@ export default {
 	data() {
 		return {
 			keyword: '',
-			locations: ['全部位置', '冷藏', '冷冻', '常温'],
+			locations: ['全部位置', '冷藏', '冷冻'],
 			categories: ['全部类别', '水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'],
 			selectedLocation: '全部位置',
 			selectedCategory: '全部类别',
@@ -671,7 +675,7 @@ export default {
 
 .location-chips {
 	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-template-columns: repeat(3, minmax(0, 1fr));
 	gap: 6rpx;
 	margin-bottom: 0;
 }
@@ -815,7 +819,10 @@ export default {
 }
 
 .meta {
-	display: block;
+	display: inline-flex;
+	align-items: center;
+	gap: 4rpx;
+	flex-wrap: nowrap;
 	font-size: 13px;
 	color: #727c88;
 	margin-top: 4rpx;
@@ -897,32 +904,34 @@ export default {
 .grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 18rpx 16rpx;
+	gap: 18rpx 24rpx;
 }
 
 .tile {
 	border: 1rpx solid #e8edf1;
 	border-radius: 16px;
-	padding: 11px 10px;
+	padding: 9px 10px;
 	background: #fff;
 	box-shadow: 0 6rpx 14rpx rgba(26, 43, 70, 0.06);
-	min-height: 126rpx;
+	min-height: 116rpx;
+	position: relative;
 }
 
 .tile-inner {
 	display: flex;
-	align-items: flex-start;
+	align-items: center;
 	gap: 14rpx;
+	min-height: 58px;
 }
 
 .tile-ico {
-	width: 50px;
-	height: 50px;
+	width: 56px;
+	height: 56px;
 	border-radius: 12px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: #f6f7f9;
+	background: #f8fbff;
 	flex-shrink: 0;
 }
 
@@ -931,18 +940,17 @@ export default {
 	min-width: 0;
 	display: flex;
 	flex-direction: column;
-	justify-content: space-between;
-	min-height: 50px;
-	gap: 0;
+	justify-content: flex-start;
+	min-height: 58px;
+	gap: 4rpx;
+	padding-top: 8px;
 	padding-right: 2rpx;
 }
 
 .tile-head {
 	display: flex;
-	align-items: flex-start;
-	justify-content: space-between;
-	gap: 8rpx;
-	min-height: 34rpx;
+	align-items: center;
+	min-height: 26rpx;
 }
 
 .tile-name {
@@ -964,12 +972,17 @@ export default {
 }
 
 .qty-badge {
+	position: absolute;
+	top: 4px;
+	right: 4px;
 	padding: 3rpx 10rpx;
 	border-radius: 999rpx;
-	background: #4d93ea;
+	background: linear-gradient(135deg, #80bdf7, #69a9f1);
 	color: #fff;
 	font-size: 11px;
 	font-weight: 700;
+	line-height: 1.2;
+	z-index: 2;
 }
 
 .fresh-row {
@@ -978,19 +991,13 @@ export default {
 	gap: 5rpx;
 }
 
-.fresh-star {
-	font-size: 14px;
-	color: #73899b;
-	line-height: 1;
-}
-
 .bar-track {
 	width: 100%;
 	height: 6rpx;
 	border-radius: 999rpx;
 	background: #e9edf1;
 	overflow: hidden;
-	margin-top: 4rpx;
+	margin-top: 2rpx;
 }
 
 .bar-fill {
