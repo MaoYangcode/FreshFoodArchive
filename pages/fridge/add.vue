@@ -23,6 +23,56 @@
 			</view>
 		</view>
 
+		<view v-if="batchVisible" class="card batch-card">
+			<view class="batch-head">
+				<text class="batch-title">识别结果（{{ batchItems.length }}项）</text>
+				<view class="batch-actions">
+					<text class="batch-action" @click="toggleBatchSelectAll">{{ batchSelectedCount === batchItems.length ? '取消全选' : '全选' }}</text>
+					<text class="batch-action" @click="closeBatchPanel">收起</text>
+				</view>
+			</view>
+			<view class="batch-list">
+				<view v-for="(item, idx) in batchItems" :key="idx" class="batch-row">
+					<view class="batch-selector" :class="{ on: item.selected }" @click="toggleBatchSelected(idx)">
+						<text v-if="item.selected" class="batch-selector-check">✓</text>
+					</view>
+					<view class="batch-item" :class="{ muted: !item.selected }">
+						<view class="batch-line1">
+							<input v-model="item.name" class="batch-name" placeholder="食材名称" />
+							<view class="batch-stepper">
+								<text class="step-btn" @click="decreaseBatchQty(idx)">-</text>
+								<text class="step-val">{{ getBatchQuantity(item) }}</text>
+								<text class="step-btn" @click="increaseBatchQty(idx)">+</text>
+							</view>
+							<picker :range="units" @change="onBatchUnitChange(idx, $event)">
+								<text class="batch-unit">{{ item.unit || '单位' }}</text>
+							</picker>
+						</view>
+						<view class="batch-line2">
+							<picker :range="locations" @change="onBatchLocationChange(idx, $event)">
+								<view class="batch-meta">
+									<text class="batch-meta-txt">{{ item.location || '分区' }}</text>
+								</view>
+							</picker>
+							<picker :range="categories" @change="onBatchCategoryChange(idx, $event)">
+								<view class="batch-meta">
+									<text class="batch-meta-txt">{{ item.category || '类型' }}</text>
+								</view>
+							</picker>
+							<picker mode="date" :value="item.expireDate" @change="onBatchExpireDateChange(idx, $event)">
+								<view class="batch-meta">
+									<text class="batch-meta-txt">{{ item.expireDate || '过期时间' }}</text>
+								</view>
+							</picker>
+						</view>
+					</view>
+				</view>
+			</view>
+			<button class="submit-btn" :disabled="batchSubmitting" @click="submitBatch">
+				{{ batchSubmitting ? '入库中...' : '一键批量入库' }}
+			</button>
+		</view>
+
 		<view class="card form-card">
 			<view class="form-row">
 				<view class="row-left">
@@ -112,9 +162,12 @@ export default {
 	components: { BottomNav },
 	data() {
 		return {
-			categories: ['蔬菜', '水果', '肉类', '蛋奶', '调料', '其他'],
+			categories: ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'],
 			units: ['个', '盒', '包', 'g', 'kg', 'ml'],
 			locations: ['冷藏', '冷冻', '常温'],
+			batchVisible: false,
+			batchSubmitting: false,
+			batchItems: [],
 			form: {
 				name: '',
 				category: '',
@@ -124,6 +177,11 @@ export default {
 				purchaseDate: '',
 				expireDate: ''
 			}
+		}
+	},
+	computed: {
+		batchSelectedCount() {
+			return this.batchItems.filter((item) => item.selected !== false).length
 		}
 	},
 	methods: {
@@ -163,14 +221,126 @@ export default {
 					return
 				}
 
-				const first = list[0] || {}
+				if (list.length > 1) {
+					this.batchItems = list.map((item) => this.normalizeRecognizedItem(item))
+					this.batchVisible = true
+					uni.showToast({ title: `识别到${list.length}条，请确认`, icon: 'none' })
+					return
+				}
+
+				const first = this.normalizeRecognizedItem(list[0] || {})
 				if (!this.form.name && first.name) this.form.name = first.name
 				if (!this.form.category && first.category) this.form.category = first.category
+				if (!this.form.quantity && first.quantity) this.form.quantity = `${first.quantity}`
+				if (!this.form.unit && first.unit) this.form.unit = first.unit
 				uni.showToast({ title: `识别到${list.length}种食材`, icon: 'none' })
 			} catch (e) {
 				console.error('识别失败', e)
 				uni.showToast({ title: '识别失败，请重试', icon: 'none' })
 			} finally {
+				uni.hideLoading()
+			}
+		},
+		normalizeRecognizedItem(item) {
+			const category = this.categories.includes(item?.category) ? item.category : '其他'
+			const quantity = item?.quantity || item?.quantity === 0 ? `${item.quantity}` : '1'
+			return {
+				name: item?.name ? `${item.name}` : '',
+				category,
+				quantity,
+				unit: item?.unit ? `${item.unit}` : '个',
+				location: this.form.location || '冷藏',
+				expireDate: this.form.expireDate || '',
+				selected: true
+			}
+		},
+		onBatchCategoryChange(index, e) {
+			this.batchItems[index].category = this.categories[e.detail.value]
+		},
+		onBatchUnitChange(index, e) {
+			this.batchItems[index].unit = this.units[e.detail.value]
+		},
+		onBatchLocationChange(index, e) {
+			this.batchItems[index].location = this.locations[e.detail.value]
+		},
+		onBatchExpireDateChange(index, e) {
+			this.batchItems[index].expireDate = e.detail.value
+		},
+		toggleBatchSelected(index) {
+			this.batchItems[index].selected = this.batchItems[index].selected === false
+		},
+		toggleBatchSelectAll() {
+			const next = this.batchSelectedCount !== this.batchItems.length
+			this.batchItems = this.batchItems.map((item) => ({ ...item, selected: next }))
+		},
+		closeBatchPanel() {
+			this.batchVisible = false
+			this.batchItems = []
+		},
+		getBatchQuantity(item) {
+			const n = Number(item?.quantity)
+			return Number.isFinite(n) && n > 0 ? Math.round(n) : 1
+		},
+		decreaseBatchQty(index) {
+			const current = this.getBatchQuantity(this.batchItems[index])
+			this.batchItems[index].quantity = `${Math.max(1, current - 1)}`
+		},
+		increaseBatchQty(index) {
+			const current = this.getBatchQuantity(this.batchItems[index])
+			this.batchItems[index].quantity = `${current + 1}`
+		},
+		validateBatchItem(item, index) {
+			if (!item.name || !item.category || !item.quantity || !item.unit || !item.location || !item.expireDate) {
+				uni.showToast({ title: `第${index + 1}条信息不完整`, icon: 'none' })
+				return false
+			}
+			const quantity = Number(item.quantity)
+			if (!Number.isFinite(quantity) || quantity <= 0) {
+				uni.showToast({ title: `第${index + 1}条数量不合法`, icon: 'none' })
+				return false
+			}
+			const today = new Date().toISOString().slice(0, 10)
+			if (item.expireDate < today) {
+				uni.showToast({ title: `第${index + 1}条过期时间过早`, icon: 'none' })
+				return false
+			}
+			return true
+		},
+		async submitBatch() {
+			if (!this.batchItems.length || this.batchSubmitting) return
+			const selectedItems = this.batchItems.filter((item) => item.selected !== false)
+			if (!selectedItems.length) {
+				uni.showToast({ title: '请至少勾选一条食材', icon: 'none' })
+				return
+			}
+			for (let i = 0; i < selectedItems.length; i += 1) {
+				if (!this.validateBatchItem(selectedItems[i], i)) return
+			}
+
+			this.batchSubmitting = true
+			uni.showLoading({ title: '批量入库中...' })
+			try {
+				for (const item of selectedItems) {
+					await createIngredient({
+						name: item.name,
+						category: item.category,
+						quantity: Number(item.quantity),
+						unit: item.unit,
+						location: item.location,
+						expireDate: item.expireDate || null,
+						userId: 1
+					})
+				}
+				uni.showToast({ title: `成功入库${selectedItems.length}条`, icon: 'success' })
+				this.closeBatchPanel()
+				setTimeout(() => {
+					uni.navigateBack({ delta: 1 })
+				}, 300)
+			} catch (e) {
+				console.error('批量新增失败', e)
+				uni.showToast({ title: '批量入库失败，请重试', icon: 'none' })
+			} finally {
+				this.batchSubmitting = false
 				uni.hideLoading()
 			}
 		},
@@ -307,6 +477,163 @@ export default {
 .recognize-btn.receipt {
 	border-color: #cfd8f2;
 	background: #fbfcff;
+}
+
+.batch-card {
+	padding: 12px 10px;
+}
+
+.batch-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 10rpx;
+}
+
+.batch-title {
+	font-size: 15px;
+	font-weight: 700;
+	color: #21362b;
+}
+
+.batch-actions {
+	display: flex;
+	align-items: center;
+	gap: 10rpx;
+}
+
+.batch-action {
+	font-size: 12px;
+	color: #4a73d9;
+}
+
+.batch-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10rpx;
+	max-height: 520rpx;
+	overflow: auto;
+}
+
+.batch-row {
+	display: flex;
+	align-items: center;
+	gap: 10rpx;
+}
+
+.batch-selector {
+	width: 28rpx;
+	height: 28rpx;
+	border-radius: 50%;
+	border: 2rpx solid #d7e5dc;
+	background: #f8fcf9;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.batch-selector.on {
+	border-color: #9cc4ff;
+	background: #9cc4ff;
+}
+
+.batch-selector-check {
+	color: #fff;
+	font-size: 10px;
+	font-weight: 700;
+}
+
+.batch-item {
+	flex: 1;
+	border: 1rpx solid #e3eee6;
+	border-radius: 12px;
+	padding: 10px;
+	background: #fff;
+}
+
+.batch-item.muted {
+	opacity: 0.65;
+}
+
+.batch-line1 {
+	display: flex;
+	align-items: center;
+	gap: 8rpx;
+	margin-bottom: 8rpx;
+}
+
+.batch-name {
+	flex: 1;
+	height: 56rpx;
+	background: #fff;
+	border: 1rpx solid #dde8e0;
+	border-radius: 10px;
+	padding: 0 10rpx;
+	font-size: 16px;
+	font-weight: 700;
+}
+
+.batch-stepper {
+	height: 56rpx;
+	display: flex;
+	align-items: center;
+	gap: 10rpx;
+}
+
+.step-btn {
+	width: 28rpx;
+	height: 28rpx;
+	border-radius: 8rpx;
+	background: #eef5ff;
+	color: #4a73d9;
+	text-align: center;
+	line-height: 28rpx;
+	font-size: 18px;
+	font-weight: 700;
+}
+
+.step-val {
+	min-width: 24rpx;
+	text-align: center;
+	font-size: 15px;
+	font-weight: 700;
+}
+
+.batch-unit {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 44rpx;
+	padding: 0 12rpx;
+	border-radius: 999rpx;
+	background: #e9f7ef;
+	border: 1rpx solid #cfead9;
+	font-size: 13px;
+	color: #2e6a4a;
+	font-weight: 600;
+}
+
+.batch-line2 {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8rpx;
+}
+
+.batch-meta {
+	display: inline-flex;
+	align-items: center;
+	height: 42rpx;
+	padding: 0 8rpx;
+	border-radius: 8px;
+	background: #f6faf7;
+}
+
+.batch-meta-txt {
+	font-size: 13px;
+	color: #6e8175;
+	white-space: nowrap;
 }
 
 .camera {
