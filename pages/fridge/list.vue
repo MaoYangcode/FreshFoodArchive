@@ -13,7 +13,10 @@
 					:class="{ active: selectedLocation === loc }"
 					@click.stop="selectedLocation = loc"
 				>
-					{{ loc }}
+					<view class="loc-chip">
+						<text>{{ loc }}</text>
+						<LocationIcon v-if="loc !== '全部位置'" :location="loc" :size="14" color="#8fb7e8" />
+					</view>
 				</button>
 			</view>
 		</view>
@@ -41,10 +44,12 @@
 					confirm-type="search"
 				/>
 			</view>
-			<view class="sort-icon-btn" @click.stop="toggleSortMode">
-				<view class="tri up" :class="{ on: sortDirection === 'asc' }"></view>
-				<view class="tri down" :class="{ on: sortDirection === 'desc' }"></view>
-			</view>
+			<FridgeViewControls
+				:viewMode="viewMode"
+				:sortDirection="sortDirection"
+				@toggle-view="toggleFridgeView"
+				@toggle-sort="toggleSortMode"
+			/>
 		</view>
 
 		<view v-if="filteredList.length === 0" class="card empty">
@@ -53,29 +58,55 @@
 			<text class="empty-sub">换个关键词或者切换位置/类别试试</text>
 		</view>
 
-		<view v-else class="card">
-			<view v-for="item in filteredList" :key="item.id" class="swipe-item">
-				<view class="swipe-action" @click.stop="openConsumeDialog(item)">已取出</view>
-				<view
-					class="row swipe-content"
-					:class="{ open: openSwipeId === item.id }"
-					@touchstart.stop="onTouchStart($event, item.id)"
-					@touchmove.stop="onTouchMove($event)"
-					@touchend.stop="onTouchEnd($event, item.id)"
-					@mousedown.stop="onMouseDown($event, item.id)"
-					@wheel.stop="onWheel($event, item.id)"
-					@dblclick.stop="onDoubleClick(item.id)"
-					@longpress.stop="onLongPress(item.id)"
-					@longtap.stop="onLongPress(item.id)"
-					@contextmenu.prevent.stop="onContextMenu(item.id)"
-					@click.stop="onRowClick(item)"
-				>
-					<view class="ico">{{ getEmoji(item.category) }}</view>
-					<view class="body">
-						<text class="name">{{ item.name }}</text>
-						<text class="meta">{{ item.quantity }}{{ item.unit }} · {{ item.category }} · {{ item.location }}</text>
+		<view v-else :class="viewMode === 'list' ? 'card' : 'tiles-wrap'">
+			<view v-if="viewMode === 'list'">
+				<view v-for="item in filteredList" :key="item.id" class="swipe-item">
+					<view class="swipe-action" @click.stop="openConsumeDialog(item)">已取出</view>
+					<view
+						class="row swipe-content"
+						:class="{ open: openSwipeId === item.id }"
+						@touchstart.stop="onTouchStart($event, item.id)"
+						@touchmove.stop="onTouchMove($event)"
+						@touchend.stop="onTouchEnd($event, item.id)"
+						@mousedown.stop="onMouseDown($event, item.id)"
+						@wheel.stop="onWheel($event, item.id)"
+						@dblclick.stop="onDoubleClick(item.id)"
+						@longpress.stop="onLongPress(item.id)"
+						@longtap.stop="onLongPress(item.id)"
+						@contextmenu.prevent.stop="onContextMenu(item.id)"
+						@click.stop="onRowClick(item)"
+					>
+						<view class="ico">
+							<IngredientIcon :name="item.name" :category="item.category" :size="40" />
+						</view>
+						<view class="body">
+							<text class="name">{{ item.name }}</text>
+							<text class="meta">{{ item.quantity }}{{ item.unit }} · {{ item.category }} · {{ item.location }}</text>
+						</view>
+						<text class="tag" :class="getTagClass(item.expireDate)">{{ getTagText(item.expireDate) }}</text>
 					</view>
-					<text class="tag" :class="getTagClass(item.expireDate)">{{ getTagText(item.expireDate) }}</text>
+				</view>
+			</view>
+			<view v-else class="grid">
+				<view v-for="item in filteredList" :key="`tile-${item.id}`" class="tile" @click.stop="goEdit(item)">
+					<view class="tile-inner">
+						<view class="tile-ico">
+							<IngredientIcon :name="item.name" :category="item.category" :size="34" />
+						</view>
+						<view class="tile-right">
+							<view class="tile-head">
+								<text class="tile-name">{{ item.name }}</text>
+								<text class="qty-badge">{{ formatQty(item) }}</text>
+							</view>
+							<view class="fresh-row">
+								<text class="fresh-star">✶</text>
+								<text class="tile-meta">{{ item.location }}</text>
+							</view>
+							<view class="bar-track">
+								<view class="bar-fill" :style="barStyle(item.expireDate)"></view>
+							</view>
+						</view>
+					</view>
 				</view>
 			</view>
 		</view>
@@ -105,16 +136,20 @@
 	
 import { getIngredientList ,consumeIngredient } from '@/api/modules/ingredients'
 import BottomNav from '@/components/bottom-nav.vue'
+import FridgeViewControls from '@/components/fridge-view-controls.vue'
+import IngredientIcon from '@/components/ingredient-icon.vue'
+import LocationIcon from '@/components/location-icon.vue'
 
 export default {
-	components: { BottomNav },
+	components: { BottomNav, FridgeViewControls, IngredientIcon, LocationIcon },
 	data() {
 		return {
 			keyword: '',
 			locations: ['全部位置', '冷藏', '冷冻', '常温'],
-			categories: ['全部类别', '蔬菜', '水果', '肉类', '蛋奶', '其他'],
+			categories: ['全部类别', '水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'],
 			selectedLocation: '全部位置',
 			selectedCategory: '全部类别',
+			viewMode: 'list',
 			sortDirection: 'asc',
 			list: [],
 			openSwipeId: '',
@@ -147,16 +182,13 @@ export default {
 		}
 	},
 	mounted() {
-		window.addEventListener('mousemove', this.onWindowMouseMove)
-		window.addEventListener('mouseup', this.onWindowMouseUp)
+		this.bindWindowEvents()
 	},
 	beforeUnmount() {
-		window.removeEventListener('mousemove', this.onWindowMouseMove)
-		window.removeEventListener('mouseup', this.onWindowMouseUp)
+		this.unbindWindowEvents()
 	},
 	onUnload() {
-		window.removeEventListener('mousemove', this.onWindowMouseMove)
-		window.removeEventListener('mouseup', this.onWindowMouseUp)
+		this.unbindWindowEvents()
 	},
 	onShow() {
 		this.refreshList()
@@ -217,6 +249,16 @@ export default {
 		}
 	},
 	methods: {
+		bindWindowEvents() {
+			if (typeof window === 'undefined') return
+			window.addEventListener('mousemove', this.onWindowMouseMove)
+			window.addEventListener('mouseup', this.onWindowMouseUp)
+		},
+		unbindWindowEvents() {
+			if (typeof window === 'undefined') return
+			window.removeEventListener('mousemove', this.onWindowMouseMove)
+			window.removeEventListener('mouseup', this.onWindowMouseUp)
+		},
 		async refreshList() {
 			try {
 				const res = await getIngredientList()
@@ -237,16 +279,26 @@ export default {
 				水果: '🥑',
 				肉类: '🍗',
 				蛋奶: '🧀',
-				调料: '🧂',
+				海鲜: '🦐',
+				饮料: '🥛',
+				调味品: '🧂',
 				其他: '🍽️'
 			}
 			return map[category] || '🍽️'
+		},
+		formatQty(item) {
+			const q = item && item.quantity !== undefined ? `${item.quantity}` : ''
+			const u = item && item.unit ? `${item.unit}` : ''
+			return `${q}${u}` || '—'
 		},
 		onKeywordInput(e) {
 			this.keyword = e && e.detail ? `${e.detail.value || ''}` : ''
 		},
 		toggleSortMode() {
 			this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc'
+		},
+		toggleFridgeView() {
+			this.viewMode = this.viewMode === 'list' ? 'tiles' : 'list'
 		},
 	
 		getTagClass(expireDate) {
@@ -270,6 +322,13 @@ export default {
 			const t = new Date(expireDate)
 			t.setHours(0, 0, 0, 0)
 			return Math.floor((t.getTime() - now.getTime()) / (24 * 3600 * 1000))
+		},
+		barStyle(expireDate) {
+			const days = this.getDays(expireDate)
+			if (days <= 0) return { width: '92%', background: '#e36b6b' }
+			if (days <= 2) return { width: '78%', background: '#f0b24b' }
+			if (days <= 5) return { width: '56%', background: '#e0c45a' }
+			return { width: '36%', background: '#68bf7a' }
 		},
 		onTouchStart(e, id) {
 			this.lastTouchAt = Date.now()
@@ -550,6 +609,10 @@ export default {
 	box-shadow: 0 8rpx 20rpx rgba(18, 37, 63, 0.05);
 }
 
+.tiles-wrap {
+	margin-bottom: 14rpx;
+}
+
 .search-wrap {
 	display: flex;
 	align-items: center;
@@ -668,6 +731,12 @@ export default {
 	border: 1rpx solid transparent;
 	font-size: 13px;
 	font-weight: 600;
+}
+
+.loc-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4rpx;
 }
 
 .chip.active {
@@ -823,6 +892,114 @@ export default {
 	border-radius: 16px;
 	padding: 12px 10px;
 	background: #ffffff;
+}
+
+.grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 18rpx 16rpx;
+}
+
+.tile {
+	border: 1rpx solid #e8edf1;
+	border-radius: 16px;
+	padding: 11px 10px;
+	background: #fff;
+	box-shadow: 0 6rpx 14rpx rgba(26, 43, 70, 0.06);
+	min-height: 126rpx;
+}
+
+.tile-inner {
+	display: flex;
+	align-items: flex-start;
+	gap: 14rpx;
+}
+
+.tile-ico {
+	width: 50px;
+	height: 50px;
+	border-radius: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #f6f7f9;
+	flex-shrink: 0;
+}
+
+.tile-right {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	min-height: 50px;
+	gap: 0;
+	padding-right: 2rpx;
+}
+
+.tile-head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 8rpx;
+	min-height: 34rpx;
+}
+
+.tile-name {
+	font-size: 15px;
+	font-weight: 700;
+	color: #1f2329;
+	line-height: 1.25;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex: 1;
+	min-width: 0;
+}
+
+.tile-meta {
+	font-size: 12px;
+	color: #7a8490;
+	line-height: 1.2;
+}
+
+.qty-badge {
+	padding: 3rpx 10rpx;
+	border-radius: 999rpx;
+	background: #4d93ea;
+	color: #fff;
+	font-size: 11px;
+	font-weight: 700;
+}
+
+.fresh-row {
+	display: inline-flex;
+	align-items: center;
+	gap: 5rpx;
+}
+
+.fresh-star {
+	font-size: 14px;
+	color: #73899b;
+	line-height: 1;
+}
+
+.bar-track {
+	width: 100%;
+	height: 6rpx;
+	border-radius: 999rpx;
+	background: #e9edf1;
+	overflow: hidden;
+	margin-top: 4rpx;
+}
+
+.bar-fill {
+	height: 100%;
+	border-radius: 999rpx;
+}
+
+.tile .tag {
+	align-self: flex-end;
 }
 
 .ico {
