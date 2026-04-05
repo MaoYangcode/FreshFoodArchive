@@ -141,7 +141,6 @@
 					<view class="row-date">{{ form.expireDate || '选择过期时间' }}</view>
 				</picker>
 			</view>
-			<text class="hint">提示：过期日期不能早于今天</text>
 			<button class="submit-btn" @click="submit">入库</button>
 		</view>
 		<BottomNav current="add" />
@@ -160,7 +159,12 @@ export default {
 	data() {
 		return {
 			categories: ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'],
-			units: ['个', '盒', '包', 'g', 'kg', 'ml'],
+			units: [
+				'份', '盒', '罐', '包', '个', '条', '片', '根', '瓶', '袋', '块',
+				'毫升', '升', '千克', '克', '斤', '公斤', '颗', '组', '把', '只', '杯',
+				'支', '粒', '碗', '枚', '盘', '卷', '段', '篮', '捆', '串', '排',
+				'桶', '箱', '颗', '朵', '管', '两'
+			],
 			locations: ['冷藏', '冷冻'],
 			batchVisible: false,
 			batchSubmitting: false,
@@ -240,15 +244,83 @@ export default {
 		normalizeRecognizedItem(item) {
 			const category = this.categories.includes(item?.category) ? item.category : '其他'
 			const quantity = item?.quantity || item?.quantity === 0 ? `${item.quantity}` : '1'
+			const name = item?.name ? `${item.name}` : ''
+			const unit = this.normalizeRecognizedUnit(item?.unit, name, category)
 			return {
-				name: item?.name ? `${item.name}` : '',
+				name,
 				category,
 				quantity,
-				unit: item?.unit ? `${item.unit}` : '个',
+				unit,
 				location: this.form.location || '冷藏',
 				expireDate: this.form.expireDate || '',
 				selected: true
 			}
+		},
+		normalizeRecognizedUnit(rawUnit, name, category) {
+			const fallback = this.inferUnitByName(name, category)
+			const text = `${rawUnit || ''}`.trim()
+			if (!text) return fallback
+			if (this.units.includes(text)) return text
+
+			const key = text.toLowerCase()
+			const aliasMap = {
+				g: '克',
+				gram: '克',
+				grams: '克',
+				kg: '千克',
+				kgs: '千克',
+				kilogram: '千克',
+				kilograms: '千克',
+				ml: '毫升',
+				milliliter: '毫升',
+				milliliters: '毫升',
+				l: '升',
+				liter: '升',
+				liters: '升',
+				jin: '斤',
+				liang: '两',
+				piece: '个',
+				pieces: '个',
+				pc: '个',
+				box: '盒',
+				can: '罐',
+				pack: '包',
+				bag: '袋',
+				bottle: '瓶',
+				strip: '条',
+				slice: '片',
+				stick: '根',
+				block: '块',
+				group: '组',
+				handful: '把',
+				cup: '杯',
+				bowl: '碗',
+				plate: '盘',
+				roll: '卷',
+				section: '段',
+				basket: '篮',
+				bundle: '捆',
+				string: '串',
+				row: '排',
+				bucket: '桶',
+				case: '箱',
+				tube: '管'
+			}
+			const mapped = aliasMap[key] || aliasMap[key.replace(/\./g, '')]
+			if (mapped && this.units.includes(mapped)) return mapped
+			return fallback
+		},
+		inferUnitByName(name, category) {
+			const text = `${name || ''}`.toLowerCase()
+			const cat = `${category || ''}`
+			if (/牛奶|酸奶|饮料|果汁|可乐|雪碧|豆浆|啤酒|矿泉水|椰汁|苏打/.test(text)) return '毫升'
+			if (/牛肉|猪肉|鸡胸|鸡肉|排骨|肉糜|肉馅|虾仁|鱼片/.test(text)) return '克'
+			if (/鸡蛋|鹌鹑蛋/.test(text)) return '颗'
+			if (/面条|米线|粉丝/.test(text)) return '包'
+			if (/豆腐|年糕/.test(text)) return '块'
+			if (cat === '肉类') return '克'
+			if (cat === '饮料') return '毫升'
+			return '个'
 		},
 		onBatchCategoryChange(index, e) {
 			this.batchItems[index].category = this.categories[e.detail.value]
@@ -260,7 +332,14 @@ export default {
 			this.batchItems[index].location = this.locations[e.detail.value]
 		},
 		onBatchExpireDateChange(index, e) {
-			this.batchItems[index].expireDate = e.detail.value
+			const value = e?.detail?.value || ''
+			const today = new Date().toISOString().slice(0, 10)
+			if (value && value < today) {
+				uni.showToast({ title: `第${index + 1}条过期时间不能早于今天`, icon: 'none' })
+				this.batchItems[index].expireDate = ''
+				return
+			}
+			this.batchItems[index].expireDate = value
 		},
 		toggleBatchSelected(index) {
 			this.batchItems[index].selected = this.batchItems[index].selected === false
@@ -350,7 +429,14 @@ export default {
 			this.form.location = this.locations[e.detail.value]
 		},
 		onDateChange(e) {
-			this.form.expireDate = e.detail.value
+			const value = e?.detail?.value || ''
+			const today = new Date().toISOString().slice(0, 10)
+			if (value && value < today) {
+				uni.showToast({ title: '过期日期不能早于今天', icon: 'none' })
+				this.form.expireDate = ''
+				return
+			}
+			this.form.expireDate = value
 		},
 		async submit() {
 			if (!this.form.name || !this.form.category || !this.form.quantity || !this.form.unit || !this.form.location || !this.form.expireDate) {
@@ -897,13 +983,6 @@ export default {
 	padding-left: 6rpx;
 }
 
-.hint {
-	font-size: 11px;
-	color: #88958d;
-	margin: 2rpx 0 8rpx;
-	display: block;
-}
-
 .submit-btn {
 	background: linear-gradient(135deg, #70c977, #4cae57);
 	color: #fff;
@@ -911,5 +990,9 @@ export default {
 	margin-top: 10rpx;
 	font-weight: 700;
 	font-size: 13px;
+}
+
+.batch-card .submit-btn {
+	background: linear-gradient(135deg, #79aef6, #5f95f2);
 }
 </style>
