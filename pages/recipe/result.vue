@@ -2,7 +2,6 @@
 	<view class="container">
 		<view class="top">
 			<text class="top-title">智能菜谱</text>
-			<view class="capsule"><text>🔥</text></view>
 		</view>
 		<view class="recipe-banner">
 			<text class="banner-label">可用食材</text>
@@ -16,7 +15,7 @@
 				:class="{ active: sortMode === opt.key }"
 				@click="sortMode = opt.key"
 			>
-				<text class="chip-ico" :class="{ 'recipe-iconfont': opt.key === 'duration' || opt.key === 'difficulty' }">{{ getSortIcon(opt.key) }}</text>{{ opt.label }}
+				<text class="chip-ico" :class="{ 'recipe-iconfont': opt.key === 'duration' || opt.key === 'difficulty', 'duration-ico': opt.key === 'duration' }">{{ getSortIcon(opt.key) }}</text>{{ opt.label }}
 			</text>
 			<text class="control-divider">|</text>
 			<picker :range="cookingTimeLabels" @change="onCookingTimeChange">
@@ -225,7 +224,7 @@ export default {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	margin-bottom: 8rpx;
+	margin-bottom: 14rpx;
 }
 
 .top-title {
@@ -233,22 +232,12 @@ export default {
 	font-weight: 700;
 }
 
-.capsule {
-	border: 1rpx solid #e2e9e4;
-	border-radius: 999rpx;
-	background: #fff;
-	padding: 6rpx 16rpx;
-	font-size: 14px;
-	display: flex;
-	gap: 10rpx;
-}
-
 .recipe-banner {
 	border-radius: 14px;
 	padding: 12rpx 14rpx;
 	background: linear-gradient(135deg, #f4f8f5, #f8fbf8);
 	border: 1rpx solid #e2ebe4;
-	margin-bottom: 12rpx;
+	margin-bottom: 22rpx;
 }
 
 .banner-label {
@@ -273,7 +262,7 @@ export default {
 	align-items: center;
 	flex-wrap: wrap;
 	gap: 8rpx;
-	margin-bottom: 8rpx;
+	margin-bottom: 20rpx;
 }
 
 .chip-ico {
@@ -318,7 +307,7 @@ export default {
 }
 
 .picker-arrow {
-	font-size: 10px;
+	font-size: 7px;
 	color: #b68652;
 	line-height: 1;
 }
@@ -370,6 +359,8 @@ export default {
 	flex-wrap: nowrap;
 	gap: 4rpx;
 	max-width: 100%;
+	position: relative;
+	top: -2rpx;
 }
 
 .meta {
@@ -379,7 +370,7 @@ export default {
 	gap: 6rpx;
 	color: #738177;
 	font-size: 12px;
-	margin-top: 8rpx;
+	margin-top: 12rpx;
 }
 
 .name {
@@ -423,6 +414,10 @@ export default {
 .chip-ico.recipe-iconfont,
 .meta-icon.recipe-iconfont {
 	font-size: 14px;
+}
+
+.duration-ico {
+	font-size: 13px !important;
 }
 
 .meta-dot {
