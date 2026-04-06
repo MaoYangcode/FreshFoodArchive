@@ -8,7 +8,9 @@
 			<view class="recipe-inner recipe-hero">
 				<text class="title">智能菜谱</text>
 				<text class="meta">基于冰箱现有食材推荐</text>
-				<view class="magic">🪄</view>
+				<view class="magic">
+					<text class="magic-iconfont">&#xe699;</text>
+				</view>
 				<text class="headline">准备做饭了吗？</text>
 				<view class="desc-wrap">
 					<text class="desc">AI 将分析当前库存食材，快速给出可做菜谱，</text>
@@ -90,6 +92,11 @@ export default {
 </script>
 
 <style scoped>
+@font-face {
+	font-family: "recipe-iconfont";
+	src: url('/static/iconfont/iconfont.ttf') format('truetype');
+}
+
 .container {
 	padding: 10px 12px 88px;
 	background: #f6f7f8;
@@ -168,6 +175,15 @@ export default {
 	font-size: 110rpx;
 	background: radial-gradient(circle, #ebfbe9, #f7fcf7);
 	border: 1rpx solid #d8ead9;
+}
+
+.magic-iconfont {
+	font-family: "recipe-iconfont" !important;
+	font-size: 122rpx;
+	line-height: 1;
+	color: #4cae57;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
 .headline {

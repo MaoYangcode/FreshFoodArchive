@@ -16,15 +16,18 @@
 				:class="{ active: sortMode === opt.key }"
 				@click="sortMode = opt.key"
 			>
-				{{ opt.label }}
+				<text class="chip-ico">{{ getSortIcon(opt.key) }}</text>{{ opt.label }}
 			</text>
+			<text class="control-divider">|</text>
+			<text class="control-chip compact" :class="{ active: fastOnly }" @click="fastOnly = !fastOnly">30分钟内</text>
 		</view>
-		<view class="control-row">
-			<text class="control-chip" :class="{ active: fastOnly }" @click="fastOnly = !fastOnly">30分钟内</text>
-			<text class="control-chip" :class="{ active: easyOnly }" @click="easyOnly = !easyOnly">简单</text>
+		<view class="control-row compact-row">
+			<text class="control-chip compact" :class="{ active: easyOnly }" @click="easyOnly = !easyOnly">简单</text>
 		</view>
 		<view class="recipe-card" v-for="(item, idx) in displayRecipes" :key="item.id" @click="openDetail(item)">
-			<view class="recipe-avatar">{{ item.emoji }}</view>
+			<view class="recipe-avatar">
+				<IngredientIcon :name="pickRecipeCoverName(item)" :size="44" />
+			</view>
 			<view class="recipe-main">
 				<view class="title-row">
 					<text class="name">{{ item.name }}</text>
@@ -47,9 +50,10 @@
 
 <script>
 import BottomNav from '@/components/bottom-nav.vue'
+import IngredientIcon from '@/components/ingredient-icon.vue'
 
 export default {
-	components: { BottomNav },
+	components: { BottomNav, IngredientIcon },
 	data() {
 		return {
 			pantryTags: ['番茄', '鸡蛋', '牛肉', '洋葱'],
@@ -112,6 +116,12 @@ export default {
 		this.loadGeneratedRecipes()
 	},
 	methods: {
+		getSortIcon(key) {
+			if (key === 'score') return '◎'
+			if (key === 'duration') return '◷'
+			if (key === 'difficulty') return '⚡'
+			return ''
+		},
 		loadGeneratedRecipes() {
 			const pantry = uni.getStorageSync('latestPantryTags')
 			if (Array.isArray(pantry) && pantry.length) {
@@ -164,6 +174,18 @@ export default {
 			if (text.includes('鱼')) return '🐟'
 			if (text.includes('虾')) return '🍤'
 			return '🍽️'
+		},
+		pickRecipeCoverName(item) {
+			const first = Array.isArray(item?.raw?.ingredients) ? item.raw.ingredients.find((x) => x?.name)?.name : ''
+			if (first) return first
+			const text = `${item?.name || ''}`
+			if (text.includes('牛')) return '牛肉'
+			if (text.includes('鸡蛋')) return '鸡蛋'
+			if (text.includes('鸡')) return '鸡肉'
+			if (text.includes('土豆')) return '土豆'
+			if (text.includes('黄瓜')) return '黄瓜'
+			if (text.includes('番茄') || text.includes('西红柿')) return '番茄'
+			return ''
 		},
 		openDetail(item) {
 			if (item && item.raw) {
@@ -232,46 +254,63 @@ export default {
 	align-items: center;
 	flex-wrap: wrap;
 	gap: 8rpx;
-	margin-bottom: 10rpx;
+	margin-bottom: 8rpx;
+}
+
+.compact-row {
+	margin-top: -2rpx;
+}
+
+.chip-ico {
+	margin-right: 5rpx;
+}
+
+.control-divider {
+	color: #c0c9d4;
+	padding: 0 4rpx;
 }
 
 .control-chip {
-	padding: 6rpx 14rpx;
+	padding: 7rpx 14rpx;
 	border-radius: 999rpx;
-	font-size: 11px;
-	background: #f0f3f1;
-	color: #607066;
+	font-size: 12px;
+	background: #f4f6f9;
+	color: #4e5f74;
+	font-weight: 600;
+}
+
+.control-chip.compact {
+	padding: 7rpx 12rpx;
 }
 
 .control-chip.active {
-	background: #e4f4e8;
-	color: #3b9450;
+	background: #e8effd;
+	color: #4b74d9;
 	font-weight: 600;
 }
 
 .recipe-card {
 	display: grid;
-	grid-template-columns: 64px 1fr auto;
-	column-gap: 12px;
+	grid-template-columns: 68px 1fr auto;
+	column-gap: 10px;
 	row-gap: 8rpx;
 	align-items: center;
 	border: 1rpx solid #edf2ef;
 	border-radius: 14px;
-	padding: 12px;
+	padding: 10px 12px;
 	background: #fff;
 	margin-bottom: 10rpx;
 }
 
 .recipe-avatar {
-	width: 64px;
-	height: 64px;
-	border-radius: 16px;
+	width: 60px;
+	height: 60px;
+	border-radius: 14px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 44rpx;
-	background: linear-gradient(135deg, #f1f8f2, #f8fcf8);
-	border: 1rpx solid #e8f1ea;
+	background: #f4f9f5;
+	border: 1rpx solid #e7efea;
 }
 
 .recipe-main {
@@ -299,7 +338,7 @@ export default {
 
 .name {
 	font-weight: 700;
-	font-size: 16px;
+	font-size: 17px;
 	color: #1f2a22;
 }
 
@@ -356,16 +395,16 @@ export default {
 }
 
 .recipe-cta {
-	padding: 8rpx 14rpx;
+	padding: 8rpx 13rpx;
 	border-radius: 999rpx;
-	font-size: 11px;
+	font-size: 12px;
 	background: #eaf7ee;
 	color: #409a4d;
 	font-weight: 700;
 }
 
 .recipe-cta.blue {
-	background: #e8f0ff;
+	background: #edf4ff;
 	color: #4a73d9;
 }
 
