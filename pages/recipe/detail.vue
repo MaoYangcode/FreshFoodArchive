@@ -6,7 +6,9 @@
 		</view>
 		<view class="recipe-inner">
 			<view class="head">
-				<view class="recipe-avatar">{{ recipe.emoji }}</view>
+				<view class="recipe-avatar">
+					<IngredientIcon :name="pickRecipeCoverName(recipe)" :size="46" />
+				</view>
 				<view class="head-main">
 					<text class="title">{{ recipe.name }}</text>
 					<text class="meta">{{ recipe.servings }}人份 · {{ recipe.duration }}分钟 · {{ recipe.difficulty }}</text>
@@ -34,6 +36,8 @@
 				</view>
 			</view>
 
+		</view>
+		<view class="favorite-wrap">
 			<button class="btn" :class="favorited ? 'done' : 'primary'" @click="favorite">{{ favorited ? '已收藏' : '收藏该菜谱' }}</button>
 		</view>
 		<BottomNav current="recipe" />
@@ -43,9 +47,10 @@
 <script>
 import { addFavoriteRecipe } from '@/store/app-store'
 import BottomNav from '@/components/bottom-nav.vue'
+import IngredientIcon from '@/components/ingredient-icon.vue'
 
 export default {
-	components: { BottomNav },
+	components: { BottomNav, IngredientIcon },
 	data() {
 		return {
 			favorited: false,
@@ -78,7 +83,8 @@ export default {
 				difficulty: cached.difficulty || this.recipe.difficulty,
 				ingredientsText: ingredientText || this.recipe.ingredientsText,
 				ingredients: ingredientText ? ingredientText.split('、') : this.recipe.ingredients,
-				steps: stepList.length ? stepList : this.recipe.steps
+				steps: stepList.length ? stepList : this.recipe.steps,
+				raw: cached
 			}
 		}
 		if (query && query.name) {
@@ -111,6 +117,18 @@ export default {
 		},
 		backToResult() {
 			uni.navigateBack()
+		},
+		pickRecipeCoverName(item) {
+			const first = Array.isArray(item?.raw?.ingredients) ? item.raw.ingredients.find((x) => x?.name)?.name : ''
+			if (first) return first
+			const text = `${item?.name || ''}`
+			if (text.includes('牛')) return '牛肉'
+			if (text.includes('鸡蛋')) return '鸡蛋'
+			if (text.includes('鸡')) return '鸡肉'
+			if (text.includes('土豆')) return '土豆'
+			if (text.includes('黄瓜')) return '黄瓜'
+			if (text.includes('番茄') || text.includes('西红柿')) return '番茄'
+			return ''
 		}
 	}
 }
@@ -149,6 +167,7 @@ export default {
 	border-radius: 14px;
 	box-shadow: 0 10rpx 20rpx rgba(33, 60, 38, 0.06);
 	padding: 16rpx;
+	margin-bottom: 12rpx;
 }
 
 .head {
@@ -157,7 +176,7 @@ export default {
 	column-gap: 12px;
 	row-gap: 8rpx;
 	align-items: center;
-	margin-bottom: 12rpx;
+	margin-bottom: 18rpx;
 }
 
 .head-main {
@@ -171,9 +190,12 @@ export default {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 44rpx;
 	background: linear-gradient(135deg, #f1f8f2, #f8fcf8);
 	border: 1rpx solid #e8f1ea;
+}
+
+.favorite-wrap {
+	margin-bottom: 8rpx;
 }
 
 .title {
@@ -194,7 +216,7 @@ export default {
 	padding: 12rpx 14rpx;
 	background: linear-gradient(135deg, #f4f8f5, #f8fbf8);
 	border: 1rpx solid #e2ebe4;
-	margin-bottom: 10rpx;
+	margin-bottom: 16rpx;
 }
 
 .banner-title-row {

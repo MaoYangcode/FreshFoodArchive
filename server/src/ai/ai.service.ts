@@ -127,7 +127,7 @@ export class AiService {
       '{"recipes":[{"id":"ai_001","name":"菜名","duration":15,"difficulty":"简单","matchScore":95,"coverImage":"","ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["步骤1","步骤2"],"tips":"可选"}]}',
       'difficulty 仅可取：简单、中等、困难。',
       'matchScore 范围 0-100。',
-      'steps 至少 2 步。',
+      'steps 按实际烹饪需要返回，不限制步数；每一步都要具体可执行（包含关键动作或火候信息）。',
       '如果无法生成，返回 {"recipes":[]}',
     ].join('\n')
 
@@ -170,7 +170,7 @@ export class AiService {
             }))
             .filter((x: any) => !!x.name)
         : [],
-      steps: steps.length ? steps : ['准备食材。', '加热烹饪后调味出锅。'],
+      steps: steps.length ? steps : ['准备并清洗食材。', '按顺序烹饪并调味后出锅。'],
       tips: `${item?.tips || ''}`.trim(),
     }
   }

@@ -14,32 +14,37 @@
 
 		<view class="menu">
 			<view class="menu-item">
-				<text class="micon">▦</text>
+				<text class="micon">&#xe90b;</text>
 				<text>冰箱管理</text>
 				<text class="arrow">›</text>
 			</view>
 			<view class="menu-item" @click="goTakeout">
-				<text class="micon">🗒</text>
+				<text class="micon">&#xe614;</text>
 				<text>取出记录</text>
 				<text class="arrow">›</text>
 			</view>
 			<view class="menu-item">
-				<text class="micon">⏰</text>
+				<text class="micon">&#xe629;</text>
 				<text>临期提醒</text>
 				<text class="arrow">›</text>
 			</view>
 			<view class="menu-item" @click="goFavorites">
-				<text class="micon">🧺</text>
+				<text class="micon">&#xe62e;</text>
 				<text>收藏菜谱</text>
 				<text class="arrow">›</text>
 			</view>
 			<view class="menu-item">
-				<text class="micon">👤</text>
+				<text class="micon">&#xe61b;</text>
+				<text>菜篮子</text>
+				<text class="arrow">›</text>
+			</view>
+			<view class="menu-item">
+				<text class="micon">&#xe632;</text>
 				<text>我的资料</text>
 				<text class="arrow">›</text>
 			</view>
 			<view class="menu-item">
-				<text class="micon">💬</text>
+				<text class="micon">&#xe64b;</text>
 				<text>问题反馈</text>
 				<text class="arrow">›</text>
 			</view>
@@ -65,6 +70,11 @@ export default {
 </script>
 
 <style scoped>
+@font-face {
+	font-family: "profile-iconfont";
+	src: url('/static/iconfont/iconfont.ttf') format('truetype');
+}
+
 .container {
 	padding: 10px 12px 88px;
 }
@@ -150,9 +160,15 @@ export default {
 }
 
 .micon {
+	font-family: "profile-iconfont" !important;
+	font-style: normal;
+	font-weight: 400;
 	color: #5a8ee9;
 	font-size: 20px;
 	text-align: center;
+	line-height: 1;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
 .arrow {
