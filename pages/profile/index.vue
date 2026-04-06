@@ -5,7 +5,7 @@
 			<view class="capsule"><text>•••</text><text>◉</text></view>
 		</view>
 		<view class="card head-card">
-			<view class="avatar">🧊</view>
+			<view class="avatar">&#xe615;</view>
 			<view>
 				<text class="name">微信用户</text>
 				<text class="meta">普通会员</text>
@@ -44,7 +44,7 @@
 				<text class="arrow">›</text>
 			</view>
 			<view class="menu-item">
-				<text class="micon">&#xe64b;</text>
+				<text class="micon">&#xe631;</text>
 				<text>问题反馈</text>
 				<text class="arrow">›</text>
 			</view>
@@ -117,14 +117,16 @@ export default {
 }
 
 .avatar {
+	font-family: "profile-iconfont" !important;
 	width: 72px;
 	height: 72px;
 	border-radius: 50%;
-	background: #e7f0ff;
+	background: #eaf7ee;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 56rpx;
+	font-size: 64rpx;
+	color: #34a853;
 }
 
 .name {
@@ -147,12 +149,12 @@ export default {
 
 .menu-item {
 	display: grid;
-	grid-template-columns: 42rpx 1fr auto;
-	gap: 10rpx;
+	grid-template-columns: 50rpx 1fr auto;
+	gap: 14rpx;
 	align-items: center;
-	padding: 16rpx 12rpx;
+	padding: 20rpx 12rpx;
 	border-bottom: 1rpx solid #eff3f1;
-	font-size: 14px;
+	font-size: 15px;
 }
 
 .menu-item:last-child {
@@ -163,8 +165,8 @@ export default {
 	font-family: "profile-iconfont" !important;
 	font-style: normal;
 	font-weight: 400;
-	color: #5a8ee9;
-	font-size: 20px;
+	color: #34a853;
+	font-size: 23px;
 	text-align: center;
 	line-height: 1;
 	-webkit-font-smoothing: antialiased;
@@ -173,7 +175,7 @@ export default {
 
 .arrow {
 	font-size: 28px;
-	color: #8f9792;
+	color: #c7ced9;
 	line-height: 1;
 }
 </style>
