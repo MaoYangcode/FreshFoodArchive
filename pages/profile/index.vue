@@ -40,7 +40,7 @@
 				<text class="arrow">›</text>
 			</view>
 			<view class="menu-sep"></view>
-			<view class="menu-item group-end">
+			<view class="menu-item group-end" @click="goProfile">
 				<text class="micon">&#xe632;</text>
 				<text>我的资料</text>
 				<text class="arrow">›</text>
@@ -72,6 +72,9 @@ export default {
 		},
 		goExpiryReminder() {
 			uni.navigateTo({ url: '/pages/profile/expiry-reminder' })
+		},
+		goProfile() {
+			uni.navigateTo({ url: '/pages/profile/profile' })
 		}
 	}
 }

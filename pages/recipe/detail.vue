@@ -50,8 +50,9 @@
 </template>
 
 <script>
-import { addFavoriteRecipe, getFavoriteRecipeByName, markFavoriteRecipeCompleted, upsertBasketItems } from '@/store/app-store'
+import { addFavoriteRecipe, getFavoriteRecipeByName, markFavoriteRecipeCompleted, upsertBasketItems as upsertBasketItemsLocal } from '@/store/app-store'
 import { getIngredientList } from '@/api/modules/ingredients'
+import { upsertBasketItems as upsertBasketItemsApi } from '@/api/modules/basket'
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 
@@ -214,12 +215,19 @@ export default {
 				uni.showToast({ title: '当前食材充足，无需加入', icon: 'none' })
 				return
 			}
-			const result = upsertBasketItems(missing.map((x) => ({
+			let result = { added: 0, merged: 0 }
+			const payload = missing.map((x) => ({
 				name: x.name,
 				quantity: Number(x.quantity || 1),
 				unit: x.unit || '份',
 				category: x.category || '其他'
-			})), this.recipe.name)
+			}))
+			try {
+				result = await upsertBasketItemsApi(payload, this.recipe.name, 1)
+			} catch (e) {
+				// Fallback keeps legacy local flow if backend is unavailable.
+				result = upsertBasketItemsLocal(payload, this.recipe.name)
+			}
 			uni.showToast({ title: `已加入菜篮子（${result.added + result.merged}项）`, icon: 'success' })
 		},
 		backToResult() {

@@ -61,8 +61,8 @@
 <script>
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
+import { getExpiryReminderSettings, updateExpiryReminderSettings } from '@/api/modules/expiry-reminder'
 
-const REMINDER_STORAGE_KEY = 'fresh-food-expiry-reminder-settings-v1'
 const CATEGORIES = ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他']
 const DEFAULT_SETTINGS = {
 	enabled: true,
@@ -88,6 +88,7 @@ export default {
 	components: { BottomNav, IngredientIcon },
 	data() {
 		return {
+			userId: 1,
 			categories: CATEGORIES,
 			settings: cloneDefaults(),
 			dayOptions: Array.from({ length: 31 }, (_, i) => i)
@@ -112,9 +113,9 @@ export default {
 			if (rule === undefined || rule === null) return this.settings.defaultDays
 			return this.clampDays(rule)
 		},
-		loadSettings() {
+		async loadSettings() {
 			try {
-				const raw = uni.getStorageSync(REMINDER_STORAGE_KEY)
+				const raw = await getExpiryReminderSettings(this.userId)
 				if (!raw || typeof raw !== 'object') {
 					this.settings = cloneDefaults()
 					return
@@ -133,6 +134,7 @@ export default {
 				this.settings = merged
 			} catch (e) {
 				this.settings = cloneDefaults()
+				uni.showToast({ title: '提醒设置加载失败', icon: 'none' })
 			}
 		},
 		onEnabledChange(e) {
@@ -160,14 +162,32 @@ export default {
 			uni.showToast({ title: '已恢复默认', icon: 'none' })
 		},
 		saveSettings() {
-			try {
-				uni.setStorageSync(REMINDER_STORAGE_KEY, this.settings)
-				uni.showToast({ title: '已保存提醒设置', icon: 'success' })
-			} catch (e) {
-				uni.showToast({ title: '保存失败，请重试', icon: 'none' })
-			}
-		},
-		
+			updateExpiryReminderSettings({
+				userId: this.userId,
+				enabled: this.settings.enabled,
+				remindTime: this.settings.remindTime,
+				defaultDays: this.settings.defaultDays,
+				rules: this.settings.rules
+			})
+				.then((saved) => {
+					if (saved && typeof saved === 'object') {
+						this.settings = {
+							...this.settings,
+							enabled: !!saved.enabled,
+							remindTime: `${saved.remindTime || this.settings.remindTime}`,
+							defaultDays: this.clampDays(saved.defaultDays),
+							rules: {
+								...this.settings.rules,
+								...(saved.rules && typeof saved.rules === 'object' ? saved.rules : {})
+							}
+						}
+					}
+					uni.showToast({ title: '已保存提醒设置', icon: 'success' })
+				})
+				.catch(() => {
+					uni.showToast({ title: '保存失败，请重试', icon: 'none' })
+				})
+		}
 	}
 }
 </script>
@@ -206,6 +226,5 @@ export default {
 .btn.ghost { background: #ecf1ed; color: #637268; }
 .btn.primary { background: linear-gradient(135deg, #70c977, #4cae57); color: #fff; box-shadow: 0 8rpx 16rpx rgba(76, 174, 87, 0.26); }
 
-.btn::after,
 .btn::after { border: none; }
 </style>

@@ -83,6 +83,13 @@
         "navigationBarTitleText": "临期提醒",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/profile/profile",
+      "style": {
+        "navigationBarTitleText": "我的资料",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "tabBar": {

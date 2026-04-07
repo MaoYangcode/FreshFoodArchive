@@ -104,12 +104,19 @@
 <script>
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
-import { addBasketItem, clearDoneBasketItems, getBasketItems, removeBasketItem, toggleBasketItemStatus } from '@/store/app-store'
+import {
+	addBasketItem,
+	clearDoneBasketItems,
+	getBasketItems,
+	removeBasketItem,
+	toggleBasketItemStatus
+} from '@/api/modules/basket'
 
 export default {
 	components: { BottomNav, IngredientIcon },
 	data() {
 		return {
+			userId: 1,
 			items: [],
 			statusFilter: 'all',
 			keyword: '',
@@ -152,8 +159,14 @@ export default {
 		this.refresh()
 	},
 	methods: {
-		refresh() {
-			this.items = getBasketItems()
+		async refresh() {
+			try {
+				const res = await getBasketItems(this.userId)
+				this.items = Array.isArray(res) ? res : []
+			} catch (e) {
+				this.items = []
+				uni.showToast({ title: '菜篮子加载失败', icon: 'none' })
+			}
 		},
 		goBack() {
 			uni.navigateBack()
@@ -161,19 +174,31 @@ export default {
 		onKeywordInput(e) {
 			this.keyword = e && e.detail ? `${e.detail.value || ''}` : ''
 		},
-		toggleStatus(item) {
-			toggleBasketItemStatus(item.id)
-			this.refresh()
+		async toggleStatus(item) {
+			try {
+				await toggleBasketItemStatus(item.id, this.userId)
+				this.refresh()
+			} catch (e) {
+				uni.showToast({ title: '更新失败', icon: 'none' })
+			}
 		},
-		removeOne(item) {
-			removeBasketItem(item.id)
-			this.refresh()
-			uni.showToast({ title: '已删除', icon: 'none' })
+		async removeOne(item) {
+			try {
+				await removeBasketItem(item.id, this.userId)
+				this.refresh()
+				uni.showToast({ title: '已删除', icon: 'none' })
+			} catch (e) {
+				uni.showToast({ title: '删除失败', icon: 'none' })
+			}
 		},
-		clearDone() {
-			clearDoneBasketItems()
-			this.refresh()
-			uni.showToast({ title: '已清空已购买', icon: 'none' })
+		async clearDone() {
+			try {
+				await clearDoneBasketItems(this.userId)
+				this.refresh()
+				uni.showToast({ title: '已清空已购买', icon: 'none' })
+			} catch (e) {
+				uni.showToast({ title: '清空失败', icon: 'none' })
+			}
 		},
 		openAddDialog() {
 			this.dialogVisible = true
@@ -188,20 +213,25 @@ export default {
 		onCategoryChange(e) {
 			this.form.category = this.categories[e.detail.value]
 		},
-		submitDialog() {
+		async submitDialog() {
 			if (!`${this.form.name || ''}`.trim()) {
 				uni.showToast({ title: '请输入食材名', icon: 'none' })
 				return
 			}
-			addBasketItem({
-				name: this.form.name,
-				quantity: Number(this.form.quantity || 1),
-				unit: this.form.unit || '份',
-				category: this.form.category || '其他'
-			})
-			this.closeDialog()
-			this.refresh()
-			uni.showToast({ title: '已加入菜篮子', icon: 'success' })
+			try {
+				await addBasketItem({
+					userId: this.userId,
+					name: this.form.name,
+					quantity: Number(this.form.quantity || 1),
+					unit: this.form.unit || '份',
+					category: this.form.category || '其他'
+				})
+				this.closeDialog()
+				this.refresh()
+				uni.showToast({ title: '已加入菜篮子', icon: 'success' })
+			} catch (e) {
+				uni.showToast({ title: '新增失败', icon: 'none' })
+			}
 		}
 	}
 }
