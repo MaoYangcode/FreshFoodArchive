@@ -12,7 +12,7 @@
 			</view>
 			<view class="stat s-orange">
 				<text class="num">{{ stats.expiring }}</text>
-				<text class="title">即将过期</text>
+				<text class="title">已过期/即将过期</text>
 				<text class="sub">请尽快处理</text>
 			</view>
 		</view>
@@ -52,14 +52,12 @@
 		</view>
 		<view class="tip-card">
 			<view class="tip-head">
-				<text class="tip-ico">🥗</text>
-				<text class="tip-title">今日饮食建议</text>
+				<text class="tip-ico home-iconfont">&#xe62f;</text>
+				<text class="tip-title">{{ tip.title }}</text>
 			</view>
-			<text class="tip-text">优先消耗冷藏区食材，午晚餐按“蔬菜 + 蛋白 + 粗粮”搭配；少盐少油，饮水不少于 1500ml。</text>
+			<text class="tip-text">{{ tip.text }}</text>
 			<view class="tip-tags">
-				<text class="tip-pill">高纤维</text>
-				<text class="tip-pill">低盐</text>
-				<text class="tip-pill">优先临期</text>
+				<text v-for="tag in tip.tags" :key="tag" class="tip-pill">{{ tag }}</text>
 			</view>
 		</view>
 		<BottomNav current="home" />
@@ -80,7 +78,12 @@ export default {
 				fresh: 0,
 				expiring: 0
 			},
-			latestIngredients: []
+			latestIngredients: [],
+			tip: {
+				title: '今日饮食建议',
+				text: '优先消耗冷藏区食材，午晚餐按“蔬菜 + 蛋白 + 粗粮”搭配；少盐少油，饮水不少于 1500ml。',
+				tags: ['高纤维', '低盐', '优先临期']
+			}
 		}
 	},
 	onShow() {
@@ -109,10 +112,74 @@ export default {
 					return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY
 				}
 				this.latestIngredients = [...list].sort((a, b) => toTs(a) - toTs(b)).slice(0, 3)
+				this.tip = this.buildSmartTip(list)
 			} catch (e) {
 				this.stats = { total: 0, fresh: 0, expiring: 0 }
 				this.latestIngredients = []
+				this.tip = this.buildSmartTip([])
 				uni.showToast({ title: '首页加载失败', icon: 'none' })
+			}
+		},
+		buildSmartTip(list) {
+			const items = Array.isArray(list) ? list : []
+			if (!items.length) {
+				return {
+					title: '先补一点常用食材',
+					text: '当前库存较少，建议先补充 2-3 种基础食材（如鸡蛋、番茄、绿叶菜），更容易快速做出一餐。',
+					tags: ['先补库存', '基础食材', '省时做饭']
+				}
+			}
+
+			const expired = items.filter((x) => this.getDays(x.expireDate) < 0)
+			if (expired.length) {
+				const names = [...new Set(expired.map((x) => x.name).filter(Boolean))].slice(0, 3).join('、')
+				return {
+					title: '先检查过期食材',
+					text: `发现 ${expired.length} 项可能已过期${names ? `（${names}）` : ''}，建议先核对状态并优先清理，避免误食。`,
+					tags: ['食品安全', '先清理', '避免浪费']
+				}
+			}
+
+			const expiringSoon = items.filter((x) => {
+				const d = this.getDays(x.expireDate)
+				return d >= 0 && d <= 2
+			})
+			if (expiringSoon.length) {
+				const names = [...new Set(expiringSoon.map((x) => x.name).filter(Boolean))].slice(0, 3).join('、')
+				return {
+					title: '优先消耗临期食材',
+					text: `${expiringSoon.length} 项食材 2 天内到期${names ? `（${names}）` : ''}，建议今晚优先使用，减少损耗。`,
+					tags: ['优先临期', '今晚先做', '减少浪费']
+				}
+			}
+
+			const countByCategory = items.reduce((acc, x) => {
+				const key = `${x?.category || '其他'}`
+				acc[key] = (acc[key] || 0) + 1
+				return acc
+			}, {})
+			const vegCount = (countByCategory['蔬菜'] || 0) + (countByCategory['水果'] || 0)
+			const proteinCount = (countByCategory['肉类'] || 0) + (countByCategory['蛋奶'] || 0) + (countByCategory['海鲜'] || 0)
+
+			if (vegCount === 0) {
+				return {
+					title: '建议补充蔬果',
+					text: '当前库存缺少蔬果，建议下次采购补 1-2 种绿叶菜或高纤维蔬果，搭配会更均衡。',
+					tags: ['补蔬果', '高纤维', '均衡饮食']
+				}
+			}
+			if (proteinCount === 0) {
+				return {
+					title: '建议补充蛋白来源',
+					text: '当前库存蛋白类偏少，可补充鸡蛋、豆制品或瘦肉，日常做菜更容易搭配。',
+					tags: ['补蛋白', '营养均衡', '更好搭配']
+				}
+			}
+
+			return {
+				title: '库存状态良好',
+				text: '当前食材结构较均衡，继续按“蔬菜 + 蛋白 + 主食”搭配即可，做饭效率和营养都会更稳定。',
+				tags: ['结构均衡', '按需消耗', '保持节奏']
 			}
 		},
 		getTagClass(expireDate) {
@@ -345,10 +412,12 @@ export default {
 	width: 46rpx;
 	height: 46rpx;
 	border-radius: 50%;
-	background: rgba(255, 255, 255, 0.2);
+	background: rgba(255, 255, 255, 0.28);
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	font-size: 30rpx;
+	color: #ffffff;
 }
 
 .tip-title {
