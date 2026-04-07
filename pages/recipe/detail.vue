@@ -18,7 +18,6 @@
 			<view class="recipe-banner">
 				<view class="banner-title-row">
 					<text class="banner-title">所需食材</text>
-					<text class="tag ok">已匹配96%</text>
 				</view>
 				<text class="banner-meta">{{ recipe.ingredientsText }}</text>
 			</view>
@@ -40,7 +39,9 @@
 		<view class="favorite-wrap">
 			<view class="action-grid">
 				<button class="btn" :class="favorited ? 'done' : 'primary'" @click="favorite">{{ favorited ? '已收藏' : '收藏该菜谱' }}</button>
-				<button class="btn complete-btn" :class="canComplete ? 'complete' : 'pending'" @click="completeRecipe">{{ completeButtonText }}</button>
+				<button class="btn complete-btn" :class="canComplete ? 'complete' : 'pending'" @click="completeRecipe">
+					<text v-if="completedCount > 0" class="detail-iconfont complete-mark-ico">&#xe66a;</text>{{ completeButtonText }}
+				</button>
 			</view>
 			<text v-if="lastCompletedAt" class="complete-meta">最近完成：{{ formatDateTime(lastCompletedAt) }}</text>
 		</view>
@@ -166,7 +167,7 @@ export default {
 			return text.slice(0, 16)
 		},
 		backToResult() {
-			uni.navigateBack()
+			uni.navigateTo({ url: '/pages/profile/favorites' })
 		},
 		pickRecipeCoverName(item) {
 			const first = Array.isArray(item?.raw?.ingredients) ? item.raw.ingredients.find((x) => x?.name)?.name : ''
@@ -185,6 +186,11 @@ export default {
 </script>
 
 <style scoped>
+@font-face {
+	font-family: "detail-iconfont";
+	src: url('/static/iconfont/iconfont.ttf') format('truetype');
+}
+
 .container {
 	padding: 10px 12px 88px;
 }
@@ -193,7 +199,7 @@ export default {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	margin-bottom: 8rpx;
+	margin-bottom: 16rpx;
 }
 
 .top-title {
@@ -398,5 +404,19 @@ export default {
 
 .complete {
 	background: linear-gradient(135deg, #83d38a, #5bb967);
+}
+
+.detail-iconfont {
+	font-family: "detail-iconfont" !important;
+	font-style: normal;
+	font-weight: 400;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+.complete-mark-ico {
+	font-size: 17px;
+	margin-right: 6rpx;
+	line-height: 1;
 }
 </style>
