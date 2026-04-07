@@ -13,32 +13,34 @@
 		</view>
 
 		<view class="menu">
-			<view class="menu-item">
+			<view class="menu-item group-end">
 				<text class="micon">&#xe90b;</text>
 				<text>冰箱管理</text>
 				<text class="arrow">›</text>
 			</view>
-			<view class="menu-item" @click="goTakeout">
+			<view class="menu-item group-end" @click="goTakeout">
 				<text class="micon">&#xe614;</text>
 				<text>取出记录</text>
 				<text class="arrow">›</text>
 			</view>
-			<view class="menu-item">
+			<view class="menu-item group-end" @click="goExpiryReminder">
 				<text class="micon">&#xe629;</text>
 				<text>临期提醒</text>
 				<text class="arrow">›</text>
 			</view>
-			<view class="menu-item" @click="goFavorites">
+			<view class="menu-sep"></view>
+			<view class="menu-item group-end" @click="goFavorites">
 				<text class="micon">&#xe62e;</text>
 				<text>收藏菜谱</text>
 				<text class="arrow">›</text>
 			</view>
-			<view class="menu-item" @click="goBasket">
+			<view class="menu-item group-end" @click="goBasket">
 				<text class="micon">&#xe61b;</text>
 				<text>菜篮子</text>
 				<text class="arrow">›</text>
 			</view>
-			<view class="menu-item">
+			<view class="menu-sep"></view>
+			<view class="menu-item group-end">
 				<text class="micon">&#xe632;</text>
 				<text>我的资料</text>
 				<text class="arrow">›</text>
@@ -67,6 +69,9 @@ export default {
 		},
 		goBasket() {
 			uni.navigateTo({ url: '/pages/profile/basket' })
+		},
+		goExpiryReminder() {
+			uni.navigateTo({ url: '/pages/profile/expiry-reminder' })
 		}
 	}
 }
@@ -117,6 +122,7 @@ export default {
 	grid-template-columns: 72px 1fr;
 	gap: 12rpx;
 	align-items: center;
+	margin-top: 10rpx;
 }
 
 .avatar {
@@ -162,6 +168,26 @@ export default {
 
 .menu-item:last-child {
 	border-bottom: none;
+}
+
+.menu-item.group-end {
+	border-bottom: none;
+}
+
+.menu-sep {
+	height: 24rpx;
+	position: relative;
+}
+
+.menu-sep::after {
+	content: '';
+	position: absolute;
+	left: 18px;
+	right: 12px;
+	top: 50%;
+	height: 1rpx;
+	background: #e9eeeb;
+	transform: translateY(-50%);
 }
 
 .micon {

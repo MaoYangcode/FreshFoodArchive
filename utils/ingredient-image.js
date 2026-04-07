@@ -110,6 +110,7 @@ const NAME_TO_ICONFONT = {
 	煮鸡蛋: 'icon-zhujidan',
 	茶叶蛋: 'icon-chayedan',
 	牛奶: 'icon-niunai',
+	淡奶: 'icon-niunai',
 	全脂牛奶: 'icon-quanzhiniunai',
 	脱脂牛奶: 'icon-tuozhiniunai',
 	伊利纯牛奶: 'icon-yilichunniunai',
@@ -255,6 +256,7 @@ const KEYWORD_TO_ICONFONT = [
 	{ keyword: '苹果', icon: 'icon-pingguo' },
 	{ keyword: '橙子', icon: 'icon-chengzi' }
 	,
+	{ keyword: '淡奶', icon: 'icon-niunai' },
 	{ keyword: '胡椒', icon: 'icon-Pepper' },
 	{ keyword: 'pepper', icon: 'icon-Pepper' },
 	{ keyword: '盐', icon: 'icon-Salt' },
@@ -345,6 +347,7 @@ function getCategoryFallbackIconfontClass(category) {
 	if (cat === '蔬菜') return 'icon-huacai1'
 	if (cat === '海鲜') return 'icon-shengxian-haixian1'
 	if (cat === '肉类') return 'icon-shengxian-roulei'
+	if (cat === '蛋奶') return 'icon-niunai'
 	if (cat === '饮料') return 'icon-yinliao'
 	if (cat === '调味品') return 'icon-tiaoliao'
 	if (cat === '其他') return 'icon-bianzu'

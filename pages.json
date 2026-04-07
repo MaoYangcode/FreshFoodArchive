@@ -76,6 +76,13 @@
         "navigationBarTitleText": "菜篮子",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/profile/expiry-reminder",
+      "style": {
+        "navigationBarTitleText": "临期提醒",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "tabBar": {
