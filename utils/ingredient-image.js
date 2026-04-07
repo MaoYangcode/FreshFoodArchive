@@ -91,9 +91,9 @@ const NAME_TO_ICONFONT = {
 	西红柿: 'icon-fanqie',
 	小番茄: 'icon-xiaofanqie',
 	圣女果: 'icon-shengnvguo',
-	茄子: 'icon-xiaofanqie',
-	紫茄子: 'icon-xiaofanqie',
-	长茄子: 'icon-xiaofanqie',
+	茄子: 'icon-qiezi',
+	紫茄子: 'icon-qiezi',
+	长茄子: 'icon-qiezi',
 	土豆: 'icon-tudou',
 	马铃薯: 'icon-tudou',
 	山药: 'icon-shanyao',
@@ -148,12 +148,18 @@ const NAME_TO_ICONFONT = {
 	面条: 'icon-miantiao',
 	煮面条: 'icon-zhumiantiao',
 	方便面: 'icon-fangbianmian',
+	包子: 'icon-shengxian-shushi',
+	馒头: 'icon-shengxian-shushi',
 	花卷: 'icon-huajuan',
 	吐司: 'icon-tusi',
 	全麦面包: 'icon-quanmaimianbao',
 	豆浆: 'icon-doujiang',
 	无糖豆浆: 'icon-wutangdoujiang',
 	红枣豆浆: 'icon-hongzaodoujiang',
+	大葱: 'icon-dacong',
+	生姜: 'icon-shengjiang',
+	杏: 'icon-xing',
+	猕猴果: 'icon-mileguo',
 	可乐: 'icon-kele',
 	椰子水: 'icon-yezishui',
 	珍珠奶茶: 'icon-zhenzhunaicha',
@@ -194,6 +200,16 @@ const NAME_TO_ICONFONT = {
 	草莓: 'icon-caomei',
 	樱桃: 'icon-yingtao',
 	柿子: 'icon-shizi',
+	山竹: 'icon-shanzhu',
+	杨桃: 'icon-yangtao',
+	车厘子: 'icon-chelizi',
+	椰子: 'icon-yezi',
+	莲雾: 'icon-lianwu',
+	柚子: 'icon-youzi',
+	木瓜: 'icon-mugua',
+	柠檬: 'icon-ningmeng',
+	荔枝: 'icon-lizhi',
+	榴莲: 'icon-liulian',
 	红枣: 'icon-hongzao',
 	白糖: 'icon-baitang',
 	黄油: 'icon-huangyou',
@@ -201,10 +217,111 @@ const NAME_TO_ICONFONT = {
 	芝麻酱: 'icon-zhimajiang',
 	黑芝麻: 'icon-heizhima',
 	黑芝麻糊粉: 'icon-heizhimahufen',
+	糖: 'icon-baitang',
+	白砂糖: 'icon-baitang',
+	香油: 'icon-ganlanyou',
+	油: 'icon-ganlanyou',
+	辣椒油: 'icon-honglajiao',
 	面条: 'icon-miantiao',
 	洋葱: 'icon-yangcong',
 	豆奶: 'icon-dounai'
 }
+
+const KEYWORD_TO_ICONFONT = [
+	{ keyword: '茄子', icon: 'icon-qiezi' },
+	{ keyword: '西红柿', icon: 'icon-fanqie' },
+	{ keyword: '番茄', icon: 'icon-fanqie' },
+	{ keyword: '牛肉', icon: 'icon-niurou' },
+	{ keyword: '鸡蛋', icon: 'icon-jidan' },
+	{ keyword: '土豆', icon: 'icon-tudou' },
+	{ keyword: '马铃薯', icon: 'icon-tudou' },
+	{ keyword: '黄瓜', icon: 'icon-huanggua' },
+	{ keyword: '洋葱', icon: 'icon-yangcong' },
+	{ keyword: '胡萝卜', icon: 'icon-huluobu' },
+	{ keyword: '萝卜', icon: 'icon-luobu' },
+	{ keyword: '虾', icon: 'icon-xia' },
+	{ keyword: '鸡胸', icon: 'icon-jixiongrou' },
+	{ keyword: '鸡肉', icon: 'icon-jirou' },
+	{ keyword: '猪肉', icon: 'icon-zhurou' },
+	{ keyword: '豆腐', icon: 'icon-doufu' },
+	{ keyword: '蘑菇', icon: 'icon-mogu' },
+	{ keyword: '香菇', icon: 'icon-mogu' },
+	{ keyword: '西兰花', icon: 'icon-xilanhua' },
+	{ keyword: '生菜', icon: 'icon-shengcai' },
+	{ keyword: '菠菜', icon: 'icon-bocai' },
+	{ keyword: '白菜', icon: 'icon-baicai' },
+	{ keyword: '青菜', icon: 'icon-qingcai' },
+	{ keyword: '香蕉', icon: 'icon-xiangjiao' },
+	{ keyword: '苹果', icon: 'icon-pingguo' },
+	{ keyword: '橙子', icon: 'icon-chengzi' }
+	,
+	{ keyword: '胡椒', icon: 'icon-Pepper' },
+	{ keyword: 'pepper', icon: 'icon-Pepper' },
+	{ keyword: '盐', icon: 'icon-Salt' },
+	{ keyword: 'salt', icon: 'icon-Salt' },
+	{ keyword: '酱油', icon: 'icon-Soya' },
+	{ keyword: '生抽', icon: 'icon-Soya' },
+	{ keyword: '老抽', icon: 'icon-Soya' },
+	{ keyword: 'soya', icon: 'icon-Soya' },
+	{ keyword: '醋', icon: 'icon-Vinegar' },
+	{ keyword: '米醋', icon: 'icon-Vinegar' },
+	{ keyword: '陈醋', icon: 'icon-Vinegar' },
+	{ keyword: 'vinegar', icon: 'icon-Vinegar' },
+	{ keyword: '蜂蜜', icon: 'icon-Honey' },
+	{ keyword: 'honey', icon: 'icon-Honey' },
+	{ keyword: '番茄酱', icon: 'icon-Ketchup' },
+	{ keyword: 'ketchup', icon: 'icon-Ketchup' },
+	{ keyword: '橄榄油', icon: 'icon-ganlanyou' },
+	{ keyword: 'olive oil', icon: 'icon-ganlanyou' },
+	{ keyword: 'oliveoil', icon: 'icon-ganlanyou' },
+	{ keyword: '白糖', icon: 'icon-baitang' },
+	{ keyword: '砂糖', icon: 'icon-baitang' },
+	{ keyword: 'sugar', icon: 'icon-baitang' },
+	{ keyword: '糖', icon: 'icon-baitang' },
+	{ keyword: '辣椒油', icon: 'icon-honglajiao' },
+	{ keyword: '香油', icon: 'icon-ganlanyou' },
+	{ keyword: '食用油', icon: 'icon-ganlanyou' },
+	{ keyword: '油', icon: 'icon-ganlanyou' },
+	{ keyword: '西葫芦', icon: 'icon-xihulu' },
+	{ keyword: '秋葵', icon: 'icon-qiukui' },
+	{ keyword: '红辣椒', icon: 'icon-honglajiao' },
+	{ keyword: '紫甘蓝', icon: 'icon-ziganlan' },
+	{ keyword: '大蒜', icon: 'icon-dasuan' },
+	{ keyword: '蒜末', icon: 'icon-dasuan' },
+	{ keyword: '蒜蓉', icon: 'icon-dasuan' },
+	{ keyword: '八角', icon: 'icon-bajiao' },
+	{ keyword: '竹笋', icon: 'icon-zhusun' },
+	{ keyword: '春笋', icon: 'icon-zhusun' },
+	{ keyword: '藕', icon: 'icon-ou' },
+	{ keyword: '莲藕', icon: 'icon-ou' },
+	{ keyword: '红薯', icon: 'icon-hongshu1' },
+	{ keyword: '地瓜', icon: 'icon-hongshu1' },
+	{ keyword: '玉米粒', icon: 'icon-xianyumi' },
+	{ keyword: '大葱', icon: 'icon-dacong' },
+	{ keyword: '生姜', icon: 'icon-shengjiang' },
+	{ keyword: '姜', icon: 'icon-shengjiang' },
+	{ keyword: '杏', icon: 'icon-xing' },
+	{ keyword: '猕猴果', icon: 'icon-mileguo' }
+	,
+	{ keyword: '山竹', icon: 'icon-shanzhu' },
+	{ keyword: '杨桃', icon: 'icon-yangtao' },
+	{ keyword: '车厘子', icon: 'icon-chelizi' },
+	{ keyword: '樱桃', icon: 'icon-chelizi' },
+	{ keyword: '椰子', icon: 'icon-yezi' },
+	{ keyword: '莲雾', icon: 'icon-lianwu' },
+	{ keyword: '柚子', icon: 'icon-youzi' },
+	{ keyword: '西瓜', icon: 'icon-xigua' },
+	{ keyword: '柿子', icon: 'icon-shizi' },
+	{ keyword: '木瓜', icon: 'icon-mugua' },
+	{ keyword: '柠檬', icon: 'icon-ningmeng' },
+	{ keyword: '青柠', icon: 'icon-ningmeng' },
+	{ keyword: 'lemon', icon: 'icon-ningmeng' },
+	{ keyword: '荔枝', icon: 'icon-lizhi' },
+	{ keyword: '榴莲', icon: 'icon-liulian' },
+	{ keyword: 'durian', icon: 'icon-liulian' },
+	{ keyword: '包子', icon: 'icon-shengxian-shushi' },
+	{ keyword: '馒头', icon: 'icon-shengxian-shushi' }
+]
 
 export function getIngredientImagePath(name, category = '') {
 	const key = `${name || ''}`.trim()
@@ -213,11 +330,29 @@ export function getIngredientImagePath(name, category = '') {
 }
 
 export function getIngredientIconfontClass(name) {
-	return NAME_TO_ICONFONT[`${name || ''}`.trim()] || ''
+	const text = `${name || ''}`.trim()
+	if (!text) return ''
+	const exact = NAME_TO_ICONFONT[text]
+	if (exact) return exact
+	const lower = text.toLowerCase()
+	const hit = KEYWORD_TO_ICONFONT.find((x) => lower.includes(`${x.keyword}`.toLowerCase()))
+	return hit ? hit.icon : ''
 }
 
-export function getIngredientSymbolId(name) {
-	const cls = getIngredientIconfontClass(name)
+function getCategoryFallbackIconfontClass(category) {
+	const cat = `${category || ''}`.trim()
+	if (cat === '水果') return 'icon-shuiguolanzi'
+	if (cat === '蔬菜') return 'icon-huacai1'
+	if (cat === '海鲜') return 'icon-shengxian-haixian1'
+	if (cat === '肉类') return 'icon-shengxian-roulei'
+	if (cat === '饮料') return 'icon-yinliao'
+	if (cat === '调味品') return 'icon-tiaoliao'
+	if (cat === '其他') return 'icon-bianzu'
+	return ''
+}
+
+export function getIngredientSymbolId(name, category = '') {
+	const cls = getIngredientIconfontClass(name) || getCategoryFallbackIconfontClass(category)
 	return cls ? `#${cls}` : ''
 }
 

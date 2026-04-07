@@ -1,8 +1,8 @@
 @font-face {
   font-family: "iconfont"; /* Project id 5154131 */
-  src: url('iconfont.woff2?t=1775306588198') format('woff2'),
-       url('iconfont.woff?t=1775306588198') format('woff'),
-       url('iconfont.ttf?t=1775306588198') format('truetype');
+  src: url('iconfont.woff2?t=1775560449057') format('woff2'),
+       url('iconfont.woff?t=1775560449057') format('woff'),
+       url('iconfont.ttf?t=1775560449057') format('truetype');
 }
 
 .iconfont {
@@ -11,6 +11,222 @@
   font-style: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-fanhui:before {
+  content: "\e630";
+}
+
+.icon-sousuo:before {
+  content: "\e60d";
+}
+
+.icon-tiaoliao:before {
+  content: "\e606";
+}
+
+.icon-yinliao:before {
+  content: "\e607";
+}
+
+.icon-bianzu:before {
+  content: "\e609";
+}
+
+.icon-shengxian-roulei:before {
+  content: "\e601";
+}
+
+.icon-shengxian-haixian:before {
+  content: "\e602";
+}
+
+.icon-shengxian-shushi:before {
+  content: "\e603";
+}
+
+.icon-shengxian-haixian1:before {
+  content: "\e604";
+}
+
+.icon-shengxian-shushi1:before {
+  content: "\e605";
+}
+
+.icon-huacai1:before {
+  content: "\e7c0";
+}
+
+.icon-shuiguolanzi:before {
+  content: "\e68a";
+}
+
+.icon-mugua:before {
+  content: "\e660";
+}
+
+.icon-ningmeng:before {
+  content: "\e661";
+}
+
+.icon-lizhi:before {
+  content: "\e663";
+}
+
+.icon-liulian:before {
+  content: "\e664";
+}
+
+.icon-xigua1:before {
+  content: "\e666";
+}
+
+.icon-shanzhu:before {
+  content: "\e667";
+}
+
+.icon-shizi1:before {
+  content: "\e66c";
+}
+
+.icon-yangtao:before {
+  content: "\e66d";
+}
+
+.icon-chelizi:before {
+  content: "\e66f";
+}
+
+.icon-yezi:before {
+  content: "\e670";
+}
+
+.icon-lianwu:before {
+  content: "\e682";
+}
+
+.icon-youzi:before {
+  content: "\e684";
+}
+
+.icon-mileguo:before {
+  content: "\e688";
+}
+
+.icon-xing:before {
+  content: "\e689";
+}
+
+.icon-dacong:before {
+  content: "\e640";
+}
+
+.icon-shengjiang:before {
+  content: "\e642";
+}
+
+.icon-yangcong1:before {
+  content: "\e644";
+}
+
+.icon-qingjiao1:before {
+  content: "\e648";
+}
+
+.icon-xianggu:before {
+  content: "\e64a";
+}
+
+.icon-huasheng1:before {
+  content: "\e64c";
+}
+
+.icon-yumi:before {
+  content: "\e64e";
+}
+
+.icon-nangua1:before {
+  content: "\e64f";
+}
+
+.icon-dasuan:before {
+  content: "\e652";
+}
+
+.icon-bajiao:before {
+  content: "\e653";
+}
+
+.icon-zhusun:before {
+  content: "\e654";
+}
+
+.icon-ou:before {
+  content: "\e669";
+}
+
+.icon-hongshu1:before {
+  content: "\e66b";
+}
+
+.icon-donggua1:before {
+  content: "\e676";
+}
+
+.icon-xihulu:before {
+  content: "\e678";
+}
+
+.icon-qiukui:before {
+  content: "\e67d";
+}
+
+.icon-honglajiao:before {
+  content: "\e67e";
+}
+
+.icon-ziganlan:before {
+  content: "\e67f";
+}
+
+.icon-shouye13:before {
+  content: "\e647";
+}
+
+.icon-Honey:before {
+  content: "\e67b";
+}
+
+.icon-Ketchup:before {
+  content: "\e67c";
+}
+
+.icon-OliveOil:before {
+  content: "\e685";
+}
+
+.icon-Pepper:before {
+  content: "\e691";
+}
+
+.icon-Salt:before {
+  content: "\e692";
+}
+
+.icon-Soya:before {
+  content: "\e695";
+}
+
+.icon-Vinegar:before {
+  content: "\e69a";
+}
+
+.icon-qiezi:before {
+  content: "\e7bf";
+}
+
+.icon-sousuobeifen2:before {
+  content: "\e628";
 }
 
 .icon-tudou:before {

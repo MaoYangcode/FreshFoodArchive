@@ -11,7 +11,7 @@
 <script>
 import { getCategoryEmoji, getIngredientImagePath, getIngredientSymbolId } from '@/utils/ingredient-image'
 
-const ICONFONT_VERSION = '20260405-3'
+const ICONFONT_VERSION = '20260407-1'
 
 export default {
 	name: 'IngredientIcon',
@@ -36,7 +36,7 @@ export default {
 	},
 	computed: {
 		imagePath() { return getIngredientImagePath(this.name, this.category) },
-		symbolId() { return getIngredientSymbolId(this.name) },
+		symbolId() { return getIngredientSymbolId(this.name, this.category) },
 		useSymbol() { return !!this.symbolId && this.symbolReady },
 		emoji() { return getCategoryEmoji(this.category) },
 		wrapStyle() {

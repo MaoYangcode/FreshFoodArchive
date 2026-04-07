@@ -147,7 +147,7 @@ import FridgeViewControls from '@/components/fridge-view-controls.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import LocationIcon from '@/components/location-icon.vue'
 
-const ICONFONT_VERSION = '20260405-3'
+const ICONFONT_VERSION = '20260407-1'
 
 const PINYIN_CHAR_MAP = {
 	全: 'quan', 部: 'bu', 位: 'wei', 置: 'zhi', 类: 'lei', 别: 'bie',
