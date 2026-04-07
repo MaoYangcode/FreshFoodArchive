@@ -156,12 +156,15 @@ export default {
 	font-size: 20px;
 	font-weight: 800;
 	color: #1d252f;
+	letter-spacing: 1rpx;
 }
 
 .meta {
 	font-size: 13px;
 	color: #6b7670;
-	margin-top: 8rpx;
+	margin-top: 12rpx;
+	letter-spacing: 0.6rpx;
+	line-height: 1.7;
 }
 
 .magic {
@@ -189,18 +192,20 @@ export default {
 .headline {
 	font-size: 16px;
 	font-weight: 700;
-	margin: 4rpx 0 12rpx;
+	margin: 8rpx 0 18rpx;
 	color: #1d252f;
+	letter-spacing: 1rpx;
 }
 
 .desc-wrap {
-	margin: 0 auto 20rpx;
+	margin: 0 auto 24rpx;
 }
 
 .desc {
 	color: #6f7d73;
 	font-size: 13px;
-	line-height: 1.65;
+	line-height: 1.85;
+	letter-spacing: 0.6rpx;
 	max-width: 620rpx;
 	display: block;
 }
@@ -211,6 +216,7 @@ export default {
 	border: none;
 	border-radius: 14px;
 	padding: 12px 12px;
+	margin-top: 16rpx;
 	color: #fff;
 	font-size: 14px;
 	font-weight: 800;

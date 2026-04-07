@@ -291,6 +291,7 @@ export default {
 .body {
 	display: flex;
 	flex-direction: column;
+	margin-left: 6rpx;
 }
 
 .name {

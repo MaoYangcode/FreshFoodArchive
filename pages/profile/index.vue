@@ -152,7 +152,7 @@ export default {
 	grid-template-columns: 50rpx 1fr auto;
 	gap: 14rpx;
 	align-items: center;
-	padding: 20rpx 12rpx;
+	padding: 20rpx 12rpx 20rpx 17px;
 	border-bottom: 1rpx solid #eff3f1;
 	font-size: 15px;
 }
