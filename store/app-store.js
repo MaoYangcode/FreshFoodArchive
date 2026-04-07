@@ -52,6 +52,23 @@ function nowString() {
 	return `${y}-${m}-${day} ${hh}:${mm}:${ss}`
 }
 
+function normalizeFavoriteRecipe(item) {
+	const normalized = item && typeof item === 'object' ? item : {}
+	return {
+		id: normalized.id || `fav-${Date.now()}`,
+		name: normalized.name || '',
+		available: Array.isArray(normalized.available) ? normalized.available : [],
+		missing: Array.isArray(normalized.missing) ? normalized.missing : [],
+		duration: Number(normalized.duration || 20),
+		difficulty: normalized.difficulty || '简单',
+		createdAt: normalized.createdAt || normalized.favoritedAt || nowString(),
+		favoritedAt: normalized.favoritedAt || normalized.createdAt || nowString(),
+		completedCount: Math.max(Number(normalized.completedCount || 0), 0),
+		lastCompletedAt: normalized.lastCompletedAt || '',
+		raw: normalized.raw && typeof normalized.raw === 'object' ? normalized.raw : null
+	}
+}
+
 function saveState() {
 	uni.setStorageSync(STORAGE_KEY, state)
 }
@@ -63,7 +80,9 @@ function loadState() {
 			state = {
 				ingredients: Array.isArray(cached.ingredients) ? cached.ingredients : [],
 				takeoutRecords: Array.isArray(cached.takeoutRecords) ? cached.takeoutRecords : [],
-				favoriteRecipes: Array.isArray(cached.favoriteRecipes) ? cached.favoriteRecipes : []
+				favoriteRecipes: Array.isArray(cached.favoriteRecipes)
+					? cached.favoriteRecipes.map((item) => normalizeFavoriteRecipe(item))
+					: []
 			}
 			return
 		}
@@ -155,15 +174,21 @@ export function addFavoriteRecipe(recipe) {
 	initStore()
 	const exists = state.favoriteRecipes.some((item) => item.name === recipe.name)
 	if (exists) return false
-	state.favoriteRecipes.unshift({
-		id: `fav-${Date.now()}`,
-		name: recipe.name,
-		available: recipe.available || [],
-		missing: recipe.missing || [],
-		duration: recipe.duration || 20,
-		difficulty: recipe.difficulty || '简单',
-		createdAt: nowString()
-	})
+	state.favoriteRecipes.unshift(
+		normalizeFavoriteRecipe({
+			id: `fav-${Date.now()}`,
+			name: recipe.name,
+			available: recipe.available || [],
+			missing: recipe.missing || [],
+			duration: recipe.duration || 20,
+			difficulty: recipe.difficulty || '简单',
+			createdAt: nowString(),
+			favoritedAt: nowString(),
+			completedCount: 0,
+			lastCompletedAt: '',
+			raw: recipe.raw || null
+		})
+	)
 	saveState()
 	return true
 }
@@ -171,6 +196,25 @@ export function addFavoriteRecipe(recipe) {
 export function getFavoriteRecipes() {
 	initStore()
 	return [...state.favoriteRecipes]
+}
+
+export function getFavoriteRecipeByName(name) {
+	initStore()
+	return state.favoriteRecipes.find((item) => item.name === name) || null
+}
+
+export function markFavoriteRecipeCompleted(name) {
+	initStore()
+	const idx = state.favoriteRecipes.findIndex((item) => item.name === name)
+	if (idx === -1) return null
+	const next = {
+		...state.favoriteRecipes[idx],
+		completedCount: Math.max(Number(state.favoriteRecipes[idx].completedCount || 0), 0) + 1,
+		lastCompletedAt: nowString()
+	}
+	state.favoriteRecipes[idx] = normalizeFavoriteRecipe(next)
+	saveState()
+	return state.favoriteRecipes[idx]
 }
 
 export function getStats() {

@@ -38,14 +38,18 @@
 
 		</view>
 		<view class="favorite-wrap">
-			<button class="btn" :class="favorited ? 'done' : 'primary'" @click="favorite">{{ favorited ? '已收藏' : '收藏该菜谱' }}</button>
+			<view class="action-grid">
+				<button class="btn" :class="favorited ? 'done' : 'primary'" @click="favorite">{{ favorited ? '已收藏' : '收藏该菜谱' }}</button>
+				<button class="btn complete-btn" :class="canComplete ? 'complete' : 'pending'" @click="completeRecipe">{{ completeButtonText }}</button>
+			</view>
+			<text v-if="lastCompletedAt" class="complete-meta">最近完成：{{ formatDateTime(lastCompletedAt) }}</text>
 		</view>
 		<BottomNav current="recipe" />
 	</view>
 </template>
 
 <script>
-import { addFavoriteRecipe } from '@/store/app-store'
+import { addFavoriteRecipe, getFavoriteRecipeByName, markFavoriteRecipeCompleted } from '@/store/app-store'
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 
@@ -54,6 +58,8 @@ export default {
 	data() {
 		return {
 			favorited: false,
+			completedCount: 0,
+			lastCompletedAt: '',
 			recipe: {
 				name: '番茄炒蛋',
 				emoji: '🍳',
@@ -64,6 +70,15 @@ export default {
 				ingredientsText: '番茄 x2、鸡蛋 x3、小葱 x1、盐 3g',
 				steps: ['西红柿切块，鸡蛋打散。', '先炒鸡蛋盛出，再炒番茄。', '回锅翻炒，调味后出锅。']
 			}
+		}
+	},
+	computed: {
+		canComplete() {
+			return this.favorited
+		},
+		completeButtonText() {
+			if (!this.canComplete) return '先收藏再标记'
+			return this.completedCount > 0 ? `已完成 ${this.completedCount}次` : '标记已完成'
 		}
 	},
 	onLoad(query) {
@@ -93,8 +108,16 @@ export default {
 		if (query && query.fromFavorite === '1') {
 			this.favorited = true
 		}
+		this.syncFavoriteState()
 	},
 	methods: {
+		syncFavoriteState() {
+			const fav = getFavoriteRecipeByName(this.recipe.name)
+			if (!fav) return
+			this.favorited = true
+			this.completedCount = Number(fav.completedCount || 0)
+			this.lastCompletedAt = fav.lastCompletedAt || ''
+		},
 		favorite() {
 			if (this.favorited) {
 				uni.showToast({ title: '已在收藏中', icon: 'none' })
@@ -105,7 +128,8 @@ export default {
 				available: this.recipe.ingredients.slice(0, 2),
 				missing: [],
 				duration: this.recipe.duration,
-				difficulty: this.recipe.difficulty
+				difficulty: this.recipe.difficulty,
+				raw: this.recipe.raw || null
 			})
 			if (!ok) {
 				this.favorited = true
@@ -113,7 +137,33 @@ export default {
 				return
 			}
 			this.favorited = true
+			this.syncFavoriteState()
 			uni.showToast({ title: '已加入收藏', icon: 'success' })
+		},
+		completeRecipe() {
+			if (!this.favorited) {
+				uni.showToast({ title: '请先收藏菜谱', icon: 'none' })
+				return
+			}
+			const updated = markFavoriteRecipeCompleted(this.recipe.name)
+			if (!updated) {
+				uni.showToast({ title: '标记失败，请重试', icon: 'none' })
+				return
+			}
+			this.completedCount = Number(updated.completedCount || 0)
+			this.lastCompletedAt = updated.lastCompletedAt || ''
+			uni.showToast({ title: '已标记完成', icon: 'success' })
+		},
+		formatDateTime(time) {
+			if (!time) return ''
+			const date = new Date(time)
+			if (Number.isFinite(date.getTime())) {
+				const pad = (n) => `${n}`.padStart(2, '0')
+				return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+			}
+			const text = `${time}`
+			if (text.includes('T')) return text.replace('T', ' ').slice(0, 16)
+			return text.slice(0, 16)
 		},
 		backToResult() {
 			uni.navigateBack()
@@ -196,6 +246,20 @@ export default {
 
 .favorite-wrap {
 	margin-bottom: 8rpx;
+}
+
+.action-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 10rpx;
+}
+
+.complete-meta {
+	display: block;
+	font-size: 11px;
+	color: #7f8c83;
+	margin-top: 8rpx;
+	padding-left: 4rpx;
 }
 
 .title {
@@ -324,5 +388,15 @@ export default {
 	background: #dfece2;
 	color: #4f6b56;
 	box-shadow: none;
+}
+
+.pending {
+	background: #eef2f0;
+	color: #7b8a80;
+	box-shadow: none;
+}
+
+.complete {
+	background: linear-gradient(135deg, #83d38a, #5bb967);
 }
 </style>
