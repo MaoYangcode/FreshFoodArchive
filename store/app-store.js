@@ -34,7 +34,8 @@ const defaultState = {
 		}
 	],
 	takeoutRecords: [],
-	favoriteRecipes: []
+	favoriteRecipes: [],
+	basketItems: []
 }
 
 let state = JSON.parse(JSON.stringify(defaultState))
@@ -69,6 +70,28 @@ function normalizeFavoriteRecipe(item) {
 	}
 }
 
+function normalizeBasketName(name) {
+	return `${name || ''}`.trim().replace(/\s+/g, '').toLowerCase()
+}
+
+function normalizeBasketItem(item) {
+	const normalized = item && typeof item === 'object' ? item : {}
+	const quantityRaw = Number(normalized.quantity)
+	const quantity = Number.isFinite(quantityRaw) && quantityRaw > 0 ? quantityRaw : 1
+	return {
+		id: normalized.id || `basket-${Date.now()}`,
+		name: `${normalized.name || ''}`.trim(),
+		quantity,
+		unit: `${normalized.unit || '份'}`.trim() || '份',
+		category: `${normalized.category || '其他'}`.trim() || '其他',
+		status: normalized.status === 'done' ? 'done' : 'todo',
+		sourceRecipeName: `${normalized.sourceRecipeName || ''}`.trim(),
+		note: `${normalized.note || ''}`.trim(),
+		createdAt: normalized.createdAt || nowString(),
+		updatedAt: normalized.updatedAt || nowString()
+	}
+}
+
 function saveState() {
 	uni.setStorageSync(STORAGE_KEY, state)
 }
@@ -82,6 +105,9 @@ function loadState() {
 				takeoutRecords: Array.isArray(cached.takeoutRecords) ? cached.takeoutRecords : [],
 				favoriteRecipes: Array.isArray(cached.favoriteRecipes)
 					? cached.favoriteRecipes.map((item) => normalizeFavoriteRecipe(item))
+					: [],
+				basketItems: Array.isArray(cached.basketItems)
+					? cached.basketItems.map((item) => normalizeBasketItem(item))
 					: []
 			}
 			return
@@ -196,6 +222,94 @@ export function addFavoriteRecipe(recipe) {
 export function getFavoriteRecipes() {
 	initStore()
 	return [...state.favoriteRecipes]
+}
+
+export function getBasketItems() {
+	initStore()
+	return [...state.basketItems]
+}
+
+export function addBasketItem(payload) {
+	initStore()
+	const item = normalizeBasketItem({
+		...payload,
+		id: `basket-${Date.now()}`,
+		createdAt: nowString(),
+		updatedAt: nowString()
+	})
+	if (!item.name) return null
+	state.basketItems.unshift(item)
+	saveState()
+	return item
+}
+
+export function upsertBasketItems(items, sourceRecipeName = '') {
+	initStore()
+	if (!Array.isArray(items) || !items.length) return { added: 0, merged: 0 }
+	let added = 0
+	let merged = 0
+	const now = nowString()
+	for (const raw of items) {
+		const item = normalizeBasketItem({
+			...raw,
+			sourceRecipeName: sourceRecipeName || raw?.sourceRecipeName || '',
+			updatedAt: now
+		})
+		if (!item.name) continue
+		const key = normalizeBasketName(item.name)
+		const idx = state.basketItems.findIndex((x) => normalizeBasketName(x.name) === key && x.status !== 'done')
+		if (idx === -1) {
+			state.basketItems.unshift({
+				...item,
+				id: `basket-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+				createdAt: now,
+				updatedAt: now
+			})
+			added += 1
+			continue
+		}
+		const current = state.basketItems[idx]
+		state.basketItems[idx] = normalizeBasketItem({
+			...current,
+			quantity: Number(current.quantity || 0) + Number(item.quantity || 0),
+			unit: current.unit || item.unit,
+			category: current.category || item.category,
+			sourceRecipeName: current.sourceRecipeName || item.sourceRecipeName,
+			updatedAt: now
+		})
+		merged += 1
+	}
+	saveState()
+	return { added, merged }
+}
+
+export function toggleBasketItemStatus(id) {
+	initStore()
+	const idx = state.basketItems.findIndex((item) => item.id === id)
+	if (idx === -1) return false
+	const current = state.basketItems[idx]
+	state.basketItems[idx] = normalizeBasketItem({
+		...current,
+		status: current.status === 'done' ? 'todo' : 'done',
+		updatedAt: nowString()
+	})
+	saveState()
+	return true
+}
+
+export function removeBasketItem(id) {
+	initStore()
+	const idx = state.basketItems.findIndex((item) => item.id === id)
+	if (idx === -1) return false
+	state.basketItems.splice(idx, 1)
+	saveState()
+	return true
+}
+
+export function clearDoneBasketItems() {
+	initStore()
+	state.basketItems = state.basketItems.filter((item) => item.status !== 'done')
+	saveState()
 }
 
 export function getFavoriteRecipeByName(name) {

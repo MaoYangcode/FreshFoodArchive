@@ -37,20 +37,16 @@
 
 		</view>
 		<view class="favorite-wrap">
-			<view class="action-grid">
-				<button class="btn" :class="favorited ? 'done' : 'primary'" @click="favorite">{{ favorited ? '已收藏' : '收藏该菜谱' }}</button>
-				<button class="btn complete-btn" :class="canComplete ? 'complete' : 'pending'" @click="completeRecipe">
-					<text v-if="completedCount > 0" class="detail-iconfont complete-mark-ico">&#xe66a;</text>{{ completeButtonText }}
-				</button>
-			</view>
-			<text v-if="lastCompletedAt" class="complete-meta">最近完成：{{ formatDateTime(lastCompletedAt) }}</text>
+			<button class="btn" :class="favorited ? 'done' : 'primary'" @click="favorite">{{ favorited ? '已收藏' : '收藏该菜谱' }}</button>
+			<button class="btn basket-btn" @click="addMissingToBasket">加入缺少食材到菜篮子</button>
 		</view>
 		<BottomNav current="recipe" />
 	</view>
 </template>
 
 <script>
-import { addFavoriteRecipe, getFavoriteRecipeByName, markFavoriteRecipeCompleted } from '@/store/app-store'
+import { addFavoriteRecipe, getFavoriteRecipeByName, upsertBasketItems } from '@/store/app-store'
+import { getIngredientList } from '@/api/modules/ingredients'
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 
@@ -59,8 +55,6 @@ export default {
 	data() {
 		return {
 			favorited: false,
-			completedCount: 0,
-			lastCompletedAt: '',
 			recipe: {
 				name: '番茄炒蛋',
 				emoji: '🍳',
@@ -71,15 +65,6 @@ export default {
 				ingredientsText: '番茄 x2、鸡蛋 x3、小葱 x1、盐 3g',
 				steps: ['西红柿切块，鸡蛋打散。', '先炒鸡蛋盛出，再炒番茄。', '回锅翻炒，调味后出锅。']
 			}
-		}
-	},
-	computed: {
-		canComplete() {
-			return this.favorited
-		},
-		completeButtonText() {
-			if (!this.canComplete) return '先收藏再标记'
-			return this.completedCount > 0 ? `已完成 ${this.completedCount}次` : '标记已完成'
 		}
 	},
 	onLoad(query) {
@@ -116,8 +101,6 @@ export default {
 			const fav = getFavoriteRecipeByName(this.recipe.name)
 			if (!fav) return
 			this.favorited = true
-			this.completedCount = Number(fav.completedCount || 0)
-			this.lastCompletedAt = fav.lastCompletedAt || ''
 		},
 		favorite() {
 			if (this.favorited) {
@@ -141,33 +124,69 @@ export default {
 			this.syncFavoriteState()
 			uni.showToast({ title: '已加入收藏', icon: 'success' })
 		},
-		completeRecipe() {
-			if (!this.favorited) {
-				uni.showToast({ title: '请先收藏菜谱', icon: 'none' })
-				return
-			}
-			const updated = markFavoriteRecipeCompleted(this.recipe.name)
-			if (!updated) {
-				uni.showToast({ title: '标记失败，请重试', icon: 'none' })
-				return
-			}
-			this.completedCount = Number(updated.completedCount || 0)
-			this.lastCompletedAt = updated.lastCompletedAt || ''
-			uni.showToast({ title: '已标记完成', icon: 'success' })
+		normalizeName(text) {
+			return `${text || ''}`.trim().replace(/\s+/g, '').toLowerCase()
 		},
-		formatDateTime(time) {
-			if (!time) return ''
-			const date = new Date(time)
-			if (Number.isFinite(date.getTime())) {
-				const pad = (n) => `${n}`.padStart(2, '0')
-				return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+		pickRecipeIngredientItems() {
+			const fromRaw = Array.isArray(this.recipe?.raw?.ingredients)
+				? this.recipe.raw.ingredients
+						.map((x) => ({
+							name: `${x?.name || ''}`.trim(),
+							quantity: Number(x?.quantity || 1),
+							unit: `${x?.unit || ''}`.trim() || '份'
+						}))
+						.filter((x) => !!x.name)
+				: []
+			if (fromRaw.length) return fromRaw
+			return `${this.recipe?.ingredientsText || ''}`
+				.split('、')
+				.map((s) => `${s || ''}`.trim())
+				.filter(Boolean)
+				.map((s) => ({ name: s.replace(/\d+.*$/, '').trim(), quantity: 1, unit: '份' }))
+				.filter((x) => !!x.name)
+		},
+		unwrapListPayload(source) {
+			if (Array.isArray(source)) return source
+			if (source && Array.isArray(source.data)) return source.data
+			if (source && source.data && Array.isArray(source.data.data)) return source.data.data
+			return []
+		},
+		async addMissingToBasket() {
+			const recipeItems = this.pickRecipeIngredientItems()
+			if (!recipeItems.length) {
+				uni.showToast({ title: '暂无可加入的食材', icon: 'none' })
+				return
 			}
-			const text = `${time}`
-			if (text.includes('T')) return text.replace('T', ' ').slice(0, 16)
-			return text.slice(0, 16)
+			let pantryList = []
+			try {
+				const res = await getIngredientList()
+				pantryList = this.unwrapListPayload(res)
+			} catch (e) {
+				pantryList = []
+			}
+			if (!pantryList.length) {
+				const tags = uni.getStorageSync('latestPantryTags')
+				pantryList = Array.isArray(tags) ? tags.map((name) => ({ name })) : []
+			}
+			const pantrySet = new Set(pantryList.map((x) => this.normalizeName(x?.name)).filter(Boolean))
+			const missing = recipeItems.filter((x) => !pantrySet.has(this.normalizeName(x.name)))
+			if (!missing.length) {
+				uni.showToast({ title: '当前食材充足，无需加入', icon: 'none' })
+				return
+			}
+			const result = upsertBasketItems(
+				missing.map((x) => ({
+					name: x.name,
+					quantity: Number(x.quantity || 1),
+					unit: x.unit || '份',
+					category: '其他'
+				})),
+				this.recipe.name
+			)
+			uni.showToast({ title: `已加入菜篮子（${result.added + result.merged}项）`, icon: 'success' })
 		},
 		backToResult() {
-			uni.navigateTo({ url: '/pages/profile/favorites' })
+			uni.navigateTo({ url: '/pages/recipe/result' })
 		},
 		pickRecipeCoverName(item) {
 			const first = Array.isArray(item?.raw?.ingredients) ? item.raw.ingredients.find((x) => x?.name)?.name : ''
@@ -186,11 +205,6 @@ export default {
 </script>
 
 <style scoped>
-@font-face {
-	font-family: "detail-iconfont";
-	src: url('/static/iconfont/iconfont.ttf') format('truetype');
-}
-
 .container {
 	padding: 10px 12px 88px;
 }
@@ -252,20 +266,6 @@ export default {
 
 .favorite-wrap {
 	margin-bottom: 8rpx;
-}
-
-.action-grid {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 10rpx;
-}
-
-.complete-meta {
-	display: block;
-	font-size: 11px;
-	color: #7f8c83;
-	margin-top: 8rpx;
-	padding-left: 4rpx;
 }
 
 .title {
@@ -396,27 +396,10 @@ export default {
 	box-shadow: none;
 }
 
-.pending {
-	background: #eef2f0;
-	color: #7b8a80;
+.basket-btn {
+	margin-top: 10rpx;
+	background: #eef5ef;
+	color: #4b8f56;
 	box-shadow: none;
-}
-
-.complete {
-	background: linear-gradient(135deg, #83d38a, #5bb967);
-}
-
-.detail-iconfont {
-	font-family: "detail-iconfont" !important;
-	font-style: normal;
-	font-weight: 400;
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
-}
-
-.complete-mark-ico {
-	font-size: 17px;
-	margin-right: 6rpx;
-	line-height: 1;
 }
 </style>

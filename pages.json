@@ -69,6 +69,13 @@
         "navigationBarTitleText": "收藏菜谱",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/profile/basket",
+      "style": {
+        "navigationBarTitleText": "菜篮子",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "tabBar": {

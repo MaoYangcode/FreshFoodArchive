@@ -33,7 +33,7 @@
 				<text>收藏菜谱</text>
 				<text class="arrow">›</text>
 			</view>
-			<view class="menu-item">
+			<view class="menu-item" @click="goBasket">
 				<text class="micon">&#xe61b;</text>
 				<text>菜篮子</text>
 				<text class="arrow">›</text>
@@ -64,6 +64,9 @@ export default {
 		},
 		goTakeout() {
 			uni.navigateTo({ url: '/pages/profile/takeout-records' })
+		},
+		goBasket() {
+			uni.navigateTo({ url: '/pages/profile/basket' })
 		}
 	}
 }
