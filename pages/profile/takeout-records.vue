@@ -25,10 +25,16 @@
 			<text class="meta">{{ records.length === 0 ? '暂无记录，右滑食材并点击“已取出”后会显示在这里。' : '当前时间范围内暂无记录，可切换到“全部”查看。' }}</text>
 		</view>
 		<view class="row" v-for="record in filteredRecords" :key="record.id">
-			<view class="ico">{{ getEmoji(record.category) }}</view>
+			<view class="ico">
+				<IngredientIcon :name="record.name" :category="record.category" :size="36" />
+			</view>
 			<view class="body">
 				<text class="name">{{ record.name }}</text>
-				<text class="meta">{{ record.quantity }}{{ record.unit }} · {{ record.location }}</text>
+				<view class="meta">
+					<text>{{ record.quantity }}{{ record.unit }} · </text>
+					<LocationIcon :location="record.location" :size="13" color="#8fb7e8" />
+					<text>{{ record.location }}</text>
+				</view>
 			</view>
 			<view class="time-wrap">
 				<text class="time-label">取出时间</text>
@@ -43,9 +49,11 @@
 	
 import { getTakeoutRecords } from '@/api/modules/ingredients'
 import BottomNav from '@/components/bottom-nav.vue'
+import IngredientIcon from '@/components/ingredient-icon.vue'
+import LocationIcon from '@/components/location-icon.vue'
 
 export default {
-	components: { BottomNav },
+	components: { BottomNav, IngredientIcon, LocationIcon },
 	data() {
 		return {
 			records: [],
@@ -81,17 +89,6 @@ export default {
 	methods: {
 		goBack() {
 			uni.navigateBack()
-		},
-		getEmoji(category) {
-			const map = {
-				蔬菜: '🥦',
-				水果: '🥑',
-				肉类: '🍗',
-				蛋奶: '🧀',
-				调料: '🧂',
-				其他: '🍽️'
-			}
-			return map[category] || '🗒'
 		},
 		formatDateTime(time) {
 			if (!time) return '--'
@@ -283,7 +280,9 @@ export default {
 }
 
 .meta {
-	display: block;
+	display: inline-flex;
+	align-items: center;
+	gap: 4rpx;
 	font-size: 12px;
 	color: #738177;
 	margin-top: 4rpx;

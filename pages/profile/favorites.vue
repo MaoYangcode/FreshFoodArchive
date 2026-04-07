@@ -8,11 +8,20 @@
 			<text class="meta">暂无收藏，去菜谱详情点击“收藏该菜谱”。</text>
 		</view>
 		<view class="recipe-card" v-for="item in recipes" :key="item.id" @click="openDetail(item)">
-			<view class="recipe-avatar">{{ item.emoji || '🍳' }}</view>
-			<view>
-				<text class="name">{{ item.name }}</text>
-				<text class="meta">{{ item.servings || 2 }}人份 · {{ item.duration }}分钟 · {{ item.difficulty }}</text>
-				<text class="reason">已收藏菜谱</text>
+			<view class="recipe-avatar">
+				<IngredientIcon :name="pickRecipeCoverName(item)" :size="44" />
+			</view>
+			<view class="recipe-main">
+				<view class="title-row">
+					<view class="name-score-row">
+						<text class="name">{{ item.name }}</text>
+					</view>
+				</view>
+				<view class="meta-row">
+					<text class="meta-item"><text class="meta-icon recipe-iconfont duration-ico">&#xe621;</text>{{ item.duration }}分钟</text>
+					<text class="meta-dot">·</text>
+					<text class="meta-item"><text class="meta-icon recipe-iconfont">&#xe6a1;</text>{{ item.difficulty }}</text>
+				</view>
 			</view>
 			<text class="recipe-cta">查看做法</text>
 		</view>
@@ -23,9 +32,10 @@
 <script>
 import { getFavoriteRecipes } from '@/store/app-store'
 import BottomNav from '@/components/bottom-nav.vue'
+import IngredientIcon from '@/components/ingredient-icon.vue'
 
 export default {
-	components: { BottomNav },
+	components: { BottomNav, IngredientIcon },
 	data() {
 		return {
 			recipes: []
@@ -36,7 +46,19 @@ export default {
 	},
 	methods: {
 		goBack() {
-			uni.navigateBack()
+			uni.switchTab({ url: '/pages/profile/index' })
+		},
+		pickRecipeCoverName(item) {
+			const first = Array.isArray(item?.raw?.ingredients) ? item.raw.ingredients.find((x) => x?.name)?.name : ''
+			if (first) return first
+			const text = `${item?.name || ''}`
+			if (text.includes('牛')) return '牛肉'
+			if (text.includes('鸡蛋')) return '鸡蛋'
+			if (text.includes('鸡')) return '鸡肉'
+			if (text.includes('土豆')) return '土豆'
+			if (text.includes('黄瓜')) return '黄瓜'
+			if (text.includes('番茄') || text.includes('西红柿')) return '番茄'
+			return ''
 		},
 		openDetail(item) {
 			uni.navigateTo({
@@ -48,6 +70,11 @@ export default {
 </script>
 
 <style scoped>
+@font-face {
+	font-family: "result-iconfont";
+	src: url('/static/iconfont/iconfont.ttf') format('truetype');
+}
+
 .container {
 	padding: 10px 12px 88px;
 }
@@ -56,7 +83,7 @@ export default {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	margin-bottom: 8rpx;
+	margin-bottom: 16rpx;
 }
 
 .top-title {
@@ -83,55 +110,107 @@ export default {
 
 .recipe-card {
 	display: grid;
-	grid-template-columns: 64px 1fr auto;
-	gap: 12rpx;
+	grid-template-columns: 68px 1fr auto;
+	column-gap: 10px;
+	row-gap: 8rpx;
 	align-items: center;
 	border: 1rpx solid #edf2ef;
 	border-radius: 14px;
-	padding: 9px;
+	padding: 10px 12px;
 	background: #fff;
 	margin-bottom: 10rpx;
 }
 
 .recipe-avatar {
-	width: 64px;
-	height: 64px;
+	width: 60px;
+	height: 60px;
 	border-radius: 16px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 30px;
-	background: linear-gradient(135deg, #f1f8f2, #f8fcf8);
-	border: 1rpx solid #e8f1ea;
+	background: #f4f9f5;
+	border: 1rpx solid #e7efea;
+}
+
+.recipe-main {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.title-row {
+	display: block;
+}
+
+.name-score-row {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-start;
+	flex-wrap: nowrap;
+	gap: 4rpx;
+	max-width: 100%;
 }
 
 .name {
 	font-weight: 700;
-	display: block;
+	font-size: 15px;
+	color: #1f2a22;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: 1.25;
+	max-width: 320rpx;
+}
+
+.meta-row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6rpx;
+	color: #738177;
+	font-size: 12px;
+	margin-top: 12rpx;
+}
+
+.chip-ico.recipe-iconfont,
+.recipe-iconfont {
+	font-family: "result-iconfont" !important;
+	font-style: normal;
+	font-weight: 400;
+	line-height: 1;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+.meta-item {
+	display: inline-flex;
+	align-items: center;
+	color: #8a939e;
+}
+
+.meta-icon {
+	font-size: 12px;
+	margin-right: 4rpx;
+	opacity: 0.9;
+}
+
+.meta-icon.recipe-iconfont {
 	font-size: 14px;
 }
 
-.meta {
-	display: block;
-	color: #738177;
-	font-size: 12px;
-	margin-top: 4rpx;
+.duration-ico {
+	font-size: 13px !important;
 }
 
-.reason {
-	display: inline-block;
-	margin-top: 6rpx;
-	font-size: 11px;
-	color: #4e6f56;
-	background: #edf5ef;
-	border-radius: 999rpx;
-	padding: 3rpx 10rpx;
+.meta-dot {
+	color: #b3bcc8;
+	padding: 0 2rpx;
 }
 
 .recipe-cta {
-	padding: 8rpx 14rpx;
+	padding: 8rpx 13rpx;
 	border-radius: 999rpx;
-	font-size: 11px;
+	font-size: 12px;
 	background: #eaf7ee;
 	color: #409a4d;
 	font-weight: 700;
