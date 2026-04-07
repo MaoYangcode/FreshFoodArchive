@@ -2,7 +2,11 @@
 	<view class="container">
 		<view class="top">
 			<text class="top-title">菜篮子</text>
-			<view class="capsule" @click="goBack"><text>←</text></view>
+			<view class="capsule" @click="goBack">
+				<svg class="back-ico-svg" aria-hidden="true">
+					<use href="#icon-fanhui"></use>
+				</svg>
+			</view>
 		</view>
 
 		<view class="stats-row">
@@ -23,7 +27,9 @@
 				<view class="chip" :class="{ active: statusFilter === 'done' }" @click="statusFilter = 'done'">已购买</view>
 			</view>
 			<view class="search-wrap">
-				<text class="search-ico">🔎</text>
+				<svg class="search-ico-svg" aria-hidden="true">
+					<use href="#icon-sousuo"></use>
+				</svg>
 				<input
 					class="search-input"
 					type="text"
@@ -202,10 +208,16 @@ export default {
 </script>
 
 <style scoped>
+@font-face {
+	font-family: "basket-iconfont";
+	src: url('/static/iconfont/iconfont.ttf') format('truetype');
+}
+
 .container { padding: 10px 12px 88px; }
 .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10rpx; }
 .top-title { font-size: 20px; font-weight: 700; }
-.capsule { border: 1rpx solid #e2e9e4; border-radius: 999rpx; background: #fff; padding: 6rpx 16rpx; font-size: 14px; }
+.capsule { border: 1rpx solid #e2e9e4; border-radius: 999rpx; background: #fff; min-width: 88rpx; height: 56rpx; padding: 0 16rpx; box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
+.back-ico-svg { width: 20px; height: 20px; display: block; }
 
 .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10rpx; margin-bottom: 10rpx; }
 .stat-card { background: #fff; border: 1rpx solid #edf2ef; border-radius: 14px; padding: 10px; }
@@ -220,7 +232,7 @@ export default {
 .chip.active { background: #e8f0ff; color: #4a73d9; border-color: #d9e5ff; }
 
 .search-wrap { display: flex; align-items: center; gap: 8rpx; border: 1rpx solid #e2e8ef; border-radius: 999rpx; background: #f3f7fb; padding: 0 10px; box-sizing: border-box; height: 32px; }
-.search-ico { font-size: 12px; color: #7c8aa0; }
+.search-ico-svg { width: 18px; height: 18px; display: block; flex-shrink: 0; shape-rendering: geometricPrecision; transform: translateZ(0); }
 .search-input { flex: 1; height: 32px; line-height: 32px; font-size: 12px; color: #5d6d82; }
 
 .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10rpx; margin-bottom: 10rpx; }

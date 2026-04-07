@@ -2,7 +2,11 @@
 	<view class="container">
 		<view class="top">
 			<text class="top-title">取出记录</text>
-			<view class="capsule" @click="goBack"><text>←</text></view>
+			<view class="capsule" @click="goBack">
+				<svg class="back-ico-svg" aria-hidden="true">
+					<use href="#icon-fanhui"></use>
+				</svg>
+			</view>
 		</view>
 		<view v-if="records.length > 0" class="filter-card">
 			<view class="range-inline">
@@ -175,10 +179,19 @@ export default {
 	border: 1rpx solid #e2e9e4;
 	border-radius: 999rpx;
 	background: #fff;
-	padding: 6rpx 16rpx;
-	font-size: 14px;
+	min-width: 88rpx;
+	height: 56rpx;
+	padding: 0 16rpx;
+	box-sizing: border-box;
 	display: flex;
-	gap: 10rpx;
+	align-items: center;
+	justify-content: center;
+}
+
+.back-ico-svg {
+	width: 20px;
+	height: 20px;
+	display: block;
 }
 
 .card {

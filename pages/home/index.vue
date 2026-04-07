@@ -337,7 +337,7 @@ export default {
 	border-radius: 14px;
 	padding: 8px;
 	margin-bottom: 10rpx;
-	background: #fbfdfb;
+	background: #ffffff;
 }
 
 .row:last-child {
@@ -351,7 +351,7 @@ export default {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: #f1f8f2;
+	background: #f8fbff;
 	font-size: 40rpx;
 }
 
@@ -377,6 +377,7 @@ export default {
 	border-radius: 999rpx;
 	font-size: 11px;
 	padding: 4rpx 12rpx;
+	font-weight: 700;
 }
 
 .ok {

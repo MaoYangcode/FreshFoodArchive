@@ -2,7 +2,11 @@
 	<view class="container">
 		<view class="top">
 			<text class="top-title">编辑食材</text>
-			<view class="capsule"><text>🖊</text></view>
+			<view class="capsule" @click="goBackToList">
+				<svg class="back-ico-svg" aria-hidden="true">
+					<use href="#icon-fanhui"></use>
+				</svg>
+			</view>
 		</view>
 		<view class="card top-card">
 			<view class="food-ico">
@@ -125,6 +129,11 @@ export default {
 		})
 	},
 	methods: {
+		goBackToList() {
+			uni.switchTab({
+				url: '/pages/fridge/list'
+			})
+		},
 		pickPayload(source) {
 			if (!source || typeof source !== 'object') return source
 			if (source.data && typeof source.data === 'object') {
@@ -291,10 +300,19 @@ export default {
 	border: 1rpx solid #e2e9e4;
 	border-radius: 999rpx;
 	background: #fff;
-	padding: 6rpx 16rpx;
-	font-size: 14px;
+	min-width: 88rpx;
+	height: 56rpx;
+	padding: 0 16rpx;
+	box-sizing: border-box;
 	display: flex;
-	gap: 10rpx;
+	align-items: center;
+	justify-content: center;
+}
+
+.back-ico-svg {
+	width: 20px;
+	height: 20px;
+	display: block;
 }
 
 .card {

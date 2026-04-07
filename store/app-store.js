@@ -74,16 +74,47 @@ function normalizeBasketName(name) {
 	return `${name || ''}`.trim().replace(/\s+/g, '').toLowerCase()
 }
 
+const BASKET_CATEGORY_KEYWORDS = {
+	调味品: [
+		'盐', '糖', '白糖', '红糖', '冰糖', '酱油', '生抽', '老抽', '蚝油', '料酒', '醋', '陈醋',
+		'香醋', '米醋', '胡椒', '胡椒粉', '花椒', '辣椒', '辣椒油', '豆瓣酱', '番茄酱', '沙拉酱',
+		'芝麻酱', '橄榄油', '菜籽油', '花生油', '芝麻油', '香油', '食用油', '鸡精', '味精', '淀粉',
+		'蜂蜜', '孜然', '十三香', '咖喱'
+	],
+	蛋奶: ['鸡蛋', '鸭蛋', '鹅蛋', '牛奶', '酸奶', '奶酪', '黄油', '奶油', '芝士'],
+	肉类: ['牛肉', '猪肉', '鸡肉', '鸭肉', '羊肉', '里脊', '排骨', '肉末', '腊肠', '火腿', '培根'],
+	海鲜: ['虾', '鱼', '蟹', '贝', '蚝', '鱿鱼', '海参', '三文鱼', '金枪鱼', '带鱼', '鳕鱼'],
+	水果: ['苹果', '香蕉', '橙', '橘', '柠檬', '梨', '桃', '西瓜', '葡萄', '芒果', '草莓', '蓝莓'],
+	饮料: ['可乐', '雪碧', '果汁', '汽水', '苏打水', '矿泉水', '咖啡', '茶', '椰汁', '豆浆']
+}
+
+function inferBasketCategoryByName(name) {
+	const text = `${name || ''}`.trim()
+	if (!text) return '其他'
+	for (const category of Object.keys(BASKET_CATEGORY_KEYWORDS)) {
+		const keywords = BASKET_CATEGORY_KEYWORDS[category]
+		if (keywords.some((kw) => text.includes(kw))) return category
+	}
+	return '其他'
+}
+
+function pickBasketCategory(rawCategory, name) {
+	const normalized = `${rawCategory || ''}`.trim()
+	if (normalized && normalized !== '其他') return normalized
+	return inferBasketCategoryByName(name)
+}
+
 function normalizeBasketItem(item) {
 	const normalized = item && typeof item === 'object' ? item : {}
 	const quantityRaw = Number(normalized.quantity)
 	const quantity = Number.isFinite(quantityRaw) && quantityRaw > 0 ? quantityRaw : 1
+	const name = `${normalized.name || ''}`.trim()
 	return {
 		id: normalized.id || `basket-${Date.now()}`,
-		name: `${normalized.name || ''}`.trim(),
+		name,
 		quantity,
 		unit: `${normalized.unit || '份'}`.trim() || '份',
-		category: `${normalized.category || '其他'}`.trim() || '其他',
+		category: pickBasketCategory(normalized.category, name),
 		status: normalized.status === 'done' ? 'done' : 'todo',
 		sourceRecipeName: `${normalized.sourceRecipeName || ''}`.trim(),
 		note: `${normalized.note || ''}`.trim(),
@@ -273,7 +304,7 @@ export function upsertBasketItems(items, sourceRecipeName = '') {
 			...current,
 			quantity: Number(current.quantity || 0) + Number(item.quantity || 0),
 			unit: current.unit || item.unit,
-			category: current.category || item.category,
+			category: pickBasketCategory(current.category || item.category, current.name || item.name),
 			sourceRecipeName: current.sourceRecipeName || item.sourceRecipeName,
 			updatedAt: now
 		})

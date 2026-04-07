@@ -2,7 +2,11 @@
 	<view class="container">
 		<view class="top">
 			<text class="top-title">菜谱详情</text>
-			<view class="capsule" @click="backToResult"><text>←</text></view>
+			<view class="capsule" @click="backToResult">
+				<svg class="back-ico-svg" aria-hidden="true">
+					<use href="#icon-fanhui"></use>
+				</svg>
+			</view>
 		</view>
 		<view class="recipe-inner">
 			<view class="head">
@@ -173,12 +177,13 @@ export default {
 				? this.recipe.raw.ingredients.map((x) => ({
 						name: `${x?.name || ''}`.trim(),
 						quantity: Number(x?.quantity || 1),
-						unit: `${x?.unit || ''}`.trim() || '份'
+						unit: `${x?.unit || ''}`.trim() || '份',
+						category: `${x?.category || ''}`.trim()
 					})).filter((x) => !!x.name)
 				: []
 			if (fromRaw.length) return fromRaw
 			return `${this.recipe?.ingredientsText || ''}`.split('、').map((s) => `${s || ''}`.trim()).filter(Boolean)
-				.map((s) => ({ name: s.replace(/\d+.*$/, '').trim(), quantity: 1, unit: '份' })).filter((x) => !!x.name)
+				.map((s) => ({ name: s.replace(/\d+.*$/, '').trim(), quantity: 1, unit: '份', category: '' })).filter((x) => !!x.name)
 		},
 		unwrapListPayload(source) {
 			if (Array.isArray(source)) return source
@@ -213,7 +218,7 @@ export default {
 				name: x.name,
 				quantity: Number(x.quantity || 1),
 				unit: x.unit || '份',
-				category: '其他'
+				category: x.category || '其他'
 			})), this.recipe.name)
 			uni.showToast({ title: `已加入菜篮子（${result.added + result.merged}项）`, icon: 'success' })
 		},
@@ -244,7 +249,8 @@ export default {
 .container { padding: 10px 12px 88px; }
 .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16rpx; }
 .top-title { font-size: 20px; font-weight: 700; }
-.capsule { border: 1rpx solid #e2e9e4; border-radius: 999rpx; background: #fff; padding: 6rpx 16rpx; font-size: 14px; display: flex; gap: 10rpx; }
+.capsule { border: 1rpx solid #e2e9e4; border-radius: 999rpx; background: #fff; min-width: 88rpx; height: 56rpx; padding: 0 16rpx; box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
+.back-ico-svg { width: 20px; height: 20px; display: block; }
 .recipe-inner { background: #fff; border: 1rpx solid #eef3f1; border-radius: 14px; box-shadow: 0 10rpx 20rpx rgba(33,60,38,.06); padding: 16rpx; margin-bottom: 12rpx; }
 .head { display: grid; grid-template-columns: 64px 1fr; column-gap: 12px; row-gap: 8rpx; align-items: center; margin-bottom: 18rpx; }
 .head-main { min-width: 0; }

@@ -2,7 +2,11 @@
 	<view class="container">
 		<view class="top">
 			<text class="top-title">收藏菜谱</text>
-			<view class="capsule" @click="goBack"><text>←</text></view>
+			<view class="capsule" @click="goBack">
+				<svg class="back-ico-svg" aria-hidden="true">
+					<use href="#icon-fanhui"></use>
+				</svg>
+			</view>
 		</view>
 		<view v-if="recipes.length > 0" class="filter-card">
 			<view class="range-inline">
@@ -22,7 +26,9 @@
 			</view>
 		</view>
 		<view v-if="recipes.length > 0" class="search-wrap">
-			<text class="search-ico">🔎</text>
+			<svg class="search-ico-svg" aria-hidden="true">
+				<use href="#icon-sousuo"></use>
+			</svg>
 			<input
 				class="search-input"
 				type="text"
@@ -200,10 +206,19 @@ export default {
 	border: 1rpx solid #e2e9e4;
 	border-radius: 999rpx;
 	background: #fff;
-	padding: 6rpx 16rpx;
-	font-size: 14px;
+	min-width: 88rpx;
+	height: 56rpx;
+	padding: 0 16rpx;
+	box-sizing: border-box;
 	display: flex;
-	gap: 10rpx;
+	align-items: center;
+	justify-content: center;
+}
+
+.back-ico-svg {
+	width: 20px;
+	height: 20px;
+	display: block;
 }
 
 .card {
@@ -284,9 +299,13 @@ export default {
 	box-sizing: border-box;
 }
 
-.search-ico {
-	font-size: 12px;
-	color: #7c8aa0;
+.search-ico-svg {
+	width: 18px;
+	height: 18px;
+	display: block;
+	flex-shrink: 0;
+	shape-rendering: geometricPrecision;
+	transform: translateZ(0);
 }
 
 .search-input {

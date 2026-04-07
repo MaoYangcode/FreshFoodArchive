@@ -34,7 +34,9 @@
 		</view>
 		<view class="summary-row">
 			<view class="search-wrap">
-				<text class="search-ico">🔎</text>
+				<svg class="search-ico-svg" aria-hidden="true">
+					<use href="#icon-sousuo"></use>
+				</svg>
 				<input
 					class="search-input"
 					type="text"
@@ -663,6 +665,11 @@ export default {
 </script>
 
 <style scoped>
+@font-face {
+	font-family: "fridge-iconfont";
+	src: url('/static/iconfont/iconfont.ttf') format('truetype');
+}
+
 .container {
 	padding: 14px 12px 92px;
 	background: #f6f7f8;
@@ -722,9 +729,13 @@ export default {
 	height: 32px;
 }
 
-.search-ico {
-	font-size: 12px;
-	color: #7c8aa0;
+.search-ico-svg {
+	width: 18px;
+	height: 18px;
+	display: block;
+	flex-shrink: 0;
+	shape-rendering: geometricPrecision;
+	transform: translateZ(0);
 }
 
 .search-input {
