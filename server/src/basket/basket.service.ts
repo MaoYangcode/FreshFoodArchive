@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 
 const BASKET_CATEGORY_KEYWORDS: Record<string, string[]> = {
@@ -47,6 +47,17 @@ const BASKET_CATEGORY_KEYWORDS: Record<string, string[]> = {
   饮料: ['可乐', '雪碧', '果汁', '汽水', '苏打水', '矿泉水', '咖啡', '茶', '椰汁', '豆浆'],
 }
 
+const DEFAULT_RESTOCK_SHELF_LIFE_DAYS: Record<string, number> = {
+  水果: 5,
+  蔬菜: 3,
+  肉类: 2,
+  蛋奶: 5,
+  海鲜: 2,
+  饮料: 30,
+  调味品: 90,
+  其他: 7,
+}
+
 @Injectable()
 export class BasketService {
   constructor(private readonly prisma: PrismaService) {}
@@ -74,6 +85,54 @@ export class BasketService {
     const n = Number(value)
     if (!Number.isFinite(n) || n <= 0) return 1
     return n
+  }
+
+  private normalizeShelfLifeDays(value: unknown, fallback: number) {
+    const n = Math.floor(Number(value))
+    if (!Number.isFinite(n) || n <= 0) return fallback
+    if (n > 3650) return 3650
+    return n
+  }
+
+  private normalizeRestockDate(rawDate: unknown) {
+    const now = new Date()
+    if (rawDate === null || rawDate === undefined || `${rawDate}`.trim() === '') {
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    }
+    const date = new Date(`${rawDate}`)
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException('入库日期格式不正确')
+    }
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  }
+
+  private normalizeRestockLocation(rawLocation: unknown, fallback = '冷藏') {
+    const text = `${rawLocation || ''}`.trim()
+    return text || fallback
+  }
+
+  private normalizeRestockCategory(rawCategory: unknown) {
+    const text = `${rawCategory || ''}`.trim()
+    if (!text) return ''
+    return Object.prototype.hasOwnProperty.call(DEFAULT_RESTOCK_SHELF_LIFE_DAYS, text) ? text : ''
+  }
+
+  private addDays(baseDate: Date, days: number) {
+    const value = new Date(baseDate)
+    value.setDate(value.getDate() + days)
+    return value
+  }
+
+  private normalizeShelfLifeByCategory(raw: unknown) {
+    const map = { ...DEFAULT_RESTOCK_SHELF_LIFE_DAYS }
+    if (!raw || typeof raw !== 'object') return map
+    for (const category of Object.keys(DEFAULT_RESTOCK_SHELF_LIFE_DAYS)) {
+      map[category] = this.normalizeShelfLifeDays(
+        (raw as Record<string, unknown>)[category],
+        DEFAULT_RESTOCK_SHELF_LIFE_DAYS[category],
+      )
+    }
+    return map
   }
 
   private normalizePayload(raw: any, sourceRecipeName = '') {
@@ -192,5 +251,86 @@ export class BasketService {
       },
     })
     return { count: result.count }
+  }
+
+  async restockDone(userId: number, raw: any) {
+    await this.ensureUserExists(userId)
+
+    const restockDate = this.normalizeRestockDate(raw?.restockDate)
+    const location = this.normalizeRestockLocation(raw?.location, '冷藏')
+    const defaultShelfLifeDays = this.normalizeShelfLifeDays(raw?.defaultShelfLifeDays, 7)
+    const shelfLifeByCategory = this.normalizeShelfLifeByCategory(raw?.shelfLifeDaysByCategory)
+    const itemSettings = Array.isArray(raw?.itemSettings) ? raw.itemSettings : []
+    const itemSettingMap = new Map<number, { restockDate: Date; location: string; category?: string; quantity?: number; unit?: string }>()
+    for (const setting of itemSettings) {
+      const id = Number(setting?.id)
+      if (!Number.isFinite(id) || id <= 0) continue
+      const hasQuantity = setting?.quantity !== null && setting?.quantity !== undefined && `${setting?.quantity}`.trim() !== ''
+      itemSettingMap.set(id, {
+        restockDate: this.normalizeRestockDate(setting?.restockDate ?? restockDate),
+        location: this.normalizeRestockLocation(setting?.location, location),
+        category: this.normalizeRestockCategory(setting?.category) || undefined,
+        quantity: hasQuantity ? this.normalizeQuantity(setting?.quantity) : undefined,
+        unit: `${setting?.unit || ''}`.trim() || undefined,
+      })
+    }
+
+    const doneItems = await this.prisma.basketItem.findMany({
+      where: {
+        userId,
+        status: 'done',
+      },
+      orderBy: { createdAt: 'asc' },
+    })
+
+    if (!doneItems.length) {
+      return {
+        sourceCount: 0,
+        created: 0,
+        removed: 0,
+        restockDate,
+        shelfLifeByCategory,
+      }
+    }
+
+    const ingredientRows = doneItems.map((item) => {
+      const setting = itemSettingMap.get(item.id)
+      const settingCategory = this.normalizeRestockCategory(setting?.category)
+      const category = settingCategory || this.pickCategory(item.category, item.name)
+      const days = this.normalizeShelfLifeDays(shelfLifeByCategory[category], defaultShelfLifeDays)
+      const rowRestockDate = setting?.restockDate || restockDate
+      const rowLocation = setting?.location || location
+      const rowQuantity = this.normalizeQuantity(setting?.quantity ?? item.quantity)
+      const rowUnit = `${setting?.unit || item.unit || '份'}`.trim() || '份'
+      return {
+        userId,
+        name: item.name,
+        category,
+        quantity: rowQuantity,
+        unit: rowUnit,
+        location: rowLocation,
+        expireDate: this.addDays(rowRestockDate, days),
+      }
+    })
+
+    const [createdResult, removedResult] = await this.prisma.$transaction([
+      this.prisma.ingredient.createMany({
+        data: ingredientRows,
+      }),
+      this.prisma.basketItem.deleteMany({
+        where: {
+          userId,
+          id: { in: doneItems.map((x) => x.id) },
+        },
+      }),
+    ])
+
+    return {
+      sourceCount: doneItems.length,
+      created: createdResult.count,
+      removed: removedResult.count,
+      restockDate,
+      shelfLifeByCategory,
+    }
   }
 }

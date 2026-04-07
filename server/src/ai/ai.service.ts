@@ -26,11 +26,14 @@ export class AiService {
   private readonly endpoint = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
   private readonly visionModel = process.env.DASHSCOPE_VISION_MODEL || 'qwen2.5-vl-7b-instruct'
   private readonly textModel = process.env.DASHSCOPE_TEXT_MODEL || 'qwen2.5-14b-instruct'
+  private readonly allowMockFallback =
+    `${process.env.AI_RECOGNIZE_FALLBACK_TO_MOCK || ''}`.trim() === '1'
   private readonly validCategories = new Set(['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'])
 
   async recognizeIngredientFromImage(file: any): Promise<RecognizedIngredient[]> {
     if (!this.apiKey) {
-      return this.mockRecognize()
+      if (this.allowMockFallback) return this.mockRecognize()
+      throw new Error('DASHSCOPE_API_KEY 未配置')
     }
 
     const mimeType = file?.mimetype || 'image/jpeg'
@@ -47,23 +50,29 @@ export class AiService {
     ].join('\n')
 
     const dataUrl = `data:${mimeType};base64,${imageBase64}`
-    const content = await this.callDashScope(this.visionModel, [
-      { role: 'system', content: '你是食材识别助手。' },
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: dataUrl } },
-        ],
-      },
-    ])
+    try {
+      const content = await this.callDashScope(this.visionModel, [
+        { role: 'system', content: '你是食材识别助手。' },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: dataUrl } },
+          ],
+        },
+      ])
 
-    return this.extractIngredientsFromResponse(content)
+      return this.extractIngredientsFromResponse(content)
+    } catch (error: any) {
+      if (this.allowMockFallback) return this.mockRecognize()
+      throw new Error(error?.message || '食材识别服务调用失败')
+    }
   }
 
   async recognizeReceiptFromImage(file: any): Promise<RecognizedIngredient[]> {
     if (!this.apiKey) {
-      return this.mockRecognize()
+      if (this.allowMockFallback) return this.mockRecognize()
+      throw new Error('DASHSCOPE_API_KEY 未配置')
     }
 
     const mimeType = file?.mimetype || 'image/jpeg'
@@ -81,18 +90,23 @@ export class AiService {
     ].join('\n')
 
     const dataUrl = `data:${mimeType};base64,${imageBase64}`
-    const content = await this.callDashScope(this.visionModel, [
-      { role: 'system', content: '你是结构化小票 OCR 助手。' },
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: dataUrl } },
-        ],
-      },
-    ])
+    try {
+      const content = await this.callDashScope(this.visionModel, [
+        { role: 'system', content: '你是结构化小票 OCR 助手。' },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: dataUrl } },
+          ],
+        },
+      ])
 
-    return this.extractIngredientsFromResponse(content)
+      return this.extractIngredientsFromResponse(content)
+    } catch (error: any) {
+      if (this.allowMockFallback) return this.mockRecognize()
+      throw new Error(error?.message || '小票识别服务调用失败')
+    }
   }
 
   async generateRecipeList(payload: any): Promise<GeneratedRecipe[]> {
@@ -185,14 +199,20 @@ export class AiService {
       body.response_format = { type: 'json_object' }
     }
 
-    const response = await fetch(this.endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(body),
-    })
+    let response: Response
+    try {
+      response = await fetch(this.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+      })
+    } catch (error: any) {
+      const detail = error?.cause?.code || error?.cause?.message || error?.message || 'unknown'
+      throw new Error(`DashScope 网络请求失败: ${detail}`)
+    }
 
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) {

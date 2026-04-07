@@ -236,7 +236,8 @@ export default {
 				uni.showToast({ title: `识别到${list.length}种食材`, icon: 'none' })
 			} catch (e) {
 				console.error('识别失败', e)
-				uni.showToast({ title: '识别失败，请重试', icon: 'none' })
+				const msg = `${e?.message || ''}`.trim() || '识别失败，请重试'
+				uni.showToast({ title: msg, icon: 'none' })
 			} finally {
 				uni.hideLoading()
 			}

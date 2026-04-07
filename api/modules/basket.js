@@ -51,3 +51,11 @@ export function clearDoneBasketItems(userId = 1) {
 		data: {}
 	})
 }
+
+export function restockDoneBasketItems(payload = {}) {
+	return request({
+		url: '/basket-items/done/restock',
+		method: 'POST',
+		data: payload
+	})
+}

@@ -34,6 +34,11 @@ export class BasketController {
     return this.basketService.clearDone(Number(userId || 1))
   }
 
+  @Post('done/restock')
+  restockDone(@Body() body: any) {
+    return this.basketService.restockDone(Number(body?.userId || 1), body || {})
+  }
+
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number, @Query('userId') userId?: string) {
     return this.basketService.remove(id, Number(userId || 1))
