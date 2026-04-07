@@ -2,7 +2,6 @@
 	<view class="container" @click.self="closeSwipe">
 		<view class="top">
 			<text class="top-title">我的冰箱</text>
-			<view class="capsule"><text>🔎</text></view>
 		</view>
 		<view class="location-wrap">
 			<view class="chips location-chips">

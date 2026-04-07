@@ -7,6 +7,9 @@
 			<text class="banner-label">可用食材</text>
 			<text v-for="(x, idx) in pantryTags" :key="idx" class="pill-food">{{ x }}</text>
 		</view>
+		<view v-if="profileHintText" class="profile-hint">
+			<text>{{ profileHintText }}</text>
+		</view>
 		<view class="control-row">
 			<text
 				v-for="opt in sortOptions"
@@ -87,7 +90,8 @@ export default {
 					sourceIndex: 1,
 					raw: { ingredients: [{ name: '牛肉' }, { name: '洋葱' }] }
 				}
-			]
+			],
+			profileApplied: null
 		}
 	},
 	computed: {
@@ -97,6 +101,16 @@ export default {
 		currentCookingTimeLabel() {
 			const v = Number(this.selectedCookingTime || 0)
 			return v <= 0 ? '不限时长' : `${v}分钟内`
+		},
+		profileHintText() {
+			const info = this.profileApplied || {}
+			const avoidances = Array.isArray(info.avoidances) ? info.avoidances.filter(Boolean) : []
+			const prefs = Array.isArray(info.dietPreferences) ? info.dietPreferences.filter(Boolean) : []
+			const parts = ['已按你的资料生成']
+			if (avoidances.length) parts.push(`已严格避开：${avoidances.join('、')}`)
+			if (prefs.length) parts.push(`偏好：${prefs.join('、')}`)
+			if (info.reducedByAvoidance) parts.push('因严格忌口过滤，候选数量有所减少')
+			return parts.join('；')
 		},
 		displayRecipes() {
 			const pantrySet = new Set(this.pantryTags.map((x) => this.normalizeName(x)).filter(Boolean))
@@ -142,6 +156,8 @@ export default {
 			}
 
 			const generated = uni.getStorageSync('latestGeneratedRecipes')
+			const profileApplied = uni.getStorageSync('latestRecipeProfileApplied')
+			this.profileApplied = profileApplied && typeof profileApplied === 'object' ? profileApplied : null
 			if (!Array.isArray(generated) || !generated.length) return
 
 			this.recipes = generated.map((item, idx) => ({
@@ -238,6 +254,16 @@ export default {
 	background: linear-gradient(135deg, #f4f8f5, #f8fbf8);
 	border: 1rpx solid #e2ebe4;
 	margin-bottom: 22rpx;
+}
+
+.profile-hint {
+	border: 1rpx solid #d9e9dc;
+	background: #f1f8f2;
+	color: #4f6b58;
+	font-size: 11px;
+	border-radius: 12px;
+	padding: 8rpx 12rpx;
+	margin-bottom: 12rpx;
 }
 
 .banner-label {

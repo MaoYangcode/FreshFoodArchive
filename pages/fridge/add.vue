@@ -2,7 +2,6 @@
 	<view class="container">
 		<view class="top">
 			<text class="top-title">添加食材</text>
-			<view class="capsule"><text>•••</text><text>◉</text></view>
 		</view>
 		<view class="card">
 			<view class="head-row">
@@ -153,6 +152,7 @@ import { createIngredient } from '@/api/modules/ingredients'
 import { recognizeIngredientsByUpload, recognizeReceiptByUpload } from '@/api/modules/ai'
 import BottomNav from '@/components/bottom-nav.vue'
 import LocationIcon from '@/components/location-icon.vue'
+import { getShelfLifeDays, getShelfLifeDaysByCategory } from '@/utils/shelf-life'
 
 export default {
 	components: { BottomNav, LocationIcon },
@@ -166,6 +166,7 @@ export default {
 				'桶', '箱', '颗', '朵', '管', '两'
 			],
 			locations: ['冷藏', '冷冻'],
+			shelfLifeDaysByCategory: getShelfLifeDaysByCategory(),
 			batchVisible: false,
 			batchSubmitting: false,
 			batchItems: [],
@@ -183,6 +184,9 @@ export default {
 		batchSelectedCount() {
 			return this.batchItems.filter((item) => item.selected !== false).length
 		}
+	},
+	onShow() {
+		this.shelfLifeDaysByCategory = getShelfLifeDaysByCategory()
 	},
 	methods: {
 		chooseLocalImage() {
@@ -233,6 +237,7 @@ export default {
 				if (!this.form.category && first.category) this.form.category = first.category
 				if (!this.form.quantity && first.quantity) this.form.quantity = `${first.quantity}`
 				if (!this.form.unit && first.unit) this.form.unit = first.unit
+				if (!this.form.expireDate && first.category) this.form.expireDate = this.getExpireDateByCategory(first.category)
 				uni.showToast({ title: `识别到${list.length}种食材`, icon: 'none' })
 			} catch (e) {
 				console.error('识别失败', e)
@@ -253,9 +258,19 @@ export default {
 				quantity,
 				unit,
 				location: this.form.location || '冷藏',
-				expireDate: this.form.expireDate || '',
+				expireDate: this.form.expireDate || this.getExpireDateByCategory(category),
 				selected: true
 			}
+		},
+		getExpireDateByCategory(category) {
+			const days = getShelfLifeDays(category, this.shelfLifeDaysByCategory)
+			const date = new Date()
+			date.setHours(0, 0, 0, 0)
+			date.setDate(date.getDate() + days)
+			const y = date.getFullYear()
+			const m = `${date.getMonth() + 1}`.padStart(2, '0')
+			const d = `${date.getDate()}`.padStart(2, '0')
+			return `${y}-${m}-${d}`
 		},
 		normalizeRecognizedUnit(rawUnit, name, category) {
 			const fallback = this.inferUnitByName(name, category)
@@ -324,7 +339,9 @@ export default {
 			return '个'
 		},
 		onBatchCategoryChange(index, e) {
-			this.batchItems[index].category = this.categories[e.detail.value]
+			const category = this.categories[e.detail.value]
+			this.batchItems[index].category = category
+			this.batchItems[index].expireDate = this.getExpireDateByCategory(category)
 		},
 		onBatchUnitChange(index, e) {
 			this.batchItems[index].unit = this.units[e.detail.value]
@@ -421,7 +438,9 @@ export default {
 			}
 		},
 		onCategoryChange(e) {
-			this.form.category = this.categories[e.detail.value]
+			const category = this.categories[e.detail.value]
+			this.form.category = category
+			this.form.expireDate = this.getExpireDateByCategory(category)
 		},
 		onUnitChange(e) {
 			this.form.unit = this.units[e.detail.value]

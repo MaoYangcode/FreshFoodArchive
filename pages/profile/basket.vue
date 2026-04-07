@@ -162,6 +162,7 @@
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import LocationIcon from '@/components/location-icon.vue'
+import { getShelfLifeDaysByCategory } from '@/utils/shelf-life'
 import {
 	addBasketItem,
 	clearDoneBasketItems,
@@ -184,6 +185,7 @@ export default {
 			categories: ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'],
 			restockLocationOptions: ['冷藏', '冷冻'],
 			restockEntries: [],
+			restockShelfLifeDaysByCategory: getShelfLifeDaysByCategory(),
 			units: [
 				'份', '盒', '罐', '包', '个', '条', '片', '根', '瓶', '袋', '块',
 				'毫升', '升', '千克', '克', '斤', '公斤', '颗', '组', '把', '只', '杯',
@@ -221,6 +223,7 @@ export default {
 		}
 	},
 	onShow() {
+		this.restockShelfLifeDaysByCategory = getShelfLifeDaysByCategory()
 		this.refresh()
 	},
 	methods: {
@@ -334,6 +337,8 @@ export default {
 					userId: this.userId,
 					restockDate: this.getTodayDateText(),
 					location: '冷藏',
+					defaultShelfLifeDays: 7,
+					shelfLifeDaysByCategory: this.restockShelfLifeDaysByCategory,
 					itemSettings: this.restockEntries.map((entry) => ({
 						id: entry.id,
 						restockDate: entry.restockDate || this.getTodayDateText(),

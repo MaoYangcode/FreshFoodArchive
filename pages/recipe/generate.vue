@@ -2,7 +2,6 @@
 	<view class="container">
 		<view class="top">
 			<text class="top-title">菜谱推荐</text>
-			<view class="capsule"><text>🔎</text></view>
 		</view>
 		<view class="recipe-screen">
 			<view class="recipe-inner recipe-hero">
@@ -63,18 +62,21 @@ export default {
 				}
 
 				const aiRes = await recommendRecipes({
+					userId: 1,
 					ingredients,
 					tastePreference: '家常',
 					cookingTime: 30,
 					count: 3
 				})
 				const recipes = Array.isArray(aiRes?.data?.recipes) ? aiRes.data.recipes : []
+				const profileApplied = aiRes?.data?.profileApplied || null
 				if (!recipes.length) {
 					uni.showToast({ title: '未生成菜谱，请重试', icon: 'none' })
 					return
 				}
 
 				uni.setStorageSync('latestGeneratedRecipes', recipes)
+				uni.setStorageSync('latestRecipeProfileApplied', profileApplied)
 				uni.setStorageSync(
 					'latestPantryTags',
 					ingredients.slice(0, 6).map((x) => x.name).filter(Boolean)

@@ -2,7 +2,6 @@
 	<view class="container">
 		<view class="top">
 			<text class="top-title">我的</text>
-			<view class="capsule"><text>•••</text><text>◉</text></view>
 		</view>
 		<view class="card head-card">
 			<view class="avatar">&#xe615;</view>
@@ -13,7 +12,7 @@
 		</view>
 
 		<view class="menu">
-			<view class="menu-item group-end">
+			<view class="menu-item group-end" @click="goFridge">
 				<text class="micon">&#xe90b;</text>
 				<text>冰箱管理</text>
 				<text class="arrow">›</text>
@@ -61,6 +60,11 @@ import BottomNav from '@/components/bottom-nav.vue'
 export default {
 	components: { BottomNav },
 	methods: {
+		goFridge() {
+			uni.navigateTo({
+				url: '/pages/fridge/shelf-life'
+			})
+		},
 		goFavorites() {
 			uni.navigateTo({ url: '/pages/profile/favorites' })
 		},

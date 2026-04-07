@@ -29,6 +29,13 @@
       }
     },
     {
+      "path": "pages/fridge/shelf-life",
+      "style": {
+        "navigationBarTitleText": "保质期设置",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/recipe/generate",
       "style": {
         "navigationBarTitleText": "菜谱推荐",

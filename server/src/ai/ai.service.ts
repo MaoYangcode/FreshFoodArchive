@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { PrismaService } from '../prisma/prisma.service'
 
 type RecognizedIngredient = {
   name: string
@@ -20,8 +21,28 @@ type GeneratedRecipe = {
   tips?: string
 }
 
+type ProfileApplied = {
+  userId: number
+  avoidances: string[]
+  dietPreferences: string[]
+  cookwareNote: string
+  strictAvoidance: boolean
+  softCookware: boolean
+  requestedCount: number
+  generatedCount: number
+  reducedByAvoidance: boolean
+  removedByAvoidanceCount: number
+}
+
+type RecipeGenerateResult = {
+  recipes: GeneratedRecipe[]
+  profileApplied: ProfileApplied
+}
+
 @Injectable()
 export class AiService {
+  constructor(private readonly prisma: PrismaService) {}
+
   private readonly apiKey = process.env.DASHSCOPE_API_KEY || ''
   private readonly endpoint = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
   private readonly visionModel = process.env.DASHSCOPE_VISION_MODEL || 'qwen2.5-vl-7b-instruct'
@@ -109,15 +130,36 @@ export class AiService {
     }
   }
 
-  async generateRecipeList(payload: any): Promise<GeneratedRecipe[]> {
+  async generateRecipeList(payload: any): Promise<RecipeGenerateResult> {
     const ingredients = Array.isArray(payload?.ingredients) ? payload.ingredients : []
     const count = Math.min(Math.max(Number(payload?.count || 3), 1), 6)
     const cookingTime = Number(payload?.cookingTime || 30)
     const tastePreference = `${payload?.tastePreference || '家常'}`
+    const userId = Math.max(Number(payload?.userId || 1), 1)
+    const profile = await this.loadUserProfileForRecipe(userId)
+    const avoidances = profile.avoidances
+    const dietPreferences = profile.dietPreferences
+    const cookwareNote = profile.note
+    const profileApplied: ProfileApplied = {
+      userId,
+      avoidances,
+      dietPreferences,
+      cookwareNote,
+      strictAvoidance: true,
+      softCookware: true,
+      requestedCount: count,
+      generatedCount: 0,
+      reducedByAvoidance: false,
+      removedByAvoidanceCount: 0,
+    }
 
-    if (!ingredients.length) return []
+    if (!ingredients.length) return { recipes: [], profileApplied }
     if (!this.apiKey) {
-      return this.mockRecipes(ingredients, count)
+      const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
+      profileApplied.generatedCount = mocked.length
+      profileApplied.removedByAvoidanceCount = Math.max(count - mocked.length, 0)
+      profileApplied.reducedByAvoidance = profileApplied.removedByAvoidanceCount > 0
+      return { recipes: mocked.slice(0, count), profileApplied }
     }
 
     const ingredientText = ingredients
@@ -134,6 +176,10 @@ export class AiService {
       '你是家庭烹饪助手。仅返回 JSON，不要附带解释文本。',
       '请根据给定食材生成菜谱候选列表。',
       `口味偏好：${tastePreference}`,
+      `饮食偏好（软约束，尽量贴合）：${dietPreferences.length ? dietPreferences.join('、') : '无特别偏好'}`,
+      `可用厨具（软约束，尽量贴合）：${cookwareNote || '按常见家用厨具处理'}`,
+      `忌口食材（硬约束，必须严格避开）：${avoidances.length ? avoidances.join('、') : '无'}`,
+      '规则：任何菜谱名称、食材列表、步骤、tips 中都不允许出现忌口食材或其同义表述。',
       `期望总烹饪时长（分钟）：${cookingTime}`,
       `候选数量：${count}`,
       `食材：${ingredientText}`,
@@ -156,10 +202,61 @@ export class AiService {
 
     const parsed = this.parseJson(content)
     const list = Array.isArray(parsed?.recipes) ? parsed.recipes : []
-    return list
+    let recipes = list
       .map((item: any, idx: number) => this.normalizeRecipe(item, idx))
       .filter((x: GeneratedRecipe) => !!x.name && Array.isArray(x.steps) && x.steps.length > 0)
-      .slice(0, count)
+    const beforeFilterCount = recipes.length
+    recipes = this.filterRecipesByAvoidances(recipes, avoidances)
+    let removedByAvoidanceCount = Math.max(beforeFilterCount - recipes.length, 0)
+
+    if (recipes.length < count) {
+      const remain = count - recipes.length
+      const retryPrompt = [
+        '你是家庭烹饪助手。仅返回 JSON，不要附带解释文本。',
+        `请补充生成 ${remain} 道新菜谱，且与已有菜谱不要重复。`,
+        `已有菜谱名：${recipes.map((x) => x.name).join('、') || '无'}`,
+        `口味偏好：${tastePreference}`,
+        `饮食偏好（软约束）：${dietPreferences.length ? dietPreferences.join('、') : '无特别偏好'}`,
+        `可用厨具（软约束）：${cookwareNote || '按常见家用厨具处理'}`,
+        `忌口食材（硬约束，必须严格避开）：${avoidances.length ? avoidances.join('、') : '无'}`,
+        '规则：任何菜谱名称、食材列表、步骤、tips 中都不允许出现忌口食材或其同义表述。',
+        `期望总烹饪时长（分钟）：${cookingTime}`,
+        `食材：${ingredientText}`,
+        'JSON 结构：',
+        '{"recipes":[{"id":"ai_001","name":"菜名","duration":15,"difficulty":"简单","matchScore":95,"coverImage":"","ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["步骤1","步骤2"],"tips":"可选"}]}',
+        'difficulty 仅可取：简单、中等、困难。',
+        'matchScore 范围 0-100。',
+        '如果无法生成，返回 {"recipes":[]}',
+      ].join('\n')
+      const retryContent = await this.callDashScope(
+        this.textModel,
+        [
+          { role: 'system', content: '你是结构化 JSON 菜谱生成助手。' },
+          { role: 'user', content: retryPrompt },
+        ],
+        true,
+      )
+      const retryParsed = this.parseJson(retryContent)
+      const retryList = Array.isArray(retryParsed?.recipes) ? retryParsed.recipes : []
+      const retryNormalized = retryList
+        .map((item: any, idx: number) => this.normalizeRecipe(item, recipes.length + idx))
+        .filter((x: GeneratedRecipe) => !!x.name && Array.isArray(x.steps) && x.steps.length > 0)
+      const retryRecipes = this.filterRecipesByAvoidances(retryNormalized, avoidances)
+      removedByAvoidanceCount += Math.max(retryNormalized.length - retryRecipes.length, 0)
+      const seen = new Set(recipes.map((x) => this.normalizeTextForCompare(x.name)))
+      for (const item of retryRecipes) {
+        const key = this.normalizeTextForCompare(item.name)
+        if (!key || seen.has(key)) continue
+        recipes.push(item)
+        seen.add(key)
+        if (recipes.length >= count) break
+      }
+    }
+    const finalRecipes = recipes.slice(0, count)
+    profileApplied.generatedCount = finalRecipes.length
+    profileApplied.removedByAvoidanceCount = removedByAvoidanceCount
+    profileApplied.reducedByAvoidance = finalRecipes.length < count && removedByAvoidanceCount > 0
+    return { recipes: finalRecipes, profileApplied }
   }
 
   private normalizeRecipe(item: any, idx: number): GeneratedRecipe {
@@ -187,6 +284,57 @@ export class AiService {
       steps: steps.length ? steps : ['准备并清洗食材。', '按顺序烹饪并调味后出锅。'],
       tips: `${item?.tips || ''}`.trim(),
     }
+  }
+
+  private normalizeStringArray(value: unknown) {
+    if (!Array.isArray(value)) return []
+    return value.map((x) => `${x || ''}`.trim()).filter(Boolean)
+  }
+
+  private async loadUserProfileForRecipe(userId: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        note: true,
+        dietPreferences: true,
+        avoidances: true,
+      },
+    })
+    if (!user) {
+      return { note: '', dietPreferences: [] as string[], avoidances: [] as string[] }
+    }
+    return {
+      note: `${user.note || ''}`.trim(),
+      dietPreferences: this.normalizeStringArray(user.dietPreferences),
+      avoidances: this.normalizeStringArray(user.avoidances),
+    }
+  }
+
+  private normalizeTextForCompare(text: unknown) {
+    return `${text || ''}`.trim().replace(/\s+/g, '').toLowerCase()
+  }
+
+  private recipeContainsAvoidance(recipe: GeneratedRecipe, avoidances: string[]) {
+    if (!avoidances.length) return false
+    const haystack = [
+      recipe.name,
+      ...(Array.isArray(recipe.ingredients) ? recipe.ingredients.map((x) => x?.name || '') : []),
+      ...(Array.isArray(recipe.steps) ? recipe.steps : []),
+      recipe.tips || '',
+    ]
+      .join(' ')
+      .replace(/\s+/g, '')
+      .toLowerCase()
+    return avoidances.some((x) => {
+      const key = this.normalizeTextForCompare(x)
+      return key && haystack.includes(key)
+    })
+  }
+
+  private filterRecipesByAvoidances(recipes: GeneratedRecipe[], avoidances: string[]) {
+    const list = Array.isArray(recipes) ? recipes : []
+    if (!avoidances.length) return list
+    return list.filter((item) => !this.recipeContainsAvoidance(item, avoidances))
   }
 
   private async callDashScope(model: string, messages: any[], forceJson = false): Promise<string> {

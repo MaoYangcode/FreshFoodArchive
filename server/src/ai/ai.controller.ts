@@ -73,8 +73,8 @@ export class AiController {
   @Post('generate-recipe')
   async generateRecipe(@Body() body: any) {
     try {
-      const recipes = await this.aiService.generateRecipeList(body)
-      return { code: 0, message: 'ok', data: { recipes } }
+      const result = await this.aiService.generateRecipeList(body)
+      return { code: 0, message: 'ok', data: result }
     } catch (error: any) {
       return {
         code: 10021,

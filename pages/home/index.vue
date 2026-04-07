@@ -2,7 +2,6 @@
 	<view class="container">
 		<view class="top">
 			<text class="top-title">鲜食档案</text>
-			<view class="capsule"><text>•••</text><text>◉</text></view>
 		</view>
 		<view class="stats">
 			<view class="stat s-green">
