@@ -258,7 +258,7 @@ export default {
 
 .hero-bg { padding: 16rpx 10px 14rpx; display: flex; align-items: center; justify-content: center; margin-bottom: 10rpx; }
 .avatar-wrap { position: relative; }
-.card { margin-bottom: 12rpx; }
+.card { margin-bottom: 22rpx; }
 .white-card { background: #fff; border: 1rpx solid #edf2ef; border-radius: 16px; padding: 12px; box-shadow: 0 8rpx 18rpx rgba(30, 50, 34, 0.07); }
 .avatar-box { width: 108px; height: 108px; border-radius: 50%; background: #eaf7ee; display: flex; align-items: center; justify-content: center; }
 .avatar-img { width: 100%; height: 100%; border-radius: 50%; display: block; }
@@ -269,7 +269,7 @@ export default {
 .first-row { border-top: none; }
 .label { font-size: 14px; font-weight: 700; color: #26352d; }
 .field-input { flex: 1; text-align: right; font-size: 13px; color: #2f3f36; }
-.row-input { text-align: right; font-size: 15px; font-weight: 600; color: #202a23; }
+.row-input { text-align: right; font-size: 14px; font-weight: 500; color: #5f7a6b; }
 .right-wrap { flex: 1; display: flex; justify-content: flex-end; }
 .pill { min-width: 92rpx; text-align: center; background: #edf5ef; color: #408a4d; border-radius: 999rpx; padding: 6rpx 12rpx; font-size: 12px; font-weight: 700; }
 

@@ -80,16 +80,23 @@ export class ProfileService {
   }
 
   async updateProfile(userId: number, payload: any) {
-    await this.ensureUserExists(userId)
+    const current = await this.ensureUserExists(userId)
+    const has = (key: string) => Object.prototype.hasOwnProperty.call(payload || {}, key)
     const updated = await this.prisma.user.update({
       where: { id: userId },
       data: {
-        name: this.normalizeName(payload?.name),
-        avatar: this.normalizeAvatar(payload?.avatar),
-        householdSize: this.normalizeHouseholdSize(payload?.householdSize),
-        dietPreferences: this.normalizeArray(payload?.dietPreferences) as Prisma.JsonArray,
-        avoidances: this.normalizeArray(payload?.avoidances) as Prisma.JsonArray,
-        note: this.normalizeNote(payload?.note),
+        name: has('name') ? this.normalizeName(payload?.name) : this.normalizeName(current?.name),
+        avatar: has('avatar') ? this.normalizeAvatar(payload?.avatar) : this.normalizeAvatar(current?.avatar),
+        householdSize: has('householdSize')
+          ? this.normalizeHouseholdSize(payload?.householdSize)
+          : this.normalizeHouseholdSize(current?.householdSize),
+        dietPreferences: has('dietPreferences')
+          ? (this.normalizeArray(payload?.dietPreferences) as Prisma.JsonArray)
+          : (this.normalizeArray(current?.dietPreferences) as Prisma.JsonArray),
+        avoidances: has('avoidances')
+          ? (this.normalizeArray(payload?.avoidances) as Prisma.JsonArray)
+          : (this.normalizeArray(current?.avoidances) as Prisma.JsonArray),
+        note: has('note') ? this.normalizeNote(payload?.note) : this.normalizeNote(current?.note),
       },
     })
     return this.mapProfile(updated)
