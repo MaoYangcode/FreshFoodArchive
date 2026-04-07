@@ -420,10 +420,9 @@ export default {
 		},
 		barStyle(expireDate) {
 			const days = this.getDays(expireDate)
-			if (days <= 0) return { width: '92%', background: '#e36b6b' }
-			if (days <= 2) return { width: '78%', background: '#f0b24b' }
-			if (days <= 5) return { width: '56%', background: '#e0c45a' }
-			return { width: '36%', background: '#68bf7a' }
+			if (days <= 0) return { width: '92%', background: '#ce5454' }
+			if (days <= 2) return { width: '78%', background: '#f39c34' }
+			return { width: '36%', background: '#3f9f4d' }
 		},
 		onTouchStart(e, id) {
 			this.lastTouchAt = Date.now()

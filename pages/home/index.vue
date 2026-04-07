@@ -416,7 +416,7 @@ export default {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 30rpx;
+	font-size: 36rpx;
 	color: #ffffff;
 }
 

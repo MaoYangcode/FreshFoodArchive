@@ -5,7 +5,9 @@
 			<view class="capsule"><text>🖊</text></view>
 		</view>
 		<view class="card top-card">
-			<view class="food-ico">{{ getEmoji(form.category) }}</view>
+			<view class="food-ico">
+				<IngredientIcon :name="form.name" :category="form.category" :size="54" />
+			</view>
 			<view>
 				<text class="food-name">{{ form.name || '食材' }}</text>
 				<text class="food-time">{{ form.createdAt || '-' }}</text>
@@ -19,7 +21,6 @@
 					<text class="row-label">食物名称</text>
 				</view>
 				<input v-model="form.name" class="row-input" placeholder="请输入食物名称" />
-				<text class="req side-req">*</text>
 			</view>
 
 			<view class="form-row">
@@ -30,7 +31,6 @@
 				<picker :range="categories" @change="onCategoryChange" class="flex-picker">
 					<view class="row-chip">{{ form.category || '请选择类型' }}</view>
 				</picker>
-				<text class="req side-req">*</text>
 			</view>
 
 			<view class="form-row">
@@ -42,7 +42,6 @@
 				<picker :range="units" @change="onUnitChange">
 					<view class="row-chip unit-chip">{{ form.unit || '选择单位' }}</view>
 				</picker>
-				<text class="req side-req">*</text>
 			</view>
 
 			<view class="form-row">
@@ -62,35 +61,21 @@
 						<text>{{ loc }}</text>
 					</view>
 				</view>
-				<text class="req side-req">*</text>
 			</view>
 
 			<view class="form-row date-row">
 				<view class="row-left">
-					<text class="row-icon">◷</text>
-					<text class="row-label">购买时间</text>
-				</view>
-				<picker mode="date" :value="form.purchaseDate" @change="onPurchaseDateChange" class="flex-picker">
-					<view class="row-date">{{ form.purchaseDate || '选择购买时间（默认当天）' }}</view>
-				</picker>
-			</view>
-
-			<view class="form-row date-row">
-				<view class="row-left">
-					<text class="row-icon">◷</text>
+					<text class="row-icon ai-iconfont expire-icon">&#xe621;</text>
 					<text class="row-label">过期时间</text>
 				</view>
 				<picker mode="date" :value="form.expireDate" @change="onDateChange" class="flex-picker">
 					<view class="row-date">{{ form.expireDate || '选择过期时间' }}</view>
 				</picker>
-				<text class="req side-req">*</text>
 			</view>
-			<text class="hint">提示：如修改为今天之前会被拦截</text>
-
-			<view class="grid2">
-				<button class="del-btn" @click="remove">删除</button>
-				<button class="save-btn" @click="save">更新</button>
-			</view>
+		</view>
+		<view class="grid2 action-row">
+			<button class="del-btn" @click="remove">删除</button>
+			<button class="save-btn" @click="save">更新</button>
 		</view>
 		<BottomNav current="fridge" />
 	</view>
@@ -99,14 +84,20 @@
 <script>
 import { deleteIngredient, getIngredientDetail, getIngredientList, updateIngredient } from '@/api/modules/ingredients'
 import BottomNav from '@/components/bottom-nav.vue'
+import IngredientIcon from '@/components/ingredient-icon.vue'
 
 export default {
-	components: { BottomNav },
+	components: { BottomNav, IngredientIcon },
 	data() {
 		return {
 			ingredientId: '',
-			categories: ['蔬菜', '水果', '肉类', '蛋奶', '调料', '其他'],
-			units: ['个', '盒', '包', 'g', 'kg', 'ml'],
+			categories: ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'],
+			units: [
+				'份', '盒', '罐', '包', '个', '条', '片', '根', '瓶', '袋', '块',
+				'毫升', '升', '千克', '克', '斤', '公斤', '颗', '组', '把', '只', '杯',
+				'支', '粒', '碗', '枚', '盘', '卷', '段', '篮', '捆', '串', '排',
+				'桶', '箱', '颗', '朵', '管', '两'
+			],
 			locations: ['冷藏', '冷冻'],
 			form: {
 				name: '',
@@ -163,18 +154,6 @@ export default {
 			this.form.purchaseDate = purchaseDate ? `${purchaseDate}`.slice(0, 10) : ''
 			this.form.createdAt = createdAt ? `${createdAt}`.slice(0, 10) : ''
 		},
-		getEmoji(category) {
-			const map = {
-				蔬菜: '🥦',
-				水果: '🥑',
-				肉类: '🥩',
-				蛋奶: '🥚',
-				调料: '🧂',
-				其他: '🍽️'
-			}
-			return map[category] || '🍽️'
-		},
-		
 		onCategoryChange(e) {
 			this.form.category = this.categories[e.detail.value]
 		},
@@ -185,7 +164,14 @@ export default {
 			this.form.location = this.locations[e.detail.value]
 		},
 		onDateChange(e) {
-			this.form.expireDate = e.detail.value
+			const value = e?.detail?.value || ''
+			const today = new Date().toISOString().slice(0, 10)
+			if (value && value < today) {
+				uni.showToast({ title: '过期日期不能早于今天', icon: 'none' })
+				this.form.expireDate = ''
+				return
+			}
+			this.form.expireDate = value
 		},
 		onPurchaseDateChange(e) {
 			this.form.purchaseDate = e.detail.value
@@ -280,6 +266,11 @@ export default {
 </script>
 
 <style scoped>
+@font-face {
+	font-family: "add-iconfont";
+	src: url('/static/iconfont/iconfont.ttf') format('truetype');
+}
+
 .container {
 	padding: 10px 12px 88px;
 }
@@ -311,14 +302,14 @@ export default {
 	border: 1rpx solid #edf2ef;
 	border-radius: 16px;
 	padding: 12px;
-	margin-bottom: 12rpx;
+	margin-bottom: 18rpx;
 	box-shadow: 0 8rpx 18rpx rgba(30, 50, 34, 0.07);
 }
 
 .top-card {
 	display: grid;
 	grid-template-columns: 72px 1fr;
-	gap: 12rpx;
+	gap: 20rpx;
 	align-items: center;
 }
 
@@ -349,9 +340,14 @@ export default {
 	padding: 10px;
 }
 
-.req {
-	color: #e15c5c;
-	margin-left: 6rpx;
+.ai-iconfont {
+	font-family: "add-iconfont" !important;
+	font-style: normal;
+	font-weight: 400;
+	line-height: 1;
+	color: #4cae57;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
 .form-row {
@@ -366,37 +362,45 @@ export default {
 }
 
 .row-left {
-	display: inline-flex;
+	display: grid;
+	grid-template-columns: 30px auto;
 	align-items: center;
 	min-width: 132px;
 	flex-shrink: 0;
+	column-gap: 8rpx;
 }
 
 .row-icon {
 	color: #6aa97a;
-	font-size: 18px;
+	font-size: 19px;
 	width: 30px;
+	height: 30px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 1;
 	text-align: center;
-	margin-right: 8rpx;
+	transform: translateY(-2px);
+}
+
+.expire-icon {
+	color: #4cae57 !important;
 }
 
 .row-label {
-	font-size: 15px;
+	font-size: 14px;
 	font-weight: 600;
 	color: #26352d;
+	line-height: 1.2;
+	display: inline-flex;
+	align-items: center;
 }
 
 .row-input {
 	flex: 1;
-	font-size: 14px;
+	font-size: 13px;
 	color: #2e3b33;
 	padding: 0 8rpx;
-}
-
-.side-req {
-	font-size: 18px;
-	line-height: 1;
-	margin-left: 8rpx;
 }
 
 .flex-picker {
@@ -409,13 +413,13 @@ export default {
 	border-radius: 10px;
 	padding: 12rpx 10rpx;
 	text-align: center;
-	font-size: 14px;
+	font-size: 13px;
 	font-weight: 600;
 }
 
 .qty-input {
 	flex: 1;
-	font-size: 14px;
+	font-size: 13px;
 	color: #2e3b33;
 	padding-left: 8rpx;
 }
@@ -436,13 +440,13 @@ export default {
 	display: inline-flex;
 	align-items: center;
 	gap: 7rpx;
-	font-size: 14px;
+	font-size: 13px;
 	color: #2d3a32;
 }
 
 .dot {
-	width: 26px;
-	height: 26px;
+	width: 22px;
+	height: 22px;
 	border-radius: 50%;
 	border: 2rpx solid #cfd8d2;
 	background: #fff;
@@ -459,7 +463,7 @@ export default {
 .zone-opt.active .dot::after {
 	content: '✓';
 	color: #fff;
-	font-size: 14px;
+	font-size: 11px;
 	font-weight: 700;
 }
 
@@ -468,36 +472,51 @@ export default {
 }
 
 .row-date {
-	font-size: 14px;
-	color: #7c8880;
+	font-size: 13px;
+	color: #98a39d;
 	padding-left: 6rpx;
-}
-
-.hint {
-	font-size: 12px;
-	color: #88958d;
-	margin: 2rpx 0 8rpx;
-	display: block;
 }
 
 .grid2 {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
-	gap: 12rpx;
+	gap: 16rpx;
+	margin-top: 8rpx;
+}
+
+.action-row {
+	margin-top: -4rpx;
+	margin-bottom: 12rpx;
 }
 
 .del-btn {
-	background: #f57878;
+	width: 100%;
+	height: 42px;
+	line-height: 42px;
+	background: linear-gradient(135deg, #ff8d8d, #f36f7a);
 	color: #fff;
 	border-radius: 999rpx;
-	font-size: 14px;
+	font-size: 13px;
+	font-weight: 700;
+	box-shadow: 0 8rpx 16rpx rgba(243, 111, 122, 0.28);
+	letter-spacing: 1rpx;
 }
 
 .save-btn {
+	width: 100%;
+	height: 42px;
+	line-height: 42px;
 	background: linear-gradient(135deg, #70c977, #4cae57);
 	color: #fff;
 	border-radius: 999rpx;
 	font-weight: 700;
-	font-size: 14px;
+	font-size: 13px;
+	box-shadow: 0 8rpx 16rpx rgba(76, 174, 87, 0.26);
+	letter-spacing: 1rpx;
+}
+
+.del-btn::after,
+.save-btn::after {
+	border: none;
 }
 </style>
