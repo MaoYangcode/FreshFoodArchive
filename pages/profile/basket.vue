@@ -65,7 +65,8 @@
 
 		<view v-if="dialogVisible" class="mask" @click="closeDialog">
 			<view class="dialog" @click.stop>
-				<text class="dialog-title">新增条目</text>
+					<text class="dialog-title">新增条目</text>
+					<text class="dialog-sub">补充你要购买的食材信息</text>
 				<view class="dialog-row">
 					<text class="dialog-label">食材名</text>
 					<input v-model="form.name" class="dialog-input" placeholder="请输入食材名" />
@@ -226,6 +227,7 @@ export default {
 .action-btn { border-radius: 999rpx; font-size: 12px; font-weight: 700; }
 .action-btn.add { background: linear-gradient(135deg, #70c977, #4cae57); color: #fff; }
 .action-btn.clear { background: #edf2ef; color: #617268; }
+.action-btn::after { border: none; }
 
 .empty-card { border: 1rpx dashed #dbe5df; border-radius: 14px; background: #fbfdfc; padding: 16px 12px; text-align: center; margin-bottom: 10rpx; }
 .empty-title { display: block; font-size: 14px; font-weight: 700; color: #2a352f; }
@@ -246,18 +248,20 @@ export default {
 .status.done { background: #e9f8ec; color: #3f9f4d; }
 .remove { font-size: 11px; color: #a0a9b3; }
 
-.mask { position: fixed; inset: 0; background: rgba(14, 24, 17, 0.35); display: flex; align-items: center; justify-content: center; padding: 12px; z-index: 99; }
-.dialog { width: 100%; max-width: 700rpx; background: #fff; border-radius: 14px; padding: 12px; }
-.dialog-title { display: block; font-size: 16px; font-weight: 700; margin-bottom: 10rpx; }
-.dialog-row { display: flex; align-items: center; gap: 8rpx; margin-bottom: 10rpx; }
-.dialog-label { width: 52px; font-size: 13px; color: #51605a; }
-.dialog-input { flex: 1; height: 34px; border: 1rpx solid #dfe7e2; border-radius: 8px; padding: 0 10rpx; font-size: 13px; }
-.dialog-input.short { max-width: 160rpx; }
+.mask { position: fixed; inset: 0; background: rgba(14, 24, 17, 0.42); display: flex; align-items: center; justify-content: center; padding: 12px; z-index: 99; }
+.dialog { width: 100%; max-width: 700rpx; background: #fff; border-radius: 18px; padding: 14px 12px 12px; box-shadow: 0 14rpx 30rpx rgba(17, 34, 22, 0.22); }
+.dialog-title { display: block; font-size: 18px; font-weight: 700; color: #1f2a22; }
+.dialog-sub { display: block; margin-top: 4rpx; margin-bottom: 12rpx; font-size: 11px; color: #829087; }
+.dialog-row { display: flex; align-items: center; gap: 8rpx; margin-bottom: 10rpx; background: #f4f8f5; border: 1rpx solid #e3ece6; border-radius: 12px; padding: 9px 10px; }
+.dialog-label { width: 56px; font-size: 13px; font-weight: 600; color: #33443a; }
+.dialog-input { flex: 1; height: 36px; border: 1rpx solid #d9e5de; border-radius: 10px; background: #fff; padding: 0 10rpx; font-size: 13px; color: #2f3f36; }
+.dialog-input.short { max-width: 180rpx; }
 .picker-full { flex: 1; }
-.dialog-chip { min-width: 96rpx; height: 34px; border-radius: 8px; background: #f3f7fb; border: 1rpx solid #e2e8ef; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #5d6775; padding: 0 10rpx; }
+.dialog-chip { min-width: 96rpx; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #70c977, #4cae57); border: none; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #fff; padding: 0 10rpx; font-weight: 700; }
 .dialog-chip.full { width: 100%; }
-.dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10rpx; margin-top: 6rpx; }
-.btn { border-radius: 999rpx; font-size: 13px; font-weight: 700; }
-.btn.cancel { background: #edf2ef; color: #617268; }
-.btn.save { background: linear-gradient(135deg, #70c977, #4cae57); color: #fff; }
+.dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12rpx; margin-top: 8rpx; }
+.btn { border-radius: 999rpx; font-size: 13px; font-weight: 700; height: 40px; line-height: 40px; }
+.btn.cancel { background: #e8efea; color: #5f7266; }
+.btn.save { background: linear-gradient(135deg, #70c977, #4cae57); color: #fff; box-shadow: 0 8rpx 16rpx rgba(76, 174, 87, 0.24); }
+.btn::after { border: none; }
 </style>
