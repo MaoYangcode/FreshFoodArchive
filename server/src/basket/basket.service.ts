@@ -106,6 +106,15 @@ export class BasketService {
     return new Date(date.getFullYear(), date.getMonth(), date.getDate())
   }
 
+  private normalizeExpireDate(rawDate: unknown) {
+    if (rawDate === null || rawDate === undefined || `${rawDate}`.trim() === '') return undefined
+    const date = new Date(`${rawDate}`)
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException('过期日期格式不正确')
+    }
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  }
+
   private normalizeRestockLocation(rawLocation: unknown, fallback = '冷藏') {
     const text = `${rawLocation || ''}`.trim()
     return text || fallback
@@ -261,7 +270,10 @@ export class BasketService {
     const defaultShelfLifeDays = this.normalizeShelfLifeDays(raw?.defaultShelfLifeDays, 7)
     const shelfLifeByCategory = this.normalizeShelfLifeByCategory(raw?.shelfLifeDaysByCategory)
     const itemSettings = Array.isArray(raw?.itemSettings) ? raw.itemSettings : []
-    const itemSettingMap = new Map<number, { restockDate: Date; location: string; category?: string; quantity?: number; unit?: string }>()
+    const itemSettingMap = new Map<
+      number,
+      { restockDate: Date; location: string; category?: string; quantity?: number; unit?: string; expireDate?: Date }
+    >()
     for (const setting of itemSettings) {
       const id = Number(setting?.id)
       if (!Number.isFinite(id) || id <= 0) continue
@@ -272,6 +284,7 @@ export class BasketService {
         category: this.normalizeRestockCategory(setting?.category) || undefined,
         quantity: hasQuantity ? this.normalizeQuantity(setting?.quantity) : undefined,
         unit: `${setting?.unit || ''}`.trim() || undefined,
+        expireDate: this.normalizeExpireDate(setting?.expireDate),
       })
     }
 
@@ -302,6 +315,7 @@ export class BasketService {
       const rowLocation = setting?.location || location
       const rowQuantity = this.normalizeQuantity(setting?.quantity ?? item.quantity)
       const rowUnit = `${setting?.unit || item.unit || '份'}`.trim() || '份'
+      const rowExpireDate = setting?.expireDate || this.addDays(rowRestockDate, days)
       return {
         userId,
         name: item.name,
@@ -309,7 +323,7 @@ export class BasketService {
         quantity: rowQuantity,
         unit: rowUnit,
         location: rowLocation,
-        expireDate: this.addDays(rowRestockDate, days),
+        expireDate: rowExpireDate,
       }
     })
 

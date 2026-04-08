@@ -138,10 +138,10 @@
 									<text class="restock-meta-text">{{ entry.category || '其他' }}</text>
 								</view>
 							</picker>
-							<picker mode="date" :value="entry.restockDate" @change="onRestockDateChange(idx, $event)">
+							<picker mode="date" :value="entry.expireDate" @change="onRestockDateChange(idx, $event)">
 								<view class="restock-meta">
 									<text class="restock-date-ico">&#xe621;</text>
-									<text class="restock-meta-text">{{ entry.restockDate || getTodayDateText() }}</text>
+									<text class="restock-meta-text">{{ entry.expireDate || getTodayDateText() }}</text>
 								</view>
 							</picker>
 						</view>
@@ -162,7 +162,8 @@
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import LocationIcon from '@/components/location-icon.vue'
-import { getShelfLifeDaysByCategory } from '@/utils/shelf-life'
+import { getShelfLifeSettings } from '@/api/modules/shelf-life'
+import { DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY, normalizeShelfLifeDaysByCategory } from '@/utils/shelf-life'
 import {
 	addBasketItem,
 	clearDoneBasketItems,
@@ -185,7 +186,7 @@ export default {
 			categories: ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'],
 			restockLocationOptions: ['冷藏', '冷冻'],
 			restockEntries: [],
-			restockShelfLifeDaysByCategory: getShelfLifeDaysByCategory(),
+			restockShelfLifeDaysByCategory: { ...DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY },
 			units: [
 				'份', '盒', '罐', '包', '个', '条', '片', '根', '瓶', '袋', '块',
 				'毫升', '升', '千克', '克', '斤', '公斤', '颗', '组', '把', '只', '杯',
@@ -222,11 +223,20 @@ export default {
 			return this.items.filter((x) => x.status === 'done')
 		}
 	},
-	onShow() {
-		this.restockShelfLifeDaysByCategory = getShelfLifeDaysByCategory()
+	async onShow() {
+		await this.loadShelfLifeSettings()
 		this.refresh()
 	},
 	methods: {
+		async loadShelfLifeSettings() {
+			try {
+				const res = await getShelfLifeSettings(this.userId)
+				const rules = res?.rules || res?.data?.rules || {}
+				this.restockShelfLifeDaysByCategory = normalizeShelfLifeDaysByCategory(rules)
+			} catch (e) {
+				this.restockShelfLifeDaysByCategory = { ...DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY }
+			}
+		},
 		async refresh() {
 			try {
 				const res = await getBasketItems(this.userId)
@@ -275,6 +285,18 @@ export default {
 			const d = `${date.getDate()}`.padStart(2, '0')
 			return `${y}-${m}-${d}`
 		},
+		getExpireDateByCategory(category, baseDateText = '') {
+			const days = Number(this.restockShelfLifeDaysByCategory?.[category] || this.restockShelfLifeDaysByCategory?.['其他'] || 7)
+			const safeDays = Number.isFinite(days) && days > 0 ? Math.round(days) : 7
+			const base = baseDateText ? new Date(baseDateText) : new Date()
+			const date = Number.isNaN(base.getTime()) ? new Date() : base
+			date.setHours(0, 0, 0, 0)
+			date.setDate(date.getDate() + safeDays)
+			const y = date.getFullYear()
+			const m = `${date.getMonth() + 1}`.padStart(2, '0')
+			const d = `${date.getDate()}`.padStart(2, '0')
+			return `${y}-${m}-${d}`
+		},
 		openRestockDialog() {
 			if (!this.doneItems.length) {
 				uni.showToast({ title: '暂无已购购买项', icon: 'none' })
@@ -288,7 +310,8 @@ export default {
 				quantity: Number(item.quantity || 1),
 				unit: item.unit || '份',
 				location: '冷藏',
-				restockDate: today
+				restockDate: today,
+				expireDate: this.getExpireDateByCategory(item.category || '其他', today)
 			}))
 			this.restockDialogVisible = true
 		},
@@ -304,12 +327,17 @@ export default {
 		onRestockDateChange(index, e) {
 			if (!this.restockEntries[index]) return
 			const value = e && e.detail ? `${e.detail.value || ''}` : this.getTodayDateText()
-			this.restockEntries[index].restockDate = value || this.getTodayDateText()
+			this.restockEntries[index].expireDate = value || this.getTodayDateText()
 		},
 		onRestockCategoryChange(index, e) {
 			if (!this.restockEntries[index]) return
 			const idx = Number(e && e.detail ? e.detail.value : 0)
-			this.restockEntries[index].category = this.categories[idx] || '其他'
+			const category = this.categories[idx] || '其他'
+			this.restockEntries[index].category = category
+			this.restockEntries[index].expireDate = this.getExpireDateByCategory(
+				category,
+				this.restockEntries[index].restockDate || this.getTodayDateText()
+			)
 		},
 		increaseRestockQty(index) {
 			if (!this.restockEntries[index]) return
@@ -342,6 +370,7 @@ export default {
 					itemSettings: this.restockEntries.map((entry) => ({
 						id: entry.id,
 						restockDate: entry.restockDate || this.getTodayDateText(),
+						expireDate: entry.expireDate || this.getTodayDateText(),
 						location: entry.location || '冷藏',
 						category: entry.category || '其他',
 						quantity: Number(entry.quantity || 1),

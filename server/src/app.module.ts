@@ -7,9 +7,10 @@ import { AiModule } from './ai/ai.module'
 import { ExpiryReminderModule } from './expiry-reminder/expiry-reminder.module'
 import { BasketModule } from './basket/basket.module'
 import { ProfileModule } from './profile/profile.module'
+import { ShelfLifeModule } from './shelf-life/shelf-life.module'
 
 @Module({
-  imports: [PrismaModule, IngredientsModule, AiModule, ExpiryReminderModule, BasketModule, ProfileModule],
+  imports: [PrismaModule, IngredientsModule, AiModule, ExpiryReminderModule, BasketModule, ProfileModule, ShelfLifeModule],
   controllers: [AppController],
   providers: [AppService],
 })

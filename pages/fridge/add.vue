@@ -25,57 +25,59 @@
 			</view>
 		</view>
 
-		<view v-if="batchVisible" class="card batch-card">
-			<view class="batch-head">
-				<text class="batch-title">识别结果（{{ batchItems.length }}项）</text>
-				<view class="batch-actions">
-					<text class="batch-action" @click="toggleBatchSelectAll">{{ batchSelectedCount === batchItems.length ? '取消全选' : '全选' }}</text>
-					<text class="batch-action" @click="closeBatchPanel">收起</text>
-				</view>
-			</view>
-			<view class="batch-list">
-				<view v-for="(item, idx) in batchItems" :key="idx" class="batch-row">
-					<view class="batch-selector" :class="{ on: item.selected }" @click="toggleBatchSelected(idx)">
-						<text v-if="item.selected" class="batch-selector-check">✓</text>
+		<view v-if="batchVisible" class="mask" @click="closeBatchPanel">
+			<view class="dialog batch-dialog" @click.stop>
+				<view class="batch-head">
+					<text class="batch-title">识别结果（{{ batchItems.length }}项）</text>
+					<view class="batch-actions">
+						<text class="batch-action" @click="toggleBatchSelectAll">{{ batchSelectedCount === batchItems.length ? '取消全选' : '全选' }}</text>
+						<text class="batch-action" @click="closeBatchPanel">收起</text>
 					</view>
-					<view class="batch-item" :class="{ muted: !item.selected }">
-						<view class="batch-line1">
-							<input v-model="item.name" class="batch-name" placeholder="食材名称" />
-							<view class="batch-stepper">
-								<view class="step-btn" @click="decreaseBatchQty(idx)"><view class="step-sign minus-sign"></view></view>
-								<text class="step-val">{{ getBatchQuantity(item) }}</text>
-								<view class="step-btn" @click="increaseBatchQty(idx)"><view class="step-sign plus-sign"></view></view>
+				</view>
+				<view class="batch-list">
+					<view v-for="(item, idx) in batchItems" :key="idx" class="batch-row">
+						<view class="batch-selector" :class="{ on: item.selected }" @click="toggleBatchSelected(idx)">
+							<text v-if="item.selected" class="batch-selector-check">✓</text>
+						</view>
+						<view class="batch-item" :class="{ muted: !item.selected }">
+							<view class="batch-line1">
+								<input v-model="item.name" class="batch-name" placeholder="食材名称" />
+								<view class="batch-stepper">
+									<view class="step-btn" @click="decreaseBatchQty(idx)"><view class="step-sign minus-sign"></view></view>
+									<text class="step-val">{{ getBatchQuantity(item) }}</text>
+									<view class="step-btn" @click="increaseBatchQty(idx)"><view class="step-sign plus-sign"></view></view>
+								</view>
+								<picker :range="units" @change="onBatchUnitChange(idx, $event)">
+									<text class="batch-unit">{{ item.unit || '单位' }}</text>
+								</picker>
 							</view>
-							<picker :range="units" @change="onBatchUnitChange(idx, $event)">
-								<text class="batch-unit">{{ item.unit || '单位' }}</text>
-							</picker>
-						</view>
-						<view class="batch-line2">
-							<picker :range="locations" @change="onBatchLocationChange(idx, $event)">
-								<view class="batch-meta">
-									<LocationIcon :location="item.location" :size="14" color="#6f9fea" />
-									<text class="batch-meta-txt">{{ item.location || '分区' }}</text>
-								</view>
-							</picker>
-							<picker :range="categories" @change="onBatchCategoryChange(idx, $event)">
-								<view class="batch-meta">
-									<text class="batch-meta-dot">·</text>
-									<text class="batch-meta-txt">{{ item.category || '类型' }}</text>
-								</view>
-							</picker>
-							<picker mode="date" :value="item.expireDate" @change="onBatchExpireDateChange(idx, $event)">
-								<view class="batch-meta">
-									<text class="ai-iconfont batch-meta-ico">&#xe621;</text>
-									<text class="batch-meta-txt">{{ item.expireDate || '过期时间' }}</text>
-								</view>
-							</picker>
+							<view class="batch-line2">
+								<picker :range="locations" @change="onBatchLocationChange(idx, $event)">
+									<view class="batch-meta">
+										<LocationIcon :location="item.location" :size="14" color="#6f9fea" />
+										<text class="batch-meta-txt">{{ item.location || '分区' }}</text>
+									</view>
+								</picker>
+								<picker :range="categories" @change="onBatchCategoryChange(idx, $event)">
+									<view class="batch-meta">
+										<text class="batch-meta-dot">·</text>
+										<text class="batch-meta-txt">{{ item.category || '类型' }}</text>
+									</view>
+								</picker>
+								<picker mode="date" :value="item.expireDate" @change="onBatchExpireDateChange(idx, $event)">
+									<view class="batch-meta">
+										<text class="ai-iconfont batch-meta-ico">&#xe621;</text>
+										<text class="batch-meta-txt">{{ item.expireDate || '过期时间' }}</text>
+									</view>
+								</picker>
+							</view>
 						</view>
 					</view>
 				</view>
+				<button class="submit-btn batch-submit-btn" :disabled="batchSubmitting" @click="submitBatch">
+					{{ batchSubmitting ? '入库中...' : '一键批量入库' }}
+				</button>
 			</view>
-			<button class="submit-btn" :disabled="batchSubmitting" @click="submitBatch">
-				{{ batchSubmitting ? '入库中...' : '一键批量入库' }}
-			</button>
 		</view>
 
 		<view class="card form-card">
@@ -150,9 +152,10 @@
 	
 import { createIngredient } from '@/api/modules/ingredients'
 import { recognizeIngredientsByUpload, recognizeReceiptByUpload } from '@/api/modules/ai'
+import { getShelfLifeSettings } from '@/api/modules/shelf-life'
 import BottomNav from '@/components/bottom-nav.vue'
 import LocationIcon from '@/components/location-icon.vue'
-import { getShelfLifeDays, getShelfLifeDaysByCategory } from '@/utils/shelf-life'
+import { DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY, getShelfLifeDays, normalizeShelfLifeDaysByCategory } from '@/utils/shelf-life'
 
 export default {
 	components: { BottomNav, LocationIcon },
@@ -166,7 +169,7 @@ export default {
 				'桶', '箱', '颗', '朵', '管', '两'
 			],
 			locations: ['冷藏', '冷冻'],
-			shelfLifeDaysByCategory: getShelfLifeDaysByCategory(),
+			shelfLifeDaysByCategory: { ...DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY },
 			batchVisible: false,
 			batchSubmitting: false,
 			batchItems: [],
@@ -185,10 +188,19 @@ export default {
 			return this.batchItems.filter((item) => item.selected !== false).length
 		}
 	},
-	onShow() {
-		this.shelfLifeDaysByCategory = getShelfLifeDaysByCategory()
+	async onShow() {
+		await this.loadShelfLifeSettings()
 	},
 	methods: {
+		async loadShelfLifeSettings() {
+			try {
+				const res = await getShelfLifeSettings(1)
+				const rules = res?.rules || res?.data?.rules || {}
+				this.shelfLifeDaysByCategory = normalizeShelfLifeDaysByCategory(rules)
+			} catch (e) {
+				this.shelfLifeDaysByCategory = { ...DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY }
+			}
+		},
 		chooseLocalImage() {
 			return new Promise((resolve, reject) => {
 				uni.chooseImage({
@@ -225,20 +237,9 @@ export default {
 					return
 				}
 
-				if (list.length > 1) {
-					this.batchItems = list.map((item) => this.normalizeRecognizedItem(item))
-					this.batchVisible = true
-					uni.showToast({ title: `识别到${list.length}条，请确认`, icon: 'none' })
-					return
-				}
-
-				const first = this.normalizeRecognizedItem(list[0] || {})
-				if (!this.form.name && first.name) this.form.name = first.name
-				if (!this.form.category && first.category) this.form.category = first.category
-				if (!this.form.quantity && first.quantity) this.form.quantity = `${first.quantity}`
-				if (!this.form.unit && first.unit) this.form.unit = first.unit
-				if (!this.form.expireDate && first.category) this.form.expireDate = this.getExpireDateByCategory(first.category)
-				uni.showToast({ title: `识别到${list.length}种食材`, icon: 'none' })
+				this.batchItems = list.map((item) => this.normalizeRecognizedItem(item))
+				this.batchVisible = true
+				uni.showToast({ title: `识别到${list.length}条，请确认`, icon: 'none' })
 			} catch (e) {
 				console.error('识别失败', e)
 				const msg = `${e?.message || ''}`.trim() || '识别失败，请重试'
@@ -589,8 +590,31 @@ export default {
 	background: #f4f8ff;
 }
 
-.batch-card {
-	padding: 12px 10px;
+.mask {
+	position: fixed;
+	inset: 0;
+	background: rgba(14, 24, 17, 0.42);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 12px;
+	z-index: 99;
+}
+
+.dialog {
+	width: 100%;
+	max-width: 700rpx;
+	background: #fff;
+	border-radius: 18px;
+	padding: 14px 12px 12px;
+	box-shadow: 0 14rpx 30rpx rgba(17, 34, 22, 0.22);
+}
+
+.batch-dialog {
+	max-height: 82vh;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
 }
 
 .batch-head {
@@ -621,7 +645,8 @@ export default {
 	display: flex;
 	flex-direction: column;
 	gap: 10rpx;
-	max-height: 520rpx;
+	max-height: 56vh;
+	padding: 6px 2px 2px;
 	overflow: auto;
 }
 
@@ -1012,7 +1037,10 @@ export default {
 	font-size: 13px;
 }
 
-.batch-card .submit-btn {
+.batch-submit-btn {
 	background: linear-gradient(135deg, #79aef6, #5f95f2);
+	width: 100%;
+	display: block;
+	margin-top: 12rpx;
 }
 </style>
