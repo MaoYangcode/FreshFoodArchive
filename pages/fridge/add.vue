@@ -91,6 +91,9 @@
 					<text class="row-label">食物名称</text>
 				</view>
 				<input v-model="form.name" class="row-input" placeholder="请输入食物名称" placeholder-style="color:#a5b1aa;" />
+				<view class="voice-btn" :class="{ on: isVoiceRecording, disabled: !voiceSupported }" @click="toggleVoiceInput">
+					<text class="ai-iconfont voice-ico">&#xe61f;</text>
+				</view>
 			</view>
 
 			<view class="form-row">
@@ -151,7 +154,7 @@
 <script>
 	
 import { createIngredient } from '@/api/modules/ingredients'
-import { recognizeIngredientsByUpload, recognizeReceiptByUpload } from '@/api/modules/ai'
+import { recognizeAudioByUpload, recognizeIngredientsByUpload, recognizeReceiptByUpload } from '@/api/modules/ai'
 import { getShelfLifeSettings } from '@/api/modules/shelf-life'
 import BottomNav from '@/components/bottom-nav.vue'
 import LocationIcon from '@/components/location-icon.vue'
@@ -170,6 +173,8 @@ export default {
 			],
 			locations: ['冷藏', '冷冻'],
 			shelfLifeDaysByCategory: { ...DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY },
+			isVoiceRecording: false,
+			voiceSupported: false,
 			batchVisible: false,
 			batchSubmitting: false,
 			batchItems: [],
@@ -180,7 +185,8 @@ export default {
 				unit: '',
 				location: '',
 				expireDate: ''
-			}
+			},
+			recorderManager: null
 		}
 	},
 	computed: {
@@ -190,6 +196,26 @@ export default {
 	},
 	async onShow() {
 		await this.loadShelfLifeSettings()
+	},
+	onLoad() {
+		if (typeof uni.getRecorderManager !== 'function') return
+		const manager = uni.getRecorderManager()
+		if (!manager || typeof manager.onStop !== 'function' || typeof manager.start !== 'function') return
+		manager.onStop((res) => {
+			this.onVoiceRecordStop(res)
+		})
+		manager.onError(() => {
+			this.isVoiceRecording = false
+			uni.hideLoading()
+			uni.showToast({ title: '录音失败，请重试', icon: 'none' })
+		})
+		this.recorderManager = manager
+		this.voiceSupported = true
+	},
+	onUnload() {
+		if (this.isVoiceRecording && this.recorderManager) {
+			this.recorderManager.stop()
+		}
 	},
 	methods: {
 		async loadShelfLifeSettings() {
@@ -211,6 +237,121 @@ export default {
 					fail: (err) => reject(err)
 				})
 			})
+		},
+		toggleVoiceInput() {
+			if (!this.voiceSupported || !this.recorderManager) {
+				uni.showToast({ title: '当前运行环境不支持语音录制', icon: 'none' })
+				return
+			}
+			if (this.isVoiceRecording) {
+				this.stopVoiceRecord()
+				return
+			}
+			this.startVoiceRecord()
+		},
+		startVoiceRecord() {
+			if (!this.recorderManager) return
+			this.isVoiceRecording = true
+			uni.showToast({ title: '开始录音，点“结束”完成', icon: 'none' })
+			this.recorderManager.start({
+				duration: 15000,
+				sampleRate: 16000,
+				numberOfChannels: 1,
+				encodeBitRate: 96000,
+				format: 'mp3'
+			})
+		},
+		stopVoiceRecord() {
+			if (!this.recorderManager) return
+			uni.showLoading({ title: '语音识别中...' })
+			this.recorderManager.stop()
+		},
+		async onVoiceRecordStop(res) {
+			this.isVoiceRecording = false
+			const filePath = res?.tempFilePath
+			if (!filePath) {
+				uni.hideLoading()
+				uni.showToast({ title: '录音文件为空', icon: 'none' })
+				return
+			}
+			try {
+				const result = await recognizeAudioByUpload(filePath)
+				const text = `${result?.data?.text || ''}`.trim()
+				const parsedItems = Array.isArray(result?.data?.items) ? result.data.items : []
+				const parsedName = `${result?.data?.name || ''}`.trim()
+				const parsedQuantity = Number(result?.data?.quantity)
+				const parsedUnit = `${result?.data?.unit || ''}`.trim()
+				if (!text) {
+					uni.showToast({ title: '未识别到语音内容', icon: 'none' })
+					return
+				}
+				if (parsedItems.length > 1) {
+					this.batchItems = parsedItems.map((item) =>
+						this.normalizeRecognizedItem({
+							name: item?.name,
+							category: item?.category,
+							quantity: item?.quantity,
+							unit: item?.unit
+						})
+					)
+					this.batchVisible = true
+					uni.showToast({ title: `语音识别到${parsedItems.length}条，请确认`, icon: 'none' })
+					return
+				}
+				const firstItem = parsedItems[0] || {}
+				const nextName = parsedName || text
+				this.form.name = `${firstItem?.name || nextName}`.trim()
+				const finalQuantity = Number(firstItem?.quantity)
+				if (Number.isFinite(finalQuantity) && finalQuantity > 0) {
+					this.form.quantity = `${finalQuantity}`
+				} else if (Number.isFinite(parsedQuantity) && parsedQuantity > 0) {
+					this.form.quantity = `${parsedQuantity}`
+				}
+				const finalUnit = `${firstItem?.unit || parsedUnit || ''}`.trim()
+				const normalizedUnit = this.normalizeVoiceUnit(finalUnit, this.form.name, this.form.category)
+				if (normalizedUnit) this.form.unit = normalizedUnit
+				const voiceCategory = this.categories.includes(firstItem?.category) ? firstItem.category : ''
+				if (voiceCategory) {
+					this.form.category = voiceCategory
+					this.form.expireDate = this.getExpireDateByCategory(voiceCategory)
+				}
+				uni.showToast({ title: '已填入名称/数量/单位', icon: 'none' })
+			} catch (e) {
+				const msg = `${e?.message || ''}`.trim() || '语音识别失败，请重试'
+				uni.showToast({ title: msg, icon: 'none' })
+			} finally {
+				uni.hideLoading()
+			}
+		},
+		normalizeVoiceUnit(unit, name, category) {
+			const text = `${unit || ''}`.trim()
+			if (!text) return ''
+			if (this.units.includes(text)) return text
+			const aliasMap = {
+				公斤: '公斤',
+				千克: '千克',
+				克: '克',
+				斤: '斤',
+				两: '两',
+				个: '个',
+				颗: '颗',
+				袋: '袋',
+				包: '包',
+				瓶: '瓶',
+				盒: '盒',
+				罐: '罐',
+				把: '把',
+				根: '根',
+				条: '条',
+				片: '片',
+				块: '块',
+				份: '份',
+				毫升: '毫升',
+				升: '升'
+			}
+			const mapped = aliasMap[text]
+			if (mapped && this.units.includes(mapped)) return mapped
+			return this.normalizeRecognizedUnit(text, name, category)
 		},
 		recognizeIngredient() {
 			this.startRecognize('ingredient')
@@ -946,6 +1087,32 @@ export default {
 	font-size: 13px;
 	color: #2e3b33;
 	padding: 0 8rpx;
+}
+
+.voice-btn {
+	width: 34px;
+	height: 34px;
+	border-radius: 999rpx;
+	background: #e8f0ff;
+	color: #4a73d9;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+}
+
+.voice-btn.on {
+	background: #4a73d9;
+	color: #fff;
+}
+
+.voice-btn.disabled {
+	opacity: 0.5;
+}
+
+.voice-ico {
+	font-size: 16px;
+	color: inherit;
 }
 
 .side-req {

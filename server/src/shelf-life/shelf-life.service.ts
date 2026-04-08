@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import * as fs from 'node:fs/promises'
-import * as path from 'node:path'
+import { PrismaService } from '../prisma/prisma.service'
 
 const CATEGORIES = ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他']
 const DEFAULT_RULES: Record<string, number> = {
@@ -16,7 +15,7 @@ const DEFAULT_RULES: Record<string, number> = {
 
 @Injectable()
 export class ShelfLifeService {
-  private readonly filePath = path.join(process.cwd(), 'data', 'shelf-life-settings.json')
+  constructor(private readonly prisma: PrismaService) {}
 
   private clampDays(value: unknown, fallback = 7) {
     const n = Math.floor(Number(value))
@@ -33,47 +32,46 @@ export class ShelfLifeService {
     return rules
   }
 
-  private async readStore(): Promise<Record<string, any>> {
-    try {
-      const text = await fs.readFile(this.filePath, 'utf8')
-      const parsed = JSON.parse(text)
-      return parsed && typeof parsed === 'object' ? parsed : {}
-    } catch (_) {
-      return {}
-    }
-  }
-
-  private async writeStore(store: Record<string, any>) {
-    await fs.mkdir(path.dirname(this.filePath), { recursive: true })
-    await fs.writeFile(this.filePath, JSON.stringify(store, null, 2), 'utf8')
+  private async ensureUserExists(userId: number) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (user) return user
+    return this.prisma.user.create({ data: { id: userId } })
   }
 
   async getSettings(userId = 1) {
-    const key = `${Math.max(Number(userId || 1), 1)}`
-    const store = await this.readStore()
-    const current = store[key] || {}
-    const rules = this.normalizeRules(current.rules)
-    const defaultDays = this.clampDays(current.defaultDays, 7)
+    const safeUserId = Math.max(Number(userId || 1), 1)
+    await this.ensureUserExists(safeUserId)
+    const row = await this.prisma.shelfLifeSetting.findUnique({
+      where: { userId: safeUserId },
+    })
+    const rules = this.normalizeRules(row?.rules)
+    const defaultDays = this.clampDays(row?.defaultDays, 7)
     return {
-      userId: Number(key),
+      userId: safeUserId,
       defaultDays,
       rules,
     }
   }
 
   async updateSettings(userId: number, payload: any) {
-    const key = `${Math.max(Number(userId || 1), 1)}`
-    const store = await this.readStore()
+    const safeUserId = Math.max(Number(userId || 1), 1)
+    await this.ensureUserExists(safeUserId)
     const rules = this.normalizeRules(payload?.rules)
     const defaultDays = this.clampDays(payload?.defaultDays, 7)
-    store[key] = {
-      defaultDays,
-      rules,
-      updatedAt: new Date().toISOString(),
-    }
-    await this.writeStore(store)
+    await this.prisma.shelfLifeSetting.upsert({
+      where: { userId: safeUserId },
+      create: {
+        userId: safeUserId,
+        defaultDays,
+        rules,
+      },
+      update: {
+        defaultDays,
+        rules,
+      },
+    })
     return {
-      userId: Number(key),
+      userId: safeUserId,
       defaultDays,
       rules,
     }

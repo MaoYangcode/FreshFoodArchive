@@ -39,6 +39,19 @@ type RecipeGenerateResult = {
   profileApplied: ProfileApplied
 }
 
+type VoiceRecognizeResult = {
+  text: string
+  name: string
+  quantity?: number
+  unit?: string
+  items?: Array<{
+    name: string
+    quantity?: number
+    unit?: string
+    category?: string
+  }>
+}
+
 @Injectable()
 export class AiService {
   constructor(private readonly prisma: PrismaService) {}
@@ -47,6 +60,7 @@ export class AiService {
   private readonly endpoint = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
   private readonly visionModel = process.env.DASHSCOPE_VISION_MODEL || 'qwen2.5-vl-7b-instruct'
   private readonly textModel = process.env.DASHSCOPE_TEXT_MODEL || 'qwen2.5-14b-instruct'
+  private readonly asrModel = process.env.DASHSCOPE_ASR_MODEL || 'qwen-audio-turbo'
   private readonly allowMockFallback =
     `${process.env.AI_RECOGNIZE_FALLBACK_TO_MOCK || ''}`.trim() === '1'
   private readonly validCategories = new Set(['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'])
@@ -127,6 +141,76 @@ export class AiService {
     } catch (error: any) {
       if (this.allowMockFallback) return this.mockRecognize()
       throw new Error(error?.message || '小票识别服务调用失败')
+    }
+  }
+
+  async recognizeTextFromAudio(file: any): Promise<VoiceRecognizeResult> {
+    if (!this.apiKey) {
+      throw new Error('DASHSCOPE_API_KEY 未配置')
+    }
+
+    const audioBase64 = file?.buffer?.toString('base64')
+    if (!audioBase64) return { text: '', name: '' }
+    const audioFormat = this.inferAudioFormat(file?.mimetype, file?.originalname)
+
+    try {
+      const content = await this.callDashScope(
+        this.asrModel,
+        [
+          { role: 'system', content: '你是语音转写助手。' },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: [
+                  '请将音频转写并做结构化提取，只返回 JSON，不要其它文字。',
+                  'JSON 结构：{"text":"完整转写","name":"食材名","quantity":2,"unit":"个","items":[{"name":"西红柿","quantity":2,"unit":"个","category":"蔬菜"}]}',
+                  '规则：',
+                  '1) text 必填；name尽量提取主要食材；如果说到多个食材，items 里要尽量完整列出；',
+                  '2) 如果未说数量，quantity可省略；',
+                  '3) unit 仅在有明确单位时给出；',
+                  '4) category 仅可取：水果、蔬菜、肉类、蛋奶、海鲜、饮料、调味品、其他；可省略。',
+                  '5) 不要臆造不存在的信息。',
+                ].join('\n'),
+              },
+              {
+                type: 'input_audio',
+                input_audio: {
+                  data: audioBase64,
+                  format: audioFormat,
+                },
+              },
+            ],
+          },
+        ],
+        true,
+      )
+      const parsed = this.parseJson(content)
+      const text = (
+        `${parsed?.text || parsed?.result || parsed?.transcript || ''}`.trim() ||
+        `${content || ''}`.trim()
+      )
+        .replace(/\s+/g, ' ')
+        .trim()
+      const fallback = this.parseVoiceTextFallback(text)
+      const name = `${parsed?.name || ''}`.trim() || fallback.name
+      const quantity = this.normalizeVoiceQuantity(parsed?.quantity ?? fallback.quantity)
+      const unit = `${parsed?.unit || ''}`.trim() || fallback.unit
+      const items = this.normalizeVoiceItems(
+        Array.isArray(parsed?.items) ? parsed.items : [],
+        fallback.items || [],
+        { name, quantity, unit },
+      )
+      return {
+        text,
+        name,
+        quantity,
+        unit: unit || undefined,
+        items,
+      }
+    } catch (error: any) {
+      throw new Error(error?.message || '语音识别服务调用失败')
     }
   }
 
@@ -406,6 +490,131 @@ export class AiService {
         return {}
       }
     }
+  }
+
+  private inferAudioFormat(mimeType: unknown, fileName: unknown) {
+    const mime = `${mimeType || ''}`.toLowerCase()
+    const name = `${fileName || ''}`.toLowerCase()
+    if (mime.includes('wav') || name.endsWith('.wav')) return 'wav'
+    if (mime.includes('aac') || name.endsWith('.aac')) return 'aac'
+    if (mime.includes('mpeg') || mime.includes('mp3') || name.endsWith('.mp3')) return 'mp3'
+    if (mime.includes('webm') || name.endsWith('.webm')) return 'webm'
+    if (mime.includes('m4a') || mime.includes('mp4') || name.endsWith('.m4a')) return 'm4a'
+    return 'mp3'
+  }
+
+  private parseVoiceTextFallback(text: string) {
+    const cleaned = `${text || ''}`
+      .replace(/[，,。；;！!？?]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (!cleaned) {
+      return {
+        name: '',
+        quantity: undefined as number | undefined,
+        unit: '',
+        items: [] as Array<{ name: string; quantity?: number; unit?: string }>,
+      }
+    }
+    const multiItems = this.parseMultiVoiceItems(cleaned)
+    const m = cleaned.match(
+      /^([\u4e00-\u9fa5A-Za-z]+?)\s*([零一二两三四五六七八九十百千万\d]+(?:\.\d+)?)?\s*(个|颗|斤|公斤|千克|克|袋|包|瓶|盒|罐|把|根|条|片|块|份|毫升|升)?$/,
+    )
+    if (!m) {
+      return {
+        name: cleaned,
+        quantity: undefined as number | undefined,
+        unit: '',
+        items: multiItems,
+      }
+    }
+    const [, rawName = '', rawQty = '', rawUnit = ''] = m
+    return {
+      name: rawName.trim(),
+      quantity: this.normalizeVoiceQuantity(rawQty),
+      unit: rawUnit.trim(),
+      items: multiItems,
+    }
+  }
+
+  private parseMultiVoiceItems(text: string) {
+    const parts = `${text || ''}`
+      .split(/(?:然后|再|还有|和|跟|并且|并|、|,|，|;|；)/)
+      .map((x) => x.trim())
+      .filter(Boolean)
+    const list = parts
+      .map((part) => {
+        const m = part.match(
+          /^([\u4e00-\u9fa5A-Za-z]+?)\s*([零一二两三四五六七八九十百千万\d]+(?:\.\d+)?)?\s*(个|颗|斤|公斤|千克|克|袋|包|瓶|盒|罐|把|根|条|片|块|份|毫升|升)?$/,
+        )
+        if (!m) return { name: part }
+        const [, rawName = '', rawQty = '', rawUnit = ''] = m
+        return {
+          name: rawName.trim(),
+          quantity: this.normalizeVoiceQuantity(rawQty),
+          unit: rawUnit.trim() || undefined,
+        }
+      })
+      .filter((x) => !!`${x?.name || ''}`.trim())
+    return list
+  }
+
+  private normalizeVoiceQuantity(value: unknown) {
+    if (value === undefined || value === null || `${value}`.trim() === '') return undefined
+    const text = `${value}`.trim()
+    const num = Number(text)
+    if (Number.isFinite(num) && num > 0) return Number(num)
+    const table: Record<string, number> = {
+      零: 0,
+      一: 1,
+      二: 2,
+      两: 2,
+      三: 3,
+      四: 4,
+      五: 5,
+      六: 6,
+      七: 7,
+      八: 8,
+      九: 9,
+      十: 10,
+    }
+    if (text.length === 1 && table[text] !== undefined) return table[text]
+    if (text === '十一') return 11
+    if (text === '十二') return 12
+    if (text === '十三') return 13
+    if (text === '十四') return 14
+    if (text === '十五') return 15
+    if (text === '十六') return 16
+    if (text === '十七') return 17
+    if (text === '十八') return 18
+    if (text === '十九') return 19
+    if (text === '二十') return 20
+    return undefined
+  }
+
+  private normalizeVoiceItems(
+    modelItems: any[],
+    fallbackItems: Array<{ name: string; quantity?: number; unit?: string }>,
+    single: { name: string; quantity?: number; unit?: string },
+  ) {
+    const source = Array.isArray(modelItems) && modelItems.length ? modelItems : fallbackItems
+    const normalized = source
+      .map((x) => ({
+        name: `${x?.name || ''}`.trim(),
+        quantity: this.normalizeVoiceQuantity(x?.quantity),
+        unit: `${x?.unit || ''}`.trim() || undefined,
+        category: this.validCategories.has(`${x?.category || ''}`.trim()) ? `${x?.category}`.trim() : undefined,
+      }))
+      .filter((x) => !!x.name)
+    if (normalized.length) return normalized
+    if (!single.name) return []
+    return [
+      {
+        name: single.name,
+        quantity: this.normalizeVoiceQuantity(single.quantity),
+        unit: `${single.unit || ''}`.trim() || undefined,
+      },
+    ]
   }
 
   private extractIngredientsFromResponse(content: string): RecognizedIngredient[] {

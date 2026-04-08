@@ -9,14 +9,18 @@ export function recognizeIngredients(payload) {
 }
 
 export function recognizeIngredientsByUpload(filePath) {
-	return uploadAiImage('/ai/recognize-ingredient', filePath)
+	return uploadAiFile('/ai/recognize-ingredient', filePath)
 }
 
 export function recognizeReceiptByUpload(filePath) {
-	return uploadAiImage('/ai/recognize-receipt', filePath)
+	return uploadAiFile('/ai/recognize-receipt', filePath)
 }
 
-function uploadAiImage(apiPath, filePath) {
+export function recognizeAudioByUpload(filePath) {
+	return uploadAiFile('/ai/recognize-audio', filePath)
+}
+
+function uploadAiFile(apiPath, filePath) {
 	return new Promise((resolve, reject) => {
 		uni.uploadFile({
 			url: `${BASE_URL}${apiPath}`,
