@@ -36,7 +36,7 @@ export class ProfileService {
   }
 
   private normalizeAvatar(value: unknown) {
-    return `${value || ''}`.trim().slice(0, 300000)
+    return `${value || ''}`.trim().slice(0, 2000000)
   }
 
   private async ensureUserExists(userId: number) {

@@ -1,12 +1,10 @@
 <template>
-	<view class="container">
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
 		<view class="top">
-			<text class="top-title">菜谱详情</text>
-			<view class="capsule" @click="backToResult">
-				<svg class="back-ico-svg" aria-hidden="true">
-					<use href="#icon-fanhui"></use>
-				</svg>
+			<view class="back-left" @click="backToResult">
+				<text class="back-arrow">‹</text>
 			</view>
+			<text class="top-title">菜谱详情</text>
 		</view>
 		<view class="recipe-inner">
 			<view class="head">
@@ -55,6 +53,7 @@ import { getIngredientList } from '@/api/modules/ingredients'
 import { upsertBasketItems as upsertBasketItemsApi } from '@/api/modules/basket'
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
+import { toSmartBasketItem } from '@/utils/smart-purchase'
 
 export default {
 	components: { BottomNav, IngredientIcon },
@@ -216,12 +215,7 @@ export default {
 				return
 			}
 			let result = { added: 0, merged: 0 }
-			const payload = missing.map((x) => ({
-				name: x.name,
-				quantity: Number(x.quantity || 1),
-				unit: x.unit || '份',
-				category: x.category || '其他'
-			}))
+			const payload = missing.map((x) => toSmartBasketItem(x))
 			try {
 				result = await upsertBasketItemsApi(payload, this.recipe.name, 1)
 			} catch (e) {
@@ -255,10 +249,10 @@ export default {
 
 <style scoped>
 .container { padding: 10px 12px 88px; }
-.top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16rpx; }
+.top { display: flex; align-items: center; gap: 10rpx; margin-bottom: 16rpx; }
 .top-title { font-size: 20px; font-weight: 700; }
-.capsule { border: 1rpx solid #e2e9e4; border-radius: 999rpx; background: #fff; min-width: 88rpx; height: 56rpx; padding: 0 16rpx; box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
-.back-ico-svg { width: 20px; height: 20px; display: block; }
+.back-left { width: 30px; height: 30px; border-radius: 999rpx; display: inline-flex; align-items: center; justify-content: center; }
+.back-arrow { font-size: 30px; line-height: 1; color: #c7ced9; transform: translateY(-1px); }
 .recipe-inner { background: #fff; border: 1rpx solid #eef3f1; border-radius: 14px; box-shadow: 0 10rpx 20rpx rgba(33,60,38,.06); padding: 16rpx; margin-bottom: 12rpx; }
 .head { display: grid; grid-template-columns: 64px 1fr; column-gap: 12px; row-gap: 8rpx; align-items: center; margin-bottom: 18rpx; }
 .head-main { min-width: 0; }

@@ -1,0 +1,9 @@
+{
+  "navigationBarTitleText": "菜篮子",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "bottom-nav": "../../components/bottom-nav",
+    "ingredient-icon": "../../components/ingredient-icon",
+    "location-icon": "../../components/location-icon"
+  }
+}

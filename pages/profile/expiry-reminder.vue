@@ -1,12 +1,10 @@
 <template>
-	<view class="container">
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
 		<view class="top">
-			<text class="top-title">临期提醒</text>
-			<view class="capsule" @click="goBack">
-				<svg class="back-ico-svg" aria-hidden="true">
-					<use href="#icon-fanhui"></use>
-				</svg>
+			<view class="back-left" @click="goBack">
+				<text class="back-arrow">‹</text>
 			</view>
+			<text class="top-title">临期提醒</text>
 		</view>
 
 		<view class="card top-setting-card">
@@ -15,7 +13,7 @@
 					<text class="label">每日提醒</text>
 				</view>
 				<view class="row-half right">
-					<switch :checked="settings.enabled" color="#4cae57" @change="onEnabledChange" />
+					<button class="sub-btn compact right-control" @click="requestSubscribe">微信授权</button>
 				</view>
 			</view>
 			<view class="row">
@@ -24,11 +22,11 @@
 				</view>
 				<view class="row-half right">
 					<picker mode="time" :value="settings.remindTime" @change="onTimeChange">
-						<view class="time-pill">{{ settings.remindTime }}</view>
+						<view class="time-pill right-control">{{ settings.remindTime }}</view>
 					</picker>
 				</view>
 			</view>
-			<text class="hint">开启后将按设定时间提醒临期食材。</text>
+			<text class="hint">授权后将在设定时间提醒临期食材</text>
 		</view>
 
 		<view class="card">
@@ -61,13 +59,24 @@
 <script>
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
-import { getExpiryReminderSettings, updateExpiryReminderSettings } from '@/api/modules/expiry-reminder'
+import {
+	getExpiryReminderSettings,
+	updateExpiryReminderSettings
+} from '@/api/modules/expiry-reminder'
+import { getCurrentUserId } from '@/utils/current-user'
 
 const CATEGORIES = ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他']
+const DEV_SUBSCRIBE_TEMPLATE_IDS = ['Be9XDSuceuvjfxx01bjzV_yAh9T2WkvQt8ReSw0GUyw']
 const DEFAULT_SETTINGS = {
 	enabled: true,
 	remindTime: '09:00',
 	defaultDays: 2,
+	subscribe: {
+		templateIds: [],
+		authResult: {},
+		lastAuthAt: '',
+		lastAuthStatus: 'unknown'
+	},
 	rules: {
 		水果: 1,
 		蔬菜: 2,
@@ -88,13 +97,14 @@ export default {
 	components: { BottomNav, IngredientIcon },
 	data() {
 		return {
-			userId: 1,
+			userId: getCurrentUserId(),
 			categories: CATEGORIES,
 			settings: cloneDefaults(),
 			dayOptions: Array.from({ length: 31 }, (_, i) => i)
 		}
 	},
 	onLoad() {
+		this.userId = getCurrentUserId()
 		this.loadSettings()
 	},
 	methods: {
@@ -113,6 +123,56 @@ export default {
 			if (rule === undefined || rule === null) return this.settings.defaultDays
 			return this.clampDays(rule)
 		},
+		normalizeSubscribe(raw) {
+			const source = raw && typeof raw === 'object' ? raw : {}
+			const templateIds = Array.isArray(source.templateIds)
+				? source.templateIds.map((x) => `${x || ''}`.trim()).filter(Boolean).slice(0, 20)
+				: []
+			const authResultRaw = source.authResult && typeof source.authResult === 'object' ? source.authResult : {}
+			const authResult = {}
+			Object.keys(authResultRaw).forEach((key) => {
+				const k = `${key || ''}`.trim()
+				if (!k) return
+				authResult[k] = `${authResultRaw[key] || ''}`.trim()
+			})
+			const lastAuthAt = `${source.lastAuthAt || ''}`.trim()
+			const lastAuthStatus = `${source.lastAuthStatus || ''}`.trim() || 'unknown'
+			return {
+				templateIds: templateIds.length ? templateIds : [...DEV_SUBSCRIBE_TEMPLATE_IDS],
+				authResult,
+				lastAuthAt,
+				lastAuthStatus
+			}
+		},
+		resolveTemplateIds() {
+			const saved = this.settings?.subscribe?.templateIds || []
+			const cleaned = saved.map((x) => `${x || ''}`.trim()).filter(Boolean)
+			const valid = cleaned.filter((id) => !id.includes('替换') && !id.includes('YOUR_'))
+			if (valid.length) return valid
+			return DEV_SUBSCRIBE_TEMPLATE_IDS
+				.map((x) => `${x || ''}`.trim())
+				.filter((id) => !!id && !id.includes('替换') && !id.includes('YOUR_'))
+		},
+		requestSubscribe() {
+			const templateIds = this.resolveTemplateIds()
+			if (!templateIds.length) {
+				uni.showToast({ title: '请先配置订阅模板ID', icon: 'none' })
+				return
+			}
+			if (typeof uni.requestSubscribeMessage !== 'function') {
+				uni.showToast({ title: '当前环境不支持订阅授权', icon: 'none' })
+				return
+			}
+			uni.requestSubscribeMessage({
+				tmplIds: templateIds,
+				success: () => {
+					uni.showToast({ title: '授权弹窗已完成', icon: 'none' })
+				},
+				fail: () => {
+					uni.showToast({ title: '授权取消或失败，请重试', icon: 'none' })
+				}
+			})
+		},
 		async loadSettings() {
 			try {
 				const raw = await getExpiryReminderSettings(this.userId)
@@ -125,6 +185,7 @@ export default {
 				merged.remindTime = `${raw.remindTime || merged.remindTime}`
 				merged.defaultDays = this.clampDays(raw.defaultDays)
 				merged.rules = { ...merged.rules }
+				merged.subscribe = this.normalizeSubscribe(raw?.subscribe)
 				this.categories.forEach((cat) => {
 					const fromRaw = raw?.rules?.[cat]
 					if (fromRaw !== undefined && fromRaw !== null) {
@@ -136,13 +197,6 @@ export default {
 				this.settings = cloneDefaults()
 				uni.showToast({ title: '提醒设置加载失败', icon: 'none' })
 			}
-		},
-		onEnabledChange(e) {
-			this.settings.enabled = !!e?.detail?.value
-			uni.showToast({
-				title: this.settings.enabled ? '已开启提醒（后续接入订阅消息）' : '已关闭提醒',
-				icon: 'none'
-			})
 		},
 		onTimeChange(e) {
 			const value = `${e?.detail?.value || ''}`
@@ -167,7 +221,8 @@ export default {
 				enabled: this.settings.enabled,
 				remindTime: this.settings.remindTime,
 				defaultDays: this.settings.defaultDays,
-				rules: this.settings.rules
+				rules: this.settings.rules,
+				subscribe: this.normalizeSubscribe(this.settings.subscribe)
 			})
 				.then((saved) => {
 					if (saved && typeof saved === 'object') {
@@ -176,6 +231,7 @@ export default {
 							enabled: !!saved.enabled,
 							remindTime: `${saved.remindTime || this.settings.remindTime}`,
 							defaultDays: this.clampDays(saved.defaultDays),
+							subscribe: this.normalizeSubscribe(saved?.subscribe || this.settings.subscribe),
 							rules: {
 								...this.settings.rules,
 								...(saved.rules && typeof saved.rules === 'object' ? saved.rules : {})
@@ -194,21 +250,26 @@ export default {
 
 <style scoped>
 .container { padding: 10px 12px 88px; }
-.top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; }
+.top { display: flex; align-items: center; gap: 10rpx; margin-bottom: 12rpx; }
 .top-title { font-size: 20px; font-weight: 700; }
-.capsule { border: 1rpx solid #e2e9e4; border-radius: 999rpx; background: #fff; min-width: 88rpx; height: 56rpx; padding: 0 16rpx; box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
-.back-ico-svg { width: 20px; height: 20px; display: block; }
+.back-left { width: 30px; height: 30px; border-radius: 999rpx; display: inline-flex; align-items: center; justify-content: center; }
+.back-arrow { font-size: 30px; line-height: 1; color: #c7ced9; transform: translateY(-1px); }
 
 .card { background: #fff; border: 1rpx solid #edf2ef; border-radius: 16px; padding: 12px; margin-bottom: 10rpx; box-shadow: 0 8rpx 18rpx rgba(30, 50, 34, 0.07); }
 .top-setting-card { margin-top: 20rpx; }
 .row { display: flex; align-items: center; justify-content: space-between; min-height: 64rpx; border-bottom: 1rpx solid #eef3f1; }
+.top-setting-card .row:first-of-type { padding-bottom: 8rpx; }
 .row:last-of-type { border-bottom: none; }
 .row + .row { margin-top: 8rpx; }
 .row-half { flex: 1; display: flex; align-items: center; min-width: 0; }
 .row-half.right { justify-content: flex-end; }
+.right-control { margin-left: auto; }
 .label { font-size: 14px; font-weight: 700; color: #26352d; }
 .time-pill { min-width: 106rpx; text-align: center; background: #edf5ef; color: #408a4d; border-radius: 999rpx; padding: 6rpx 12rpx; font-size: 12px; font-weight: 700; }
-.row switch { transform: scale(0.96, 0.82); transform-origin: right center; }
+.sub-btn { border-radius: 999rpx; font-size: 12px; font-weight: 700; height: 34px; line-height: 34px; padding: 0 16rpx; background: #eef5ff; color: #4a73d9; border: 1rpx solid #d5e4ff; }
+.sub-btn.compact { height: 30px; line-height: 30px; min-width: 106rpx; padding: 0 12rpx; text-align: center; margin: 0; }
+.sub-btn::after { border: none; }
+.status-line { margin-top: 6rpx; margin-bottom: 2rpx; }
 
 .rule-row { display: flex; align-items: center; justify-content: space-between; min-height: 92rpx; padding: 8rpx 0; border-top: 1rpx solid #eef3f1; }
 .rule-row:first-of-type { border-top: none; }

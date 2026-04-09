@@ -1,0 +1,350 @@
+.t-icon {
+    display: inline-block;
+    width: 16px; 
+    height: 16px;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100%;
+}
+
+.t-icon-bingxiang { background-image: url('/pages/assets/ingredient-svgs/icon-bingxiang.svg'); }
+
+.t-icon-Honey { background-image: url('/pages/assets/ingredient-svgs/Honey.svg'); }
+
+.t-icon-Ketchup { background-image: url('/pages/assets/ingredient-svgs/Ketchup.svg'); }
+
+.t-icon-Pepper { background-image: url('/pages/assets/ingredient-svgs/Pepper.svg'); }
+
+.t-icon-Salt { background-image: url('/pages/assets/ingredient-svgs/Salt.svg'); }
+
+.t-icon-Soya { background-image: url('/pages/assets/ingredient-svgs/Soya.svg'); }
+
+.t-icon-Vinegar { background-image: url('/pages/assets/ingredient-svgs/Vinegar.svg'); }
+
+.t-icon-a-guiyusanwenyu { background-image: url('/pages/assets/ingredient-svgs/a-guiyusanwenyu.svg'); }
+
+.t-icon-a-qiaokelihei { background-image: url('/pages/assets/ingredient-svgs/a-qiaokelihei.svg'); }
+
+.t-icon-a-zhuroufeisou { background-image: url('/pages/assets/ingredient-svgs/a-zhuroufeisou.svg'); }
+
+.t-icon-baicai { background-image: url('/pages/assets/ingredient-svgs/baicai.svg'); }
+
+.t-icon-bailuobu { background-image: url('/pages/assets/ingredient-svgs/bailuobu.svg'); }
+
+.t-icon-baitang { background-image: url('/pages/assets/ingredient-svgs/baitang.svg'); }
+
+.t-icon-baiyumi { background-image: url('/pages/assets/ingredient-svgs/baiyumi.svg'); }
+
+.t-icon-bajiao { background-image: url('/pages/assets/ingredient-svgs/bajiao.svg'); }
+
+.t-icon-beibeinangua { background-image: url('/pages/assets/ingredient-svgs/beibeinangua.svg'); }
+
+.t-icon-bianzu { background-image: url('/pages/assets/ingredient-svgs/bianzu.svg'); }
+
+.t-icon-binggan { background-image: url('/pages/assets/ingredient-svgs/binggan.svg'); }
+
+.t-icon-bingqilin { background-image: url('/pages/assets/ingredient-svgs/bingqilin.svg'); }
+
+.t-icon-bocai { background-image: url('/pages/assets/ingredient-svgs/bocai.svg'); }
+
+.t-icon-caixin { background-image: url('/pages/assets/ingredient-svgs/caixin.svg'); }
+
+.t-icon-caomei { background-image: url('/pages/assets/ingredient-svgs/caomei.svg'); }
+
+.t-icon-chayedan { background-image: url('/pages/assets/ingredient-svgs/chayedan.svg'); }
+
+.t-icon-chelizi { background-image: url('/pages/assets/ingredient-svgs/chelizi.svg'); }
+
+.t-icon-chengzi { background-image: url('/pages/assets/ingredient-svgs/chengzi.svg'); }
+
+.t-icon-dacong { background-image: url('/pages/assets/ingredient-svgs/dacong.svg'); }
+
+.t-icon-dangao { background-image: url('/pages/assets/ingredient-svgs/dangao.svg'); }
+
+.t-icon-danta { background-image: url('/pages/assets/ingredient-svgs/danta.svg'); }
+
+.t-icon-dasuan { background-image: url('/pages/assets/ingredient-svgs/dasuan.svg'); }
+
+.t-icon-donggua { background-image: url('/pages/assets/ingredient-svgs/donggua.svg'); }
+
+.t-icon-doufu { background-image: url('/pages/assets/ingredient-svgs/doufu.svg'); }
+
+.t-icon-doujiang { background-image: url('/pages/assets/ingredient-svgs/doujiang.svg'); }
+
+.t-icon-dounai { background-image: url('/pages/assets/ingredient-svgs/dounai.svg'); }
+
+.t-icon-doupi { background-image: url('/pages/assets/ingredient-svgs/doupi.svg'); }
+
+.t-icon-douya { background-image: url('/pages/assets/ingredient-svgs/douya.svg'); }
+
+.t-icon-fangbianmian { background-image: url('/pages/assets/ingredient-svgs/fangbianmian.svg'); }
+
+.t-icon-fanqie { background-image: url('/pages/assets/ingredient-svgs/fanqie.svg'); }
+
+.t-icon-fuzhu { background-image: url('/pages/assets/ingredient-svgs/fuzhu.svg'); }
+
+.t-icon-ganlanyou { background-image: url('/pages/assets/ingredient-svgs/ganlanyou.svg'); }
+
+.t-icon-guazi { background-image: url('/pages/assets/ingredient-svgs/guazi.svg'); }
+
+.t-icon-haidai { background-image: url('/pages/assets/ingredient-svgs/haidai.svg'); }
+
+.t-icon-haitai { background-image: url('/pages/assets/ingredient-svgs/haitai.svg'); }
+
+.t-icon-hamigua { background-image: url('/pages/assets/ingredient-svgs/hamigua.svg'); }
+
+.t-icon-heidou { background-image: url('/pages/assets/ingredient-svgs/heidou.svg'); }
+
+.t-icon-heiqiaokeli { background-image: url('/pages/assets/ingredient-svgs/heiqiaokeli.svg'); }
+
+.t-icon-heizhima { background-image: url('/pages/assets/ingredient-svgs/heizhima.svg'); }
+
+.t-icon-heizhimahufen { background-image: url('/pages/assets/ingredient-svgs/heizhimahufen.svg'); }
+
+.t-icon-hetaorou { background-image: url('/pages/assets/ingredient-svgs/hetaorou.svg'); }
+
+.t-icon-hongdou { background-image: url('/pages/assets/ingredient-svgs/hongdou.svg'); }
+
+.t-icon-honglajiao { background-image: url('/pages/assets/ingredient-svgs/honglajiao.svg'); }
+
+.t-icon-hongshu1 { background-image: url('/pages/assets/ingredient-svgs/hongshu1.svg'); }
+
+.t-icon-hongzao { background-image: url('/pages/assets/ingredient-svgs/hongzao.svg'); }
+
+.t-icon-hongzaodoujiang { background-image: url('/pages/assets/ingredient-svgs/hongzaodoujiang.svg'); }
+
+.t-icon-huacai { background-image: url('/pages/assets/ingredient-svgs/huacai.svg'); }
+
+.t-icon-huacai1 { background-image: url('/pages/assets/ingredient-svgs/huacai1.svg'); }
+
+.t-icon-huajuan { background-image: url('/pages/assets/ingredient-svgs/huajuan.svg'); }
+
+.t-icon-huangdou { background-image: url('/pages/assets/ingredient-svgs/huangdou.svg'); }
+
+.t-icon-huanggua { background-image: url('/pages/assets/ingredient-svgs/huanggua.svg'); }
+
+.t-icon-huangyou { background-image: url('/pages/assets/ingredient-svgs/huangyou.svg'); }
+
+.t-icon-huangyumi { background-image: url('/pages/assets/ingredient-svgs/huangyumi.svg'); }
+
+.t-icon-huasheng { background-image: url('/pages/assets/ingredient-svgs/huasheng.svg'); }
+
+.t-icon-huashengmi { background-image: url('/pages/assets/ingredient-svgs/huashengmi.svg'); }
+
+.t-icon-huluobu { background-image: url('/pages/assets/ingredient-svgs/huluobu.svg'); }
+
+.t-icon-huolongguo { background-image: url('/pages/assets/ingredient-svgs/huolongguo.svg'); }
+
+.t-icon-huotui { background-image: url('/pages/assets/ingredient-svgs/huotui.svg'); }
+
+.t-icon-huotuichang { background-image: url('/pages/assets/ingredient-svgs/huotuichang.svg'); }
+
+.t-icon-jiandan { background-image: url('/pages/assets/ingredient-svgs/jiandan.svg'); }
+
+.t-icon-jidan { background-image: url('/pages/assets/ingredient-svgs/jidan.svg'); }
+
+.t-icon-jidanbai { background-image: url('/pages/assets/ingredient-svgs/jidanbai.svg'); }
+
+.t-icon-jinzhengu { background-image: url('/pages/assets/ingredient-svgs/jinzhengu.svg'); }
+
+.t-icon-jirou { background-image: url('/pages/assets/ingredient-svgs/jirou.svg'); }
+
+.t-icon-jiweixia { background-image: url('/pages/assets/ingredient-svgs/jiweixia.svg'); }
+
+.t-icon-jixiongrou { background-image: url('/pages/assets/ingredient-svgs/jixiongrou.svg'); }
+
+.t-icon-juanxincai { background-image: url('/pages/assets/ingredient-svgs/juanxincai.svg'); }
+
+.t-icon-kaojichi { background-image: url('/pages/assets/ingredient-svgs/kaojichi.svg'); }
+
+.t-icon-kele { background-image: url('/pages/assets/ingredient-svgs/kele.svg'); }
+
+.t-icon-lanmei { background-image: url('/pages/assets/ingredient-svgs/lanmei.svg'); }
+
+.t-icon-latiao { background-image: url('/pages/assets/ingredient-svgs/latiao.svg'); }
+
+.t-icon-li { background-image: url('/pages/assets/ingredient-svgs/li.svg'); }
+
+.t-icon-lianwu { background-image: url('/pages/assets/ingredient-svgs/lianwu.svg'); }
+
+.t-icon-liulian { background-image: url('/pages/assets/ingredient-svgs/liulian.svg'); }
+
+.t-icon-lizhi { background-image: url('/pages/assets/ingredient-svgs/lizhi.svg'); }
+
+.t-icon-ludan { background-image: url('/pages/assets/ingredient-svgs/ludan.svg'); }
+
+.t-icon-luobu { background-image: url('/pages/assets/ingredient-svgs/luobu.svg'); }
+
+.t-icon-mangguo { background-image: url('/pages/assets/ingredient-svgs/mangguo.svg'); }
+
+.t-icon-maodou { background-image: url('/pages/assets/ingredient-svgs/maodou.svg'); }
+
+.t-icon-miantiao { background-image: url('/pages/assets/ingredient-svgs/miantiao.svg'); }
+
+.t-icon-mifan { background-image: url('/pages/assets/ingredient-svgs/mifan.svg'); }
+
+.t-icon-mihoutao { background-image: url('/pages/assets/ingredient-svgs/mihoutao.svg'); }
+
+.t-icon-mileguo { background-image: url('/pages/assets/ingredient-svgs/mileguo.svg'); }
+
+.t-icon-mogu { background-image: url('/pages/assets/ingredient-svgs/mogu.svg'); }
+
+.t-icon-mugua { background-image: url('/pages/assets/ingredient-svgs/mugua.svg'); }
+
+.t-icon-nailao { background-image: url('/pages/assets/ingredient-svgs/nailao.svg'); }
+
+.t-icon-nangua { background-image: url('/pages/assets/ingredient-svgs/nangua.svg'); }
+
+.t-icon-neizhidoufu { background-image: url('/pages/assets/ingredient-svgs/neizhidoufu.svg'); }
+
+.t-icon-ningmeng { background-image: url('/pages/assets/ingredient-svgs/ningmeng.svg'); }
+
+.t-icon-niunai { background-image: url('/pages/assets/ingredient-svgs/niunai.svg'); }
+
+.t-icon-niupai { background-image: url('/pages/assets/ingredient-svgs/niupai.svg'); }
+
+.t-icon-niurou { background-image: url('/pages/assets/ingredient-svgs/niurou.svg'); }
+
+.t-icon-niuyouguo { background-image: url('/pages/assets/ingredient-svgs/niuyouguo.svg'); }
+
+.t-icon-ou { background-image: url('/pages/assets/ingredient-svgs/ou.svg'); }
+
+.t-icon-paigu { background-image: url('/pages/assets/ingredient-svgs/paigu.svg'); }
+
+.t-icon-peigen { background-image: url('/pages/assets/ingredient-svgs/peigen.svg'); }
+
+.t-icon-pingguo { background-image: url('/pages/assets/ingredient-svgs/pingguo.svg'); }
+
+.t-icon-putao { background-image: url('/pages/assets/ingredient-svgs/putao.svg'); }
+
+.t-icon-qianzhang { background-image: url('/pages/assets/ingredient-svgs/qianzhang.svg'); }
+
+.t-icon-qiaokelidoubinggan { background-image: url('/pages/assets/ingredient-svgs/qiaokelidoubinggan.svg'); }
+
+.t-icon-qiezi { background-image: url('/pages/assets/ingredient-svgs/qiezi.svg'); }
+
+.t-icon-qingcai { background-image: url('/pages/assets/ingredient-svgs/qingcai.svg'); }
+
+.t-icon-qingjiao { background-image: url('/pages/assets/ingredient-svgs/qingjiao.svg'); }
+
+.t-icon-qiukui { background-image: url('/pages/assets/ingredient-svgs/qiukui.svg'); }
+
+.t-icon-quanmaimianbao { background-image: url('/pages/assets/ingredient-svgs/quanmaimianbao.svg'); }
+
+.t-icon-quanzhiniunai { background-image: url('/pages/assets/ingredient-svgs/quanzhiniunai.svg'); }
+
+.t-icon-sangshen { background-image: url('/pages/assets/ingredient-svgs/sangshen.svg'); }
+
+.t-icon-shanghaiqing { background-image: url('/pages/assets/ingredient-svgs/shanghaiqing.svg'); }
+
+.t-icon-shanyao { background-image: url('/pages/assets/ingredient-svgs/shanyao.svg'); }
+
+.t-icon-shanzhu { background-image: url('/pages/assets/ingredient-svgs/shanzhu.svg'); }
+
+.t-icon-shengcai { background-image: url('/pages/assets/ingredient-svgs/shengcai.svg'); }
+
+.t-icon-shenghuluobu { background-image: url('/pages/assets/ingredient-svgs/shenghuluobu.svg'); }
+
+.t-icon-shengjiang { background-image: url('/pages/assets/ingredient-svgs/shengjiang.svg'); }
+
+.t-icon-shengnvguo { background-image: url('/pages/assets/ingredient-svgs/shengnvguo.svg'); }
+
+.t-icon-shengsanwenyu { background-image: url('/pages/assets/ingredient-svgs/shengsanwenyu.svg'); }
+
+.t-icon-shengxian-haixian1 { background-image: url('/pages/assets/ingredient-svgs/shengxian-haixian1.svg'); }
+
+.t-icon-shengxian-roulei { background-image: url('/pages/assets/ingredient-svgs/shengxian-roulei.svg'); }
+
+.t-icon-shengxian-shushi { background-image: url('/pages/assets/ingredient-svgs/shengxian-shushi.svg'); }
+
+.t-icon-shiliu { background-image: url('/pages/assets/ingredient-svgs/shiliu.svg'); }
+
+.t-icon-shizi { background-image: url('/pages/assets/ingredient-svgs/shizi.svg'); }
+
+.t-icon-shuiguolanzi { background-image: url('/pages/assets/ingredient-svgs/shuiguolanzi.svg'); }
+
+.t-icon-shupian { background-image: url('/pages/assets/ingredient-svgs/shupian.svg'); }
+
+.t-icon-shutiao { background-image: url('/pages/assets/ingredient-svgs/shutiao.svg'); }
+
+.t-icon-shuxilanhua { background-image: url('/pages/assets/ingredient-svgs/shuxilanhua.svg'); }
+
+.t-icon-suannai { background-image: url('/pages/assets/ingredient-svgs/suannai.svg'); }
+
+.t-icon-tiaoliao { background-image: url('/pages/assets/ingredient-svgs/tiaoliao.svg'); }
+
+.t-icon-tudou { background-image: url('/pages/assets/ingredient-svgs/tudou.svg'); }
+
+.t-icon-tuozhiniunai { background-image: url('/pages/assets/ingredient-svgs/tuozhiniunai.svg'); }
+
+.t-icon-tusi { background-image: url('/pages/assets/ingredient-svgs/tusi.svg'); }
+
+.t-icon-wandou { background-image: url('/pages/assets/ingredient-svgs/wandou.svg'); }
+
+.t-icon-wawacai { background-image: url('/pages/assets/ingredient-svgs/wawacai.svg'); }
+
+.t-icon-wutangdoujiang { background-image: url('/pages/assets/ingredient-svgs/wutangdoujiang.svg'); }
+
+.t-icon-wutangsuannai { background-image: url('/pages/assets/ingredient-svgs/wutangsuannai.svg'); }
+
+.t-icon-xiangchang { background-image: url('/pages/assets/ingredient-svgs/xiangchang.svg'); }
+
+.t-icon-xiangjiao { background-image: url('/pages/assets/ingredient-svgs/xiangjiao.svg'); }
+
+.t-icon-xianyumi { background-image: url('/pages/assets/ingredient-svgs/xianyumi.svg'); }
+
+.t-icon-xiaobaicai { background-image: url('/pages/assets/ingredient-svgs/xiaobaicai.svg'); }
+
+.t-icon-xiaofanqie { background-image: url('/pages/assets/ingredient-svgs/xiaofanqie.svg'); }
+
+.t-icon-xiaren { background-image: url('/pages/assets/ingredient-svgs/xiaren.svg'); }
+
+.t-icon-xiaweiyiguo { background-image: url('/pages/assets/ingredient-svgs/xiaweiyiguo.svg'); }
+
+.t-icon-xigua { background-image: url('/pages/assets/ingredient-svgs/xigua.svg'); }
+
+.t-icon-xihulu { background-image: url('/pages/assets/ingredient-svgs/xihulu.svg'); }
+
+.t-icon-xilanhua { background-image: url('/pages/assets/ingredient-svgs/xilanhua.svg'); }
+
+.t-icon-xing { background-image: url('/pages/assets/ingredient-svgs/xing.svg'); }
+
+.t-icon-xingren { background-image: url('/pages/assets/ingredient-svgs/xingren.svg'); }
+
+.t-icon-yangcong { background-image: url('/pages/assets/ingredient-svgs/yangcong.svg'); }
+
+.t-icon-yangtao { background-image: url('/pages/assets/ingredient-svgs/yangtao.svg'); }
+
+.t-icon-yezi { background-image: url('/pages/assets/ingredient-svgs/yezi.svg'); }
+
+.t-icon-yezishui { background-image: url('/pages/assets/ingredient-svgs/yezishui.svg'); }
+
+.t-icon-yilichunniunai { background-image: url('/pages/assets/ingredient-svgs/yilichunniunai.svg'); }
+
+.t-icon-yingtao { background-image: url('/pages/assets/ingredient-svgs/yingtao.svg'); }
+
+.t-icon-yinliao { background-image: url('/pages/assets/ingredient-svgs/yinliao.svg'); }
+
+.t-icon-youdoufu { background-image: url('/pages/assets/ingredient-svgs/youdoufu.svg'); }
+
+.t-icon-youzi { background-image: url('/pages/assets/ingredient-svgs/youzi.svg'); }
+
+.t-icon-zhaji { background-image: url('/pages/assets/ingredient-svgs/zhaji.svg'); }
+
+.t-icon-zhajitui { background-image: url('/pages/assets/ingredient-svgs/zhajitui.svg'); }
+
+.t-icon-zhatudoutiao { background-image: url('/pages/assets/ingredient-svgs/zhatudoutiao.svg'); }
+
+.t-icon-zhenzhunaicha { background-image: url('/pages/assets/ingredient-svgs/zhenzhunaicha.svg'); }
+
+.t-icon-zhimajiang { background-image: url('/pages/assets/ingredient-svgs/zhimajiang.svg'); }
+
+.t-icon-zhujidan { background-image: url('/pages/assets/ingredient-svgs/zhujidan.svg'); }
+
+.t-icon-zhumiantiao { background-image: url('/pages/assets/ingredient-svgs/zhumiantiao.svg'); }
+
+.t-icon-zhusun { background-image: url('/pages/assets/ingredient-svgs/zhusun.svg'); }
+
+.t-icon-ziganlan { background-image: url('/pages/assets/ingredient-svgs/ziganlan.svg'); }
+
+.t-icon-zishu { background-image: url('/pages/assets/ingredient-svgs/zishu.svg'); }

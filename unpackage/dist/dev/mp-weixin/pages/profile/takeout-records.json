@@ -1,0 +1,9 @@
+{
+  "navigationBarTitleText": "取出记录",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "bottom-nav": "../../components/bottom-nav",
+    "ingredient-icon": "../../components/ingredient-icon",
+    "location-icon": "../../components/location-icon"
+  }
+}

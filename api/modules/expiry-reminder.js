@@ -24,6 +24,14 @@ export function scanExpiryReminderNow(userId = 1) {
 	})
 }
 
+export function updateExpiryReminderSubscribe(payload = {}) {
+	return request({
+		url: '/expiry-reminder/subscribe',
+		method: 'POST',
+		data: payload
+	})
+}
+
 export function getExpiryReminderLogs(userId = 1, limit = 20) {
 	return request({
 		url: '/expiry-reminder/logs',

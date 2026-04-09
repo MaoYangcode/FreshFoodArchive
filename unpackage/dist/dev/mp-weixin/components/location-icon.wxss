@@ -1,0 +1,14 @@
+
+.loc-wrap.data-v-3c694d2b {
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+.loc-font.data-v-3c694d2b {
+	font-family: "iconfont" !important;
+	font-weight: 400;
+	line-height: 1;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}

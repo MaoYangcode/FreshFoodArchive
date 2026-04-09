@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "保质期设置",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "ingredient-icon": "../../components/ingredient-icon"
+  }
+}

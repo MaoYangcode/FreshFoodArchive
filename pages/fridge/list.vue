@@ -1,6 +1,6 @@
 <template>
-	<view class="container" @click.self="closeSwipe">
-		<view class="top">
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }" @click.self="closeSwipe">
+		<view class="top" :style="{ paddingRight: `${navRightGap}px` }">
 			<text class="top-title">我的冰箱</text>
 		</view>
 		<view class="location-wrap">
@@ -33,9 +33,7 @@
 		</view>
 		<view class="summary-row">
 			<view class="search-wrap">
-				<svg class="search-ico-svg" aria-hidden="true">
-					<use href="#icon-sousuo"></use>
-				</svg>
+				<text class="search-ico-text">⌕</text>
 				<input
 					class="search-input"
 					type="text"
@@ -54,10 +52,9 @@
 		</view>
 
 		<view v-if="filteredList.length === 0" class="card empty">
-			<svg v-if="emptySymbolReady" class="empty-icon-svg" aria-hidden="true">
-				<use href="#icon-bingxiang"></use>
-			</svg>
-			<text v-else class="empty-icon">🧊</text>
+			<view class="empty-icon">
+				<IngredientIcon name="冰箱" category="其他" :size="66" />
+			</view>
 			<text class="empty-title">没有符合条件的食材</text>
 			<text class="empty-sub">换个关键词或者切换位置/类别试试</text>
 		</view>
@@ -70,15 +67,15 @@
 						class="row swipe-content"
 						:class="{ open: openSwipeId === item.id }"
 						@touchstart.stop="onTouchStart($event, item.id)"
-						@touchmove.stop="onTouchMove($event)"
-						@touchend.stop="onTouchEnd($event, item.id)"
+						@touchmove="onTouchMove($event)"
+						@touchend="onTouchEnd($event, item.id)"
 						@mousedown.stop="onMouseDown($event, item.id)"
 						@wheel.stop="onWheel($event, item.id)"
 						@dblclick.stop="onDoubleClick(item.id)"
 						@longpress.stop="onLongPress(item.id)"
 						@longtap.stop="onLongPress(item.id)"
 						@contextmenu.prevent.stop="onContextMenu(item.id)"
-						@click.stop="onRowClick(item)"
+						@tap.stop="onRowClick(item)"
 					>
 						<view class="ico">
 							<IngredientIcon :name="item.name" :category="item.category" :size="46" />
@@ -131,8 +128,8 @@
 					</view>
 				</view>
 				<view class="consume-actions">
-					<button class="confirm-btn" @click="confirmConsume">取出</button>
 					<button class="cancel-btn" @click="closeConsumeDialog">取消</button>
+					<button class="confirm-btn" @click="confirmConsume">取出</button>
 				</view>
 			</view>
 		</view>
@@ -147,8 +144,6 @@ import BottomNav from '@/components/bottom-nav.vue'
 import FridgeViewControls from '@/components/fridge-view-controls.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import LocationIcon from '@/components/location-icon.vue'
-
-const ICONFONT_VERSION = '20260407-1'
 
 const PINYIN_CHAR_MAP = {
 	全: 'quan', 部: 'bu', 位: 'wei', 置: 'zhi', 类: 'lei', 别: 'bie',
@@ -200,6 +195,7 @@ export default {
 			touchStartY: 0,
 			touchDeltaX: 0,
 			touchDeltaY: 0,
+			touchHorizontalLock: null,
 			mouseStartX: 0,
 			mouseStartY: 0,
 			mouseDownId: '',
@@ -214,7 +210,7 @@ export default {
 			consumeQty: 1,
 			pendingConsumeItem: null,
 			lastQtyLimitToastAt: 0,
-			emptySymbolReady: false
+			lastNavigateAt: 0
 		}
 	},
 	onLoad() {
@@ -227,7 +223,6 @@ export default {
 	},
 	mounted() {
 		this.bindWindowEvents()
-		this.ensureIconfontSymbol()
 	},
 	beforeUnmount() {
 		this.unbindWindowEvents()
@@ -320,31 +315,6 @@ export default {
 			}
 			this.selectedCategories = [...next, cat]
 		},
-		ensureIconfontSymbol() {
-			if (typeof window === 'undefined' || typeof document === 'undefined') return
-			const markReady = () => {
-				this.emptySymbolReady = !!document.getElementById('icon-bingxiang')
-			}
-			markReady()
-			if (this.emptySymbolReady) return
-			if (window.__ffaIconfontLoading) {
-				setTimeout(markReady, 160)
-				return
-			}
-			window.__ffaIconfontLoading = true
-			const script = document.createElement('script')
-			script.src = `/static/iconfont/iconfont.js?v=${ICONFONT_VERSION}`
-			script.async = true
-			script.onload = () => {
-				window.__ffaIconfontLoading = false
-				markReady()
-			}
-			script.onerror = () => {
-				window.__ffaIconfontLoading = false
-				markReady()
-			}
-			document.body.appendChild(script)
-		},
 		bindWindowEvents() {
 			if (typeof window === 'undefined') return
 			window.addEventListener('mousemove', this.onWindowMouseMove)
@@ -431,28 +401,39 @@ export default {
 			this.touchStartY = e.touches[0].clientY
 			this.touchDeltaX = 0
 			this.touchDeltaY = 0
+			this.touchHorizontalLock = null
 			if (this.openSwipeId && this.openSwipeId !== id) {
 				this.openSwipeId = ''
 			}
 		},
 		onTouchMove(e) {
+			if (!e || !e.touches || !e.touches.length) return
 			const x = e.touches[0].clientX
 			const y = e.touches[0].clientY
 			this.touchDeltaX = x - this.touchStartX
 			this.touchDeltaY = y - this.touchStartY
+			if (this.touchHorizontalLock === null) {
+				const absX = Math.abs(this.touchDeltaX)
+				const absY = Math.abs(this.touchDeltaY)
+				if (absX > 8 || absY > 8) {
+					this.touchHorizontalLock = absX > absY + 6
+				}
+			}
 		},
 		onTouchEnd(e, id) {
+			if (!e || !e.changedTouches || !e.changedTouches.length) return
 			const endX = e.changedTouches[0].clientX
 			const deltaX = this.touchDeltaX || endX - this.touchStartX
-			const deltaY = this.touchDeltaY
-			const horizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY)
+			const horizontalSwipe = this.touchHorizontalLock === true
 			if (horizontalSwipe && deltaX < -35) {
 				this.openSwipeId = id
+				this.touchHorizontalLock = null
 				return
 			}
 			if (horizontalSwipe && deltaX > 35) {
 				this.openSwipeId = ''
 			}
+			this.touchHorizontalLock = null
 		},
 		onMouseDown(e, id) {
 			if (e.button !== 0) return
@@ -526,29 +507,22 @@ export default {
 			this.openSwipeId = ''
 		},
 		onRowClick(item) {
-			if (this.preventNextClick) {
-				this.preventNextClick = false
-				return
-			}
-			// Reliable desktop fallback: non-touch click opens action first.
-			const fromTouch = Date.now() - this.lastTouchAt < 500
-			if (!fromTouch) {
-				if (this.openSwipeId !== item.id) {
-					this.openSwipeId = item.id
-					return
-				}
-				this.goEdit(item)
-				return
-			}
-			if (this.openSwipeId === item.id) {
-				this.openSwipeId = ''
-				return
-			}
 			this.goEdit(item)
 		},
 		goEdit(item) {
+			const now = Date.now()
+			if (now - this.lastNavigateAt < 350) return
+			const id = item?.id ?? item?.ingredientId ?? ''
+			if (!id && id !== 0) {
+				uni.showToast({
+					title: '食材ID缺失',
+					icon: 'none'
+				})
+				return
+			}
+			this.lastNavigateAt = now
 			uni.navigateTo({
-				url: `/pages/fridge/edit?id=${item.id}`
+				url: `/pages/fridge/edit?id=${id}`
 			})
 		},
 
@@ -664,11 +638,6 @@ export default {
 </script>
 
 <style scoped>
-@font-face {
-	font-family: "fridge-iconfont";
-	src: url('/static/iconfont/iconfont.ttf') format('truetype');
-}
-
 .container {
 	padding: 14px 12px 92px;
 	background: #f6f7f8;
@@ -728,13 +697,16 @@ export default {
 	height: 32px;
 }
 
-.search-ico-svg {
+.search-ico-text {
 	width: 18px;
 	height: 18px;
-	display: block;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	flex-shrink: 0;
-	shape-rendering: geometricPrecision;
-	transform: translateZ(0);
+	font-size: 16px;
+	line-height: 1;
+	color: #90a1b5;
 }
 
 .search-input {
@@ -939,25 +911,22 @@ export default {
 }
 
 .empty-icon {
-	font-size: 92rpx;
-}
-
-.empty-icon-svg {
 	width: 96rpx;
 	height: 96rpx;
-	display: block;
+	margin: 0 auto;
+	transform: translateX(-6rpx);
 }
 
 .empty-title {
 	font-size: 16px;
 	font-weight: 600;
-	margin-top: 12rpx;
+	margin-top: 28rpx;
 }
 
 .empty-sub {
 	font-size: 12px;
 	color: #6b7280;
-	margin-top: 8rpx;
+	margin-top: 12rpx;
 }
 
 .swipe-item {

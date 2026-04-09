@@ -1,12 +1,10 @@
 <template>
-	<view class="container">
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
 		<view class="top">
-			<text class="top-title">编辑食材</text>
-			<view class="capsule" @click="goBackToList">
-				<svg class="back-ico-svg" aria-hidden="true">
-					<use href="#icon-fanhui"></use>
-				</svg>
+			<view class="back-left" @click="goBackToList">
+				<text class="back-arrow">‹</text>
 			</view>
+			<text class="top-title">编辑食材</text>
 		</view>
 		<view class="card top-card">
 			<view class="food-ico">
@@ -275,10 +273,6 @@ export default {
 </script>
 
 <style scoped>
-@font-face {
-	font-family: "add-iconfont";
-	src: url('/static/iconfont/iconfont.ttf') format('truetype');
-}
 
 .container {
 	padding: 10px 12px 88px;
@@ -286,8 +280,8 @@ export default {
 
 .top {
 	display: flex;
-	justify-content: space-between;
 	align-items: center;
+	gap: 10rpx;
 	margin-bottom: 8rpx;
 }
 
@@ -296,24 +290,8 @@ export default {
 	font-weight: 700;
 }
 
-.capsule {
-	border: 1rpx solid #e2e9e4;
-	border-radius: 999rpx;
-	background: #fff;
-	min-width: 88rpx;
-	height: 56rpx;
-	padding: 0 16rpx;
-	box-sizing: border-box;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.back-ico-svg {
-	width: 20px;
-	height: 20px;
-	display: block;
-}
+.back-left { width: 30px; height: 30px; border-radius: 999rpx; display: inline-flex; align-items: center; justify-content: center; }
+.back-arrow { font-size: 30px; line-height: 1; color: #c7ced9; transform: translateY(-1px); }
 
 .card {
 	background: #fff;
@@ -359,7 +337,7 @@ export default {
 }
 
 .ai-iconfont {
-	font-family: "add-iconfont" !important;
+	font-family: "iconfont" !important;
 	font-style: normal;
 	font-weight: 400;
 	line-height: 1;

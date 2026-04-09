@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UploadedFile, UseInterceptors } from '@nestjs/common'
+import { Body, Controller, Post, Req, UploadedFile, UseInterceptors } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { memoryStorage } from 'multer'
 import { AiService } from './ai.service'
@@ -83,9 +83,13 @@ export class AiController {
   }
 
   @Post('generate-recipe')
-  async generateRecipe(@Body() body: any) {
+  async generateRecipe(@Req() req: any, @Body() body: any) {
     try {
-      const result = await this.aiService.generateRecipeList(body)
+      const payload = {
+        ...(body || {}),
+        userId: Number(req?.userId || 1),
+      }
+      const result = await this.aiService.generateRecipeList(payload)
       return { code: 0, message: 'ok', data: result }
     } catch (error: any) {
       return {

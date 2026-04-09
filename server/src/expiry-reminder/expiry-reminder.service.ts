@@ -20,10 +20,20 @@ const DEFAULT_SETTINGS = {
   } as Record<string, number>,
 }
 
+const DEFAULT_SUBSCRIBE = {
+  templateIds: [] as string[],
+  authResult: {} as Record<string, string>,
+  openId: '',
+  templateData: {} as Record<string, string>,
+  lastAuthAt: '',
+  lastAuthStatus: 'unknown',
+}
+
 @Injectable()
 export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ExpiryReminderService.name)
   private timer: NodeJS.Timeout | null = null
+  private wxAccessTokenCache: { token: string; expiresAt: number } | null = null
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -61,6 +71,146 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
     return rules
   }
 
+  private normalizeSubscribe(raw: unknown) {
+    const source = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+    const templateIds = Array.isArray(source.templateIds)
+      ? source.templateIds.map((x) => `${x || ''}`.trim()).filter(Boolean).slice(0, 20)
+      : [...DEFAULT_SUBSCRIBE.templateIds]
+    const authResultRaw = source.authResult && typeof source.authResult === 'object'
+      ? (source.authResult as Record<string, unknown>)
+      : {}
+    const authResult: Record<string, string> = {}
+    Object.keys(authResultRaw).forEach((key) => {
+      const k = `${key || ''}`.trim()
+      if (!k) return
+      authResult[k] = `${authResultRaw[key] || ''}`.trim().slice(0, 32)
+    })
+    const lastAuthAtRaw = `${source.lastAuthAt || ''}`.trim()
+    const parsed = lastAuthAtRaw ? new Date(lastAuthAtRaw) : null
+    const lastAuthAt = parsed && Number.isFinite(parsed.getTime()) ? parsed.toISOString() : ''
+    const lastAuthStatus = `${source.lastAuthStatus || ''}`.trim() || DEFAULT_SUBSCRIBE.lastAuthStatus
+    const openId = `${source.openId || ''}`.trim().slice(0, 128)
+    const templateDataRaw = source.templateData && typeof source.templateData === 'object'
+      ? (source.templateData as Record<string, unknown>)
+      : {}
+    const templateData: Record<string, string> = {}
+    Object.keys(templateDataRaw).forEach((key) => {
+      const k = `${key || ''}`.trim()
+      const v = `${templateDataRaw[key] || ''}`.trim()
+      if (!k || !v) return
+      templateData[k] = v.slice(0, 64)
+    })
+    return {
+      templateIds,
+      authResult,
+      openId,
+      templateData,
+      lastAuthAt,
+      lastAuthStatus,
+    }
+  }
+
+  private getWeChatAppId() {
+    return `${process.env.WECHAT_MINI_APP_ID || process.env.WECHAT_APP_ID || ''}`.trim()
+  }
+
+  private getWeChatAppSecret() {
+    return `${process.env.WECHAT_MINI_APP_SECRET || process.env.WECHAT_APP_SECRET || ''}`.trim()
+  }
+
+  private pickAcceptedTemplateId(subscribe: ReturnType<ExpiryReminderService['normalizeSubscribe']>) {
+    const auth = subscribe.authResult || {}
+    for (const id of subscribe.templateIds || []) {
+      if (`${auth[id] || ''}`.trim() === 'accept') return id
+    }
+    return ''
+  }
+
+  private async getWeChatAccessToken() {
+    const appId = this.getWeChatAppId()
+    const appSecret = this.getWeChatAppSecret()
+    if (!appId || !appSecret) {
+      throw new Error('WECHAT_APP_ID/WECHAT_APP_SECRET 未配置')
+    }
+    const now = Date.now()
+    if (this.wxAccessTokenCache && this.wxAccessTokenCache.expiresAt > now + 10000) {
+      return this.wxAccessTokenCache.token
+    }
+    const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(appId)}&secret=${encodeURIComponent(appSecret)}`
+    const res = await fetch(url)
+    const json = await res.json() as any
+    if (!res.ok || !json?.access_token) {
+      throw new Error(`获取微信access_token失败: ${json?.errmsg || res.status}`)
+    }
+    const ttlSec = Number(json?.expires_in || 7200)
+    this.wxAccessTokenCache = {
+      token: `${json.access_token}`,
+      expiresAt: now + Math.max(300, ttlSec - 120) * 1000,
+    }
+    return this.wxAccessTokenCache.token
+  }
+
+  private async getOpenIdByCode(code: string) {
+    const appId = this.getWeChatAppId()
+    const appSecret = this.getWeChatAppSecret()
+    if (!appId || !appSecret) return ''
+    const safeCode = `${code || ''}`.trim()
+    if (!safeCode) return ''
+    const url = `https://api.weixin.qq.com/sns/jscode2session?appid=${encodeURIComponent(appId)}&secret=${encodeURIComponent(appSecret)}&js_code=${encodeURIComponent(safeCode)}&grant_type=authorization_code`
+    const res = await fetch(url)
+    const json = await res.json() as any
+    if (!res.ok || !json?.openid) {
+      this.logger.warn(`jscode2session failed: ${json?.errmsg || res.status}`)
+      return ''
+    }
+    return `${json.openid || ''}`.trim()
+  }
+
+  private buildSubscribeMessageData(items: Array<{ name: string; daysLeft: number }>, subscribe: ReturnType<ExpiryReminderService['normalizeSubscribe']>) {
+    const fromConfig = subscribe.templateData || {}
+    if (Object.keys(fromConfig).length) {
+      const mapped: Record<string, { value: string }> = {}
+      Object.keys(fromConfig).forEach((k) => {
+        mapped[k] = { value: fromConfig[k] }
+      })
+      return mapped
+    }
+    const first = items[0]
+    const name = first ? `${first.name}` : '食材'
+    const days = first ? `${first.daysLeft}` : '0'
+    const now = new Date()
+    const t = `${now.getFullYear()}-${`${now.getMonth() + 1}`.padStart(2, '0')}-${`${now.getDate()}`.padStart(2, '0')} ${`${now.getHours()}`.padStart(2, '0')}:${`${now.getMinutes()}`.padStart(2, '0')}`
+    // Default mapping for "保质期到期提醒" style template:
+    // 物品名称 / 到期日期 / 物品类型 / 存放位置 / 剩余天数
+    const expireDateText = first && Number.isFinite(first.daysLeft)
+      ? (() => {
+          const d = new Date()
+          d.setHours(0, 0, 0, 0)
+          d.setDate(d.getDate() + first.daysLeft)
+          return `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, '0')}-${`${d.getDate()}`.padStart(2, '0')}`
+        })()
+      : t.slice(0, 10)
+    return {
+      thing1: { value: `${name}`.slice(0, 20) },
+      date2: { value: expireDateText },
+      thing3: { value: '食材' },
+      thing4: { value: '冰箱' },
+      number5: { value: `${days}` },
+    }
+  }
+
+  private extractSubscribeFromRules(raw: unknown) {
+    const source = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+    return this.normalizeSubscribe(source.__subscribe)
+  }
+
+  private mergeRulesAndSubscribe(rules: Record<string, number>, subscribe: ReturnType<ExpiryReminderService['normalizeSubscribe']>) {
+    return {
+      ...rules,
+      __subscribe: subscribe,
+    }
+  }
+
   private normalizeRemindTime(value: unknown) {
     const text = `${value || ''}`.trim()
     if (/^\d{2}:\d{2}$/.test(text)) return text
@@ -77,12 +227,14 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
   }) {
     const defaultDays = this.clampDays(row.defaultDays)
     const rules = this.normalizeRules(row.rules, defaultDays)
+    const subscribe = this.extractSubscribeFromRules(row.rules)
     return {
       userId: row.userId,
       enabled: !!row.enabled,
       remindTime: this.normalizeRemindTime(row.remindTime),
       defaultDays,
       rules,
+      subscribe,
       lastTriggeredAt: row.lastTriggeredAt,
     }
   }
@@ -107,7 +259,7 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
         data: {
           userId,
           ...DEFAULT_SETTINGS,
-          rules: DEFAULT_SETTINGS.rules as Prisma.JsonObject,
+          rules: this.mergeRulesAndSubscribe(DEFAULT_SETTINGS.rules, DEFAULT_SUBSCRIBE) as Prisma.JsonObject,
         },
       })
       return this.normalizeSettingsRow(created)
@@ -122,6 +274,10 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
     const nextDefaultDays =
       payload?.defaultDays === undefined ? current.defaultDays : this.clampDays(payload.defaultDays)
     const nextRules = this.normalizeRules(payload?.rules ?? current.rules, nextDefaultDays)
+    const nextSubscribe = payload?.subscribe === undefined
+      ? this.normalizeSubscribe(current.subscribe)
+      : this.normalizeSubscribe(payload?.subscribe)
+    const mergedRules = this.mergeRulesAndSubscribe(nextRules, nextSubscribe)
 
     const updated = await this.prisma.expiryReminderSetting.upsert({
       where: { userId },
@@ -130,17 +286,84 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
         enabled: nextEnabled,
         remindTime: nextRemindTime,
         defaultDays: nextDefaultDays,
-        rules: nextRules as Prisma.JsonObject,
+        rules: mergedRules as Prisma.JsonObject,
       },
       update: {
         enabled: nextEnabled,
         remindTime: nextRemindTime,
         defaultDays: nextDefaultDays,
-        rules: nextRules as Prisma.JsonObject,
+        rules: mergedRules as Prisma.JsonObject,
       },
     })
 
     return this.normalizeSettingsRow(updated)
+  }
+
+  async updateSubscribe(userId: number, payload: any) {
+    const current = await this.getSettings(userId)
+    const currentSubscribe = this.normalizeSubscribe(current.subscribe)
+    const raw = payload && typeof payload === 'object' ? payload : {}
+    let openId = `${raw?.openId || currentSubscribe.openId || ''}`.trim()
+    const code = `${raw?.code || ''}`.trim()
+    if (!openId && code) {
+      try {
+        openId = await this.getOpenIdByCode(code)
+      } catch (e: any) {
+        this.logger.warn(`resolve openId failed: ${e?.message || e}`)
+      }
+    }
+    return this.updateSettings(userId, {
+      subscribe: {
+        ...currentSubscribe,
+        ...raw,
+        openId,
+      },
+    })
+  }
+
+  private async sendSubscribeMessage(userId: number, subscribe: ReturnType<ExpiryReminderService['normalizeSubscribe']>, items: Array<{ name: string; daysLeft: number }>) {
+    const templateId = this.pickAcceptedTemplateId(subscribe)
+    const openId = `${subscribe.openId || ''}`.trim()
+    if (!templateId) return { attempted: false, reason: 'no-template-authorized' }
+    if (!openId) return { attempted: false, reason: 'no-openid' }
+    if (!items.length) return { attempted: false, reason: 'no-items' }
+
+    try {
+      const token = await this.getWeChatAccessToken()
+      const page = '/pages/profile/expiry-reminder'
+      const payload = {
+        touser: openId,
+        template_id: templateId,
+        page,
+        data: this.buildSubscribeMessageData(items, subscribe),
+      }
+      const url = `https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=${encodeURIComponent(token)}`
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json() as any
+      const ok = Number(json?.errcode) === 0
+      if (!ok) {
+        this.logger.warn(`subscribe send failed user=${userId} code=${json?.errcode} msg=${json?.errmsg}`)
+      }
+      return {
+        attempted: true,
+        success: ok,
+        errcode: Number(json?.errcode || 0),
+        errmsg: `${json?.errmsg || ''}`.trim(),
+        msgid: `${json?.msgid || ''}`.trim(),
+      }
+    } catch (e: any) {
+      this.logger.warn(`subscribe send exception user=${userId} ${e?.message || e}`)
+      return {
+        attempted: true,
+        success: false,
+        errcode: -1,
+        errmsg: `${e?.message || e}`,
+      }
+    }
   }
 
   private getDaysLeft(expireDate: Date | null) {
@@ -209,6 +432,11 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
   async scanNow(userId = 1, source = 'manual') {
     const { settings, items, summary } = await this.collectRemindItems(userId)
     const now = new Date()
+    const sendResult = await this.sendSubscribeMessage(
+      userId,
+      this.normalizeSubscribe(settings.subscribe),
+      items.map((x) => ({ name: x.name, daysLeft: x.daysLeft })),
+    )
 
     const log = await this.prisma.expiryReminderLog.create({
       data: {
@@ -234,6 +462,7 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
       summary,
       items,
       logId: log.id,
+      subscribeSend: sendResult,
     }
   }
 

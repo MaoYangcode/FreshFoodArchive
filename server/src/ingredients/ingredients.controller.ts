@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Req } from '@nestjs/common'
 import { IngredientsService } from './ingredients.service'
 
 @Controller('ingredients')
@@ -6,37 +6,37 @@ export class IngredientsController {
   constructor(private readonly ingredientsService: IngredientsService) {}
 
   @Get()
-  findAll() {
-    return this.ingredientsService.findAll()
+  findAll(@Req() req: any) {
+    return this.ingredientsService.findAll(Number(req?.userId || 1))
   }
 
   @Get('takeout-records')
-  getTakeoutRecords() {
-    return this.ingredientsService.getTakeoutRecords()
+  getTakeoutRecords(@Req() req: any) {
+    return this.ingredientsService.getTakeoutRecords(Number(req?.userId || 1))
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.ingredientsService.findOne(id)
+  findOne(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.ingredientsService.findOne(id, Number(req?.userId || 1))
   }
 
   @Post()
-  create(@Body() body: any) {
-    return this.ingredientsService.create(body)
+  create(@Req() req: any, @Body() body: any) {
+    return this.ingredientsService.create(Number(req?.userId || 1), body)
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.ingredientsService.remove(id)
+  remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.ingredientsService.remove(id, Number(req?.userId || 1))
   }
 
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
-    return this.ingredientsService.update(id, body)
+  update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: any) {
+    return this.ingredientsService.update(id, Number(req?.userId || 1), body)
   }
 
   @Post(':id/consume')
-  consume(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
-    return this.ingredientsService.consume(id, body)
+  consume(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: any) {
+    return this.ingredientsService.consume(id, Number(req?.userId || 1), body)
   }
 }

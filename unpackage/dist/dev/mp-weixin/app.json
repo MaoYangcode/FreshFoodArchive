@@ -1,0 +1,25 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/fridge/list",
+    "pages/fridge/add",
+    "pages/fridge/edit",
+    "pages/fridge/shelf-life",
+    "pages/recipe/generate",
+    "pages/recipe/result",
+    "pages/recipe/detail",
+    "pages/profile/index",
+    "pages/profile/takeout-records",
+    "pages/profile/favorites",
+    "pages/profile/basket",
+    "pages/profile/expiry-reminder",
+    "pages/profile/profile"
+  ],
+  "window": {
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#F7F8FA",
+    "backgroundColor": "#F4F6F8"
+  },
+  "permission": {},
+  "usingComponents": {}
+}

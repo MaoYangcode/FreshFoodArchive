@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "鲜食档案",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "bottom-nav": "../../components/bottom-nav",
+    "ingredient-icon": "../../components/ingredient-icon"
+  }
+}

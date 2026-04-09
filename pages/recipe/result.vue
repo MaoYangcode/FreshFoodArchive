@@ -1,14 +1,11 @@
 <template>
-	<view class="container">
-		<view class="top">
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
+		<view class="top" :style="{ paddingRight: `${navRightGap}px` }">
 			<text class="top-title">智能菜谱</text>
 		</view>
 		<view class="recipe-banner">
 			<text class="banner-label">可用食材</text>
 			<text v-for="(x, idx) in pantryTags" :key="idx" class="pill-food">{{ x }}</text>
-		</view>
-		<view v-if="profileHintText" class="profile-hint">
-			<text>{{ profileHintText }}</text>
 		</view>
 		<view class="control-row">
 			<text
@@ -101,16 +98,6 @@ export default {
 		currentCookingTimeLabel() {
 			const v = Number(this.selectedCookingTime || 0)
 			return v <= 0 ? '不限时长' : `${v}分钟内`
-		},
-		profileHintText() {
-			const info = this.profileApplied || {}
-			const avoidances = Array.isArray(info.avoidances) ? info.avoidances.filter(Boolean) : []
-			const prefs = Array.isArray(info.dietPreferences) ? info.dietPreferences.filter(Boolean) : []
-			const parts = ['已按你的资料生成']
-			if (avoidances.length) parts.push(`已严格避开：${avoidances.join('、')}`)
-			if (prefs.length) parts.push(`偏好：${prefs.join('、')}`)
-			if (info.reducedByAvoidance) parts.push('因严格忌口过滤，候选数量有所减少')
-			return parts.join('；')
 		},
 		displayRecipes() {
 			const pantrySet = new Set(this.pantryTags.map((x) => this.normalizeName(x)).filter(Boolean))
@@ -227,10 +214,6 @@ export default {
 </script>
 
 <style scoped>
-@font-face {
-	font-family: "result-iconfont";
-	src: url('/static/iconfont/iconfont.ttf') format('truetype');
-}
 
 .container {
 	padding: 10px 12px 88px;
@@ -254,16 +237,6 @@ export default {
 	background: linear-gradient(135deg, #f4f8f5, #f8fbf8);
 	border: 1rpx solid #e2ebe4;
 	margin-bottom: 22rpx;
-}
-
-.profile-hint {
-	border: 1rpx solid #d9e9dc;
-	background: #f1f8f2;
-	color: #4f6b58;
-	font-size: 11px;
-	border-radius: 12px;
-	padding: 8rpx 12rpx;
-	margin-bottom: 12rpx;
 }
 
 .banner-label {
@@ -297,7 +270,7 @@ export default {
 
 .chip-ico.recipe-iconfont,
 .recipe-iconfont {
-	font-family: "result-iconfont" !important;
+	font-family: "iconfont" !important;
 	font-style: normal;
 	font-weight: 400;
 	line-height: 1;

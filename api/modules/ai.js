@@ -1,4 +1,4 @@
-import { BASE_URL, request } from '../request'
+import { getActiveBaseUrl, request } from '../request'
 
 export function recognizeIngredients(payload) {
 	return request({
@@ -23,7 +23,7 @@ export function recognizeAudioByUpload(filePath) {
 function uploadAiFile(apiPath, filePath) {
 	return new Promise((resolve, reject) => {
 		uni.uploadFile({
-			url: `${BASE_URL}${apiPath}`,
+			url: `${getActiveBaseUrl()}${apiPath}`,
 			filePath,
 			name: 'file',
 			success: (res) => {

@@ -1,0 +1,212 @@
+
+.container.data-v-a679d2d3 {
+	padding: 10px 12px 88px;
+}
+.top.data-v-a679d2d3 {
+	display: flex;
+	align-items: center;
+	gap: 10rpx;
+	margin-bottom: 8rpx;
+}
+.top-title.data-v-a679d2d3 {
+	font-size: 20px;
+	font-weight: 700;
+}
+.back-left.data-v-a679d2d3 { width: 30px; height: 30px; border-radius: 999rpx; display: inline-flex; align-items: center; justify-content: center;
+}
+.back-arrow.data-v-a679d2d3 { font-size: 30px; line-height: 1; color: #c7ced9; transform: translateY(-1px);
+}
+.card.data-v-a679d2d3 {
+	background: #fff;
+	border: 1rpx solid #edf2ef;
+	border-radius: 16px;
+	padding: 12px;
+	margin-bottom: 18rpx;
+	box-shadow: 0 8rpx 18rpx rgba(30, 50, 34, 0.07);
+}
+.top-card.data-v-a679d2d3 {
+	display: grid;
+	grid-template-columns: 72px 1fr;
+	gap: 20rpx;
+	align-items: center;
+}
+.food-ico.data-v-a679d2d3 {
+	width: 72px;
+	height: 72px;
+	border-radius: 14px;
+	background: #f1f8f2;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 34px;
+}
+.food-name.data-v-a679d2d3 {
+	font-weight: 700;
+	font-size: 16px;
+}
+.food-time.data-v-a679d2d3 {
+	display: block;
+	font-size: 12px;
+	color: #738177;
+	margin-top: 6rpx;
+}
+.form-card.data-v-a679d2d3 {
+	padding: 10px;
+}
+.ai-iconfont.data-v-a679d2d3 {
+	font-family: "iconfont" !important;
+	font-style: normal;
+	font-weight: 400;
+	line-height: 1;
+	color: #4cae57;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+.form-row.data-v-a679d2d3 {
+	display: flex;
+	align-items: center;
+	background: #f4f8f5;
+	border-radius: 8px;
+	padding: 10px 12px;
+	margin-bottom: 12rpx;
+	min-height: 52px;
+	box-sizing: border-box;
+}
+.row-left.data-v-a679d2d3 {
+	display: grid;
+	grid-template-columns: 30px auto;
+	align-items: center;
+	min-width: 132px;
+	flex-shrink: 0;
+	column-gap: 8rpx;
+}
+.row-icon.data-v-a679d2d3 {
+	color: #6aa97a;
+	font-size: 19px;
+	width: 30px;
+	height: 30px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 1;
+	text-align: center;
+	transform: translateY(-2px);
+}
+.expire-icon.data-v-a679d2d3 {
+	color: #4cae57 !important;
+}
+.row-label.data-v-a679d2d3 {
+	font-size: 14px;
+	font-weight: 600;
+	color: #26352d;
+	line-height: 1.2;
+	display: inline-flex;
+	align-items: center;
+}
+.row-input.data-v-a679d2d3 {
+	flex: 1;
+	font-size: 13px;
+	color: #2e3b33;
+	padding: 0 8rpx;
+}
+.flex-picker.data-v-a679d2d3 {
+	flex: 1;
+}
+.row-chip.data-v-a679d2d3 {
+	background: linear-gradient(135deg, #70c977, #4cae57);
+	color: #fff;
+	border-radius: 10px;
+	padding: 12rpx 10rpx;
+	text-align: center;
+	font-size: 13px;
+	font-weight: 600;
+}
+.qty-input.data-v-a679d2d3 {
+	flex: 1;
+	font-size: 13px;
+	color: #2e3b33;
+	padding-left: 8rpx;
+}
+.unit-chip.data-v-a679d2d3 {
+	min-width: 96px;
+	padding: 12rpx 0;
+}
+.zone-row.data-v-a679d2d3 {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	gap: 14rpx;
+}
+.zone-opt.data-v-a679d2d3 {
+	display: inline-flex;
+	align-items: center;
+	gap: 7rpx;
+	font-size: 13px;
+	color: #2d3a32;
+}
+.dot.data-v-a679d2d3 {
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	border: 2rpx solid #cfd8d2;
+	background: #fff;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.zone-opt.active .dot.data-v-a679d2d3 {
+	border-color: #67b374;
+	background: #67b374;
+}
+.zone-opt.active .dot.data-v-a679d2d3::after {
+	content: '✓';
+	color: #fff;
+	font-size: 11px;
+	font-weight: 700;
+}
+.date-row.data-v-a679d2d3 {
+	background: #f4f8f5;
+}
+.row-date.data-v-a679d2d3 {
+	font-size: 13px;
+	color: #98a39d;
+	padding-left: 6rpx;
+}
+.grid2.data-v-a679d2d3 {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 16rpx;
+	margin-top: 8rpx;
+}
+.action-row.data-v-a679d2d3 {
+	margin-top: -4rpx;
+	margin-bottom: 12rpx;
+}
+.del-btn.data-v-a679d2d3 {
+	width: 100%;
+	height: 42px;
+	line-height: 42px;
+	background: linear-gradient(135deg, #ff8d8d, #f36f7a);
+	color: #fff;
+	border-radius: 999rpx;
+	font-size: 13px;
+	font-weight: 700;
+	box-shadow: 0 8rpx 16rpx rgba(243, 111, 122, 0.28);
+	letter-spacing: 1rpx;
+}
+.save-btn.data-v-a679d2d3 {
+	width: 100%;
+	height: 42px;
+	line-height: 42px;
+	background: linear-gradient(135deg, #70c977, #4cae57);
+	color: #fff;
+	border-radius: 999rpx;
+	font-weight: 700;
+	font-size: 13px;
+	box-shadow: 0 8rpx 16rpx rgba(76, 174, 87, 0.26);
+	letter-spacing: 1rpx;
+}
+.del-btn.data-v-a679d2d3::after,
+.save-btn.data-v-a679d2d3::after {
+	border: none;
+}

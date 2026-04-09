@@ -39,10 +39,6 @@ export default {
 </script>
 
 <style scoped>
-@font-face {
-	font-family: "loc-iconfont";
-	src: url('/static/iconfont/iconfont.ttf') format('truetype');
-}
 
 .loc-wrap {
 	flex-shrink: 0;
@@ -52,7 +48,7 @@ export default {
 }
 
 .loc-font {
-	font-family: "loc-iconfont" !important;
+	font-family: "iconfont" !important;
 	font-weight: 400;
 	line-height: 1;
 	-webkit-font-smoothing: antialiased;

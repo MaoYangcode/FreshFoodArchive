@@ -1,12 +1,10 @@
 <template>
-	<view class="container">
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
 		<view class="top">
-			<text class="top-title">保质期设置</text>
-			<view class="capsule" @click="goBack">
-				<svg class="back-ico-svg" aria-hidden="true">
-					<use href="#icon-fanhui"></use>
-				</svg>
+			<view class="back-left" @click="goBack">
+				<text class="back-arrow">‹</text>
 			</view>
+			<text class="top-title">保质期设置</text>
 		</view>
 
 		<view class="card">
@@ -37,19 +35,21 @@
 <script>
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import { getShelfLifeSettings, updateShelfLifeSettings } from '@/api/modules/shelf-life'
+import { getCurrentUserId } from '@/utils/current-user'
 import { DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY, normalizeShelfLifeDaysByCategory } from '@/utils/shelf-life'
 
 export default {
 	components: { IngredientIcon },
 	data() {
 		return {
-			userId: 1,
+			userId: getCurrentUserId(),
 			categories: ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'],
 			dayOptions: Array.from({ length: 365 }, (_, i) => i + 1),
 			values: { ...DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY }
 		}
 	},
 	async onShow() {
+		this.userId = getCurrentUserId()
 		await this.loadSettings()
 	},
 	methods: {
@@ -105,10 +105,10 @@ export default {
 
 <style scoped>
 .container { padding: 10px 12px 20px; }
-.top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; }
+.top { display: flex; align-items: center; gap: 10rpx; margin-bottom: 12rpx; }
 .top-title { font-size: 20px; font-weight: 700; }
-.capsule { border: 1rpx solid #e2e9e4; border-radius: 999rpx; background: #fff; min-width: 88rpx; height: 56rpx; padding: 0 16rpx; box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
-.back-ico-svg { width: 20px; height: 20px; display: block; }
+.back-left { width: 30px; height: 30px; border-radius: 999rpx; display: inline-flex; align-items: center; justify-content: center; }
+.back-arrow { font-size: 30px; line-height: 1; color: #c7ced9; transform: translateY(-1px); }
 
 .card { background: #fff; border: 1rpx solid #edf2ef; border-radius: 16px; padding: 12px; margin-bottom: 10rpx; box-shadow: 0 8rpx 18rpx rgba(30, 50, 34, 0.07); }
 .rule-row { display: flex; align-items: center; justify-content: space-between; min-height: 92rpx; padding: 8rpx 0; border-top: 1rpx solid #eef3f1; }

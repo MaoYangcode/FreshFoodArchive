@@ -1,6 +1,6 @@
 <template>
-	<view class="container">
-		<view class="top">
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
+		<view class="top" :style="{ paddingRight: `${navRightGap}px` }">
 			<text class="top-title">添加食材</text>
 		</view>
 		<view class="card">
@@ -158,6 +158,7 @@ import { recognizeAudioByUpload, recognizeIngredientsByUpload, recognizeReceiptB
 import { getShelfLifeSettings } from '@/api/modules/shelf-life'
 import BottomNav from '@/components/bottom-nav.vue'
 import LocationIcon from '@/components/location-icon.vue'
+import { getCurrentUserId } from '@/utils/current-user'
 import { DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY, getShelfLifeDays, normalizeShelfLifeDaysByCategory } from '@/utils/shelf-life'
 
 export default {
@@ -172,6 +173,7 @@ export default {
 				'桶', '箱', '颗', '朵', '管', '两'
 			],
 			locations: ['冷藏', '冷冻'],
+			userId: getCurrentUserId(),
 			shelfLifeDaysByCategory: { ...DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY },
 			isVoiceRecording: false,
 			voiceSupported: false,
@@ -195,6 +197,7 @@ export default {
 		}
 	},
 	async onShow() {
+		this.userId = getCurrentUserId()
 		await this.loadShelfLifeSettings()
 	},
 	onLoad() {
@@ -220,7 +223,7 @@ export default {
 	methods: {
 		async loadShelfLifeSettings() {
 			try {
-				const res = await getShelfLifeSettings(1)
+				const res = await getShelfLifeSettings(this.userId)
 				const rules = res?.rules || res?.data?.rules || {}
 				this.shelfLifeDaysByCategory = normalizeShelfLifeDaysByCategory(rules)
 			} catch (e) {
@@ -563,7 +566,7 @@ export default {
 						unit: item.unit,
 						location: item.location,
 						expireDate: item.expireDate || null,
-						userId: 1
+						userId: this.userId
 					})
 				}
 				uni.showToast({ title: `成功入库${selectedItems.length}条`, icon: 'success' })
@@ -620,7 +623,7 @@ export default {
 					unit: this.form.unit,
 					location: this.form.location,
 					expireDate: this.form.expireDate || null,
-					userId: 1
+					userId: this.userId
 				})
 		
 				uni.showToast({ title: '保存成功', icon: 'success' })
@@ -643,10 +646,6 @@ export default {
 </script>
 
 <style scoped>
-@font-face {
-	font-family: "add-iconfont";
-	src: url('/static/iconfont/iconfont.ttf') format('truetype');
-}
 
 .container {
 	padding: 10px 12px 88px;
@@ -976,7 +975,7 @@ export default {
 }
 
 .ai-iconfont {
-	font-family: "add-iconfont" !important;
+	font-family: "iconfont" !important;
 	font-style: normal;
 	font-weight: 400;
 	line-height: 1;

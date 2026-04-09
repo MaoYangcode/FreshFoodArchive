@@ -1,0 +1,41 @@
+
+.container.data-v-0a40a5f2 { padding: 10px 12px 20px;
+}
+.top.data-v-0a40a5f2 { display: flex; align-items: center; gap: 10rpx; margin-bottom: 12rpx;
+}
+.top-title.data-v-0a40a5f2 { font-size: 20px; font-weight: 700;
+}
+.back-left.data-v-0a40a5f2 { width: 30px; height: 30px; border-radius: 999rpx; display: inline-flex; align-items: center; justify-content: center;
+}
+.back-arrow.data-v-0a40a5f2 { font-size: 30px; line-height: 1; color: #c7ced9; transform: translateY(-1px);
+}
+.card.data-v-0a40a5f2 { background: #fff; border: 1rpx solid #edf2ef; border-radius: 16px; padding: 12px; margin-bottom: 10rpx; box-shadow: 0 8rpx 18rpx rgba(30, 50, 34, 0.07);
+}
+.rule-row.data-v-0a40a5f2 { display: flex; align-items: center; justify-content: space-between; min-height: 92rpx; padding: 8rpx 0; border-top: 1rpx solid #eef3f1;
+}
+.rule-row.data-v-0a40a5f2:first-of-type { border-top: none;
+}
+.rule-main.data-v-0a40a5f2 { display: inline-flex; align-items: center; gap: 10rpx;
+}
+.cat-ico.data-v-0a40a5f2 { width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; background: #ffffff;
+}
+.cat.data-v-0a40a5f2 { font-size: 16px; font-weight: 600; color: #233229;
+}
+.hint.data-v-0a40a5f2 { display: block; margin-bottom: 6rpx; font-size: 11px; color: #8d9c93; line-height: 1.5;
+}
+.days-inline.data-v-0a40a5f2 { display: inline-flex; align-items: center; gap: 6rpx;
+}
+.suf.data-v-0a40a5f2 { font-size: 14px; color: #28372e;
+}
+.day-box.data-v-0a40a5f2 { min-width: 50rpx; height: 46rpx; border-radius: 10px; border: 1rpx solid #dcebe1; background: #f6fcf8; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #6ebf85; padding: 0 8rpx; box-sizing: border-box;
+}
+.action-row.data-v-0a40a5f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12rpx; margin-top: 8rpx;
+}
+.btn.data-v-0a40a5f2 { width: 100%; border-radius: 999rpx; font-size: 13px; font-weight: 700; height: 42px; line-height: 42px;
+}
+.btn.ghost.data-v-0a40a5f2 { background: #ecf1ed; color: #637268;
+}
+.btn.primary.data-v-0a40a5f2 { background: linear-gradient(135deg, #70c977, #4cae57); color: #fff; box-shadow: 0 8rpx 16rpx rgba(76, 174, 87, 0.26);
+}
+.btn.data-v-0a40a5f2::after { border: none;
+}

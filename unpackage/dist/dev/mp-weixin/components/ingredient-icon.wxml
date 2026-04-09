@@ -1,0 +1,1 @@
+<view class="icon-wrap data-v-a40cf471" style="{{e}}"><view wx:if="{{a}}" class="{{['t-icon', 'ingredient-weapp-icon', 'data-v-a40cf471', b]}}" style="{{c}}"></view><text wx:else class="icon-emoji data-v-a40cf471">{{d}}</text></view>

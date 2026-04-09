@@ -1,0 +1,10 @@
+{
+  "navigationBarTitleText": "我的冰箱",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "bottom-nav": "../../components/bottom-nav",
+    "fridge-view-controls": "../../components/fridge-view-controls",
+    "ingredient-icon": "../../components/ingredient-icon",
+    "location-icon": "../../components/location-icon"
+  }
+}

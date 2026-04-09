@@ -1,0 +1,118 @@
+
+.container.data-v-201c0da5 {
+	padding: 10px 12px 88px;
+}
+.top.data-v-201c0da5 {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 8rpx;
+}
+.top-title.data-v-201c0da5 {
+	font-size: 20px;
+	font-weight: 700;
+}
+.capsule.data-v-201c0da5 {
+	border: 1rpx solid #e2e9e4;
+	border-radius: 999rpx;
+	background: #fff;
+	padding: 6rpx 16rpx;
+	font-size: 14px;
+	display: flex;
+	gap: 10rpx;
+}
+.card.data-v-201c0da5 {
+	background: #fff;
+	border: 1rpx solid #edf2ef;
+	border-radius: 16px;
+	padding: 12px;
+	margin-bottom: 14rpx;
+}
+.head-card.data-v-201c0da5 {
+	display: grid;
+	grid-template-columns: 72px 1fr;
+	gap: 12rpx;
+	align-items: center;
+	margin-top: 10rpx;
+}
+.avatar.data-v-201c0da5 {
+	width: 72px;
+	height: 72px;
+	border-radius: 50%;
+	background: #eaf7ee;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+}
+.avatar-img.data-v-201c0da5 {
+	width: 100%;
+	height: 100%;
+	display: block;
+}
+.avatar-fallback.data-v-201c0da5 {
+	font-family: "iconfont" !important;
+	font-size: 64rpx;
+	color: #34a853;
+	line-height: 1;
+}
+.name.data-v-201c0da5 {
+	font-weight: 700;
+	font-size: 18px;
+}
+.meta.data-v-201c0da5 {
+	display: block;
+	margin-top: 6rpx;
+	font-size: 12px;
+	color: #738177;
+}
+.menu.data-v-201c0da5 {
+	border: 1rpx solid #edf1ef;
+	border-radius: 16px;
+	background: #fff;
+}
+.menu-item.data-v-201c0da5 {
+	display: grid;
+	grid-template-columns: 50rpx 1fr auto;
+	gap: 14rpx;
+	align-items: center;
+	padding: 20rpx 12rpx 20rpx 17px;
+	border-bottom: 1rpx solid #eff3f1;
+	font-size: 15px;
+}
+.menu-item.data-v-201c0da5:last-child {
+	border-bottom: none;
+}
+.menu-item.group-end.data-v-201c0da5 {
+	border-bottom: none;
+}
+.menu-sep.data-v-201c0da5 {
+	height: 24rpx;
+	position: relative;
+}
+.menu-sep.data-v-201c0da5::after {
+	content: '';
+	position: absolute;
+	left: 18px;
+	right: 12px;
+	top: 50%;
+	height: 1rpx;
+	background: #e9eeeb;
+	transform: translateY(-50%);
+}
+.micon.data-v-201c0da5 {
+	font-family: "iconfont" !important;
+	font-style: normal;
+	font-weight: 400;
+	color: #34a853;
+	font-size: 23px;
+	text-align: center;
+	line-height: 1;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+.arrow.data-v-201c0da5 {
+	font-size: 28px;
+	color: #c7ced9;
+	line-height: 1;
+}

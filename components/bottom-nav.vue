@@ -46,10 +46,6 @@ export default {
 </script>
 
 <style scoped>
-@font-face {
-	font-family: "bottom-iconfont";
-	src: url('/static/iconfont/iconfont.ttf') format('truetype');
-}
 
 .tabbar {
 	position: fixed;
@@ -87,7 +83,7 @@ export default {
 }
 
 .iconfont-tab {
-	font-family: "bottom-iconfont" !important;
+	font-family: "iconfont" !important;
 	font-style: normal;
 	font-weight: 400;
 	line-height: 1;

@@ -1,12 +1,10 @@
 <template>
-	<view class="container">
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
 		<view class="top">
-			<text class="top-title">菜篮子</text>
-			<view class="capsule" @click="goBack">
-				<svg class="back-ico-svg" aria-hidden="true">
-					<use href="#icon-fanhui"></use>
-				</svg>
+			<view class="back-left" @click="goBack">
+				<text class="back-arrow">‹</text>
 			</view>
+			<text class="top-title">菜篮子</text>
 		</view>
 
 		<view class="stats-row">
@@ -23,9 +21,7 @@
 				<view class="chip" :class="{ active: statusFilter === 'done' }" @click="statusFilter = 'done'">已购买</view>
 			</view>
 			<view class="search-wrap">
-				<svg class="search-ico-svg" aria-hidden="true">
-					<use href="#icon-sousuo"></use>
-				</svg>
+				<text class="search-ico-text">⌕</text>
 				<input
 					class="search-input"
 					type="text"
@@ -48,8 +44,10 @@
 		</view>
 
 		<view v-for="item in filteredItems" :key="item.id" class="basket-row">
-			<view class="check" :class="{ on: item.status === 'done' }" @click="toggleStatus(item)">
+			<view class="check-hit" @tap.stop="toggleStatus(item)" @click.stop="toggleStatus(item)">
+				<view class="check" :class="{ on: item.status === 'done', busy: isStatusUpdating(item.id) }">
 				<text v-if="item.status === 'done'">✓</text>
+				</view>
 			</view>
 			<view class="ico">
 				<IngredientIcon :name="item.name" :category="item.category" :size="36" />
@@ -60,8 +58,8 @@
 				<text v-if="item.sourceRecipeName" class="source">来自：{{ item.sourceRecipeName }}</text>
 			</view>
 			<view class="right">
-				<text class="status" :class="item.status === 'done' ? 'done' : 'todo'">{{ item.status === 'done' ? '已购买' : '待购买' }}</text>
-				<text class="remove" @click="removeOne(item)">删除</text>
+				<text class="status" :class="item.status === 'done' ? 'done' : 'todo'" @tap.stop="toggleStatus(item)" @click.stop="toggleStatus(item)">{{ item.status === 'done' ? '已购买' : '待购买' }}</text>
+				<text class="remove" @tap.stop="removeOne(item)">删除</text>
 			</view>
 		</view>
 
@@ -163,6 +161,7 @@ import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import LocationIcon from '@/components/location-icon.vue'
 import { getShelfLifeSettings } from '@/api/modules/shelf-life'
+import { getCurrentUserId } from '@/utils/current-user'
 import { DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY, normalizeShelfLifeDaysByCategory } from '@/utils/shelf-life'
 import {
 	addBasketItem,
@@ -177,7 +176,7 @@ export default {
 	components: { BottomNav, IngredientIcon, LocationIcon },
 	data() {
 		return {
-			userId: 1,
+			userId: getCurrentUserId(),
 			items: [],
 			statusFilter: 'all',
 			keyword: '',
@@ -198,7 +197,10 @@ export default {
 				quantity: '1',
 				unit: '份',
 				category: ''
-			}
+			},
+			statusUpdatingMap: {},
+			statusSyncedMap: {},
+			statusDesiredMap: {}
 		}
 	},
 	computed: {
@@ -224,6 +226,7 @@ export default {
 		}
 	},
 	async onShow() {
+		this.userId = getCurrentUserId()
 		await this.loadShelfLifeSettings()
 		this.refresh()
 	},
@@ -241,6 +244,13 @@ export default {
 			try {
 				const res = await getBasketItems(this.userId)
 				this.items = Array.isArray(res) ? res : []
+				const synced = {}
+				this.items.forEach((item) => {
+					if (!item || !item.id) return
+					synced[item.id] = item.status === 'done' ? 'done' : 'todo'
+				})
+				this.statusSyncedMap = synced
+				this.statusDesiredMap = { ...synced }
 			} catch (e) {
 				this.items = []
 				uni.showToast({ title: '菜篮子加载失败', icon: 'none' })
@@ -252,13 +262,49 @@ export default {
 		onKeywordInput(e) {
 			this.keyword = e && e.detail ? `${e.detail.value || ''}` : ''
 		},
-		async toggleStatus(item) {
+		isStatusUpdating(id) {
+			return Boolean(this.statusUpdatingMap && this.statusUpdatingMap[id])
+		},
+		getItemById(id) {
+			return this.items.find((entry) => entry.id === id) || null
+		},
+		setItemStatus(id, status) {
+			this.items = this.items.map((entry) => (
+				entry.id === id ? { ...entry, status } : entry
+			))
+		},
+		async flushStatusSync(id) {
+			if (!id || this.isStatusUpdating(id)) return
+			const desired = this.statusDesiredMap[id]
+			const synced = this.statusSyncedMap[id]
+			if (!desired || !synced || desired === synced) return
+			this.$set(this.statusUpdatingMap, id, true)
 			try {
-				await toggleBasketItemStatus(item.id, this.userId)
-				this.refresh()
+				await toggleBasketItemStatus(id, this.userId)
+				const nextSynced = synced === 'done' ? 'todo' : 'done'
+				this.$set(this.statusSyncedMap, id, nextSynced)
 			} catch (e) {
+				this.setItemStatus(id, synced)
+				this.$set(this.statusDesiredMap, id, synced)
 				uni.showToast({ title: '更新失败', icon: 'none' })
+			} finally {
+				this.$delete(this.statusUpdatingMap, id)
 			}
+			const finalDesired = this.statusDesiredMap[id]
+			const finalSynced = this.statusSyncedMap[id]
+			if (finalDesired && finalSynced && finalDesired !== finalSynced) {
+				this.flushStatusSync(id)
+			}
+		},
+		async toggleStatus(item) {
+			if (!item || !item.id) return
+			const id = item.id
+			const current = this.getItemById(id)
+			if (!current) return
+			const nextStatus = current.status === 'done' ? 'todo' : 'done'
+			this.setItemStatus(id, nextStatus)
+			this.$set(this.statusDesiredMap, id, nextStatus)
+			this.flushStatusSync(id)
 		},
 		async removeOne(item) {
 			try {
@@ -426,16 +472,12 @@ export default {
 </script>
 
 <style scoped>
-@font-face {
-	font-family: "basket-iconfont";
-	src: url('/static/iconfont/iconfont.ttf') format('truetype');
-}
 
 .container { padding: 10px 12px 88px; }
-.top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10rpx; }
+.top { display: flex; align-items: center; gap: 10rpx; margin-bottom: 10rpx; }
 .top-title { font-size: 20px; font-weight: 700; }
-.capsule { border: 1rpx solid #e2e9e4; border-radius: 999rpx; background: #fff; min-width: 88rpx; height: 56rpx; padding: 0 16rpx; box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
-.back-ico-svg { width: 20px; height: 20px; display: block; }
+.back-left { width: 30px; height: 30px; border-radius: 999rpx; display: inline-flex; align-items: center; justify-content: center; }
+.back-arrow { font-size: 30px; line-height: 1; color: #c7ced9; transform: translateY(-1px); }
 
 .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10rpx; margin-bottom: 10rpx; }
 .stat-card { background: #fff; border: 1rpx solid #edf2ef; border-radius: 14px; padding: 10px; }
@@ -451,7 +493,7 @@ export default {
 .chip.active { background: #e8f0ff; color: #4a73d9; border-color: #d9e5ff; }
 
 .search-wrap { display: flex; align-items: center; gap: 8rpx; border: 1rpx solid #e2e8ef; border-radius: 999rpx; background: #f3f7fb; padding: 0 10px; box-sizing: border-box; height: 32px; }
-.search-ico-svg { width: 18px; height: 18px; display: block; flex-shrink: 0; shape-rendering: geometricPrecision; transform: translateZ(0); }
+.search-ico-text { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; line-height: 1; color: #90a1b5; }
 .search-input { flex: 1; height: 32px; line-height: 32px; font-size: 12px; color: #5d6d82; }
 
 .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10rpx; margin-bottom: 10rpx; }
@@ -465,9 +507,11 @@ export default {
 .empty-title { display: block; font-size: 14px; font-weight: 700; color: #2a352f; }
 .empty-sub { display: block; margin-top: 6rpx; font-size: 12px; color: #7a8680; }
 
-.basket-row { display: grid; grid-template-columns: 28rpx 56px 1fr auto; gap: 10rpx; align-items: center; border: 1rpx solid #edf2ef; border-radius: 14px; padding: 9px; background: #fff; margin-bottom: 10rpx; }
-.check { width: 24rpx; height: 24rpx; border-radius: 50%; border: 2rpx solid #cfd8d2; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; }
+.basket-row { display: grid; grid-template-columns: 40rpx 56px 1fr auto; gap: 10rpx; align-items: center; border: 1rpx solid #edf2ef; border-radius: 14px; padding: 9px; background: #fff; margin-bottom: 10rpx; }
+.check-hit { width: 40rpx; height: 40rpx; display: inline-flex; align-items: center; justify-content: center; }
+.check { width: 28rpx; height: 28rpx; border-radius: 50%; border: 2rpx solid #cfd8d2; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; transition: opacity .15s ease; }
 .check.on { border-color: #67b374; background: #67b374; }
+.check.busy { opacity: .6; }
 .ico { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: #f4f9f5; border: 1rpx solid #e7efea; }
 .body { min-width: 0; }
 .name { display: block; font-size: 14px; font-weight: 700; color: #1f2a22; }
@@ -539,5 +583,5 @@ export default {
 .restock-meta { display: inline-flex; align-items: center; gap: 4rpx; height: 42rpx; padding: 0 8rpx; border-radius: 8px; background: #f6faf7; border: none; }
 .restock-meta-text { line-height: 1; color: #6e8175; font-size: 12px; }
 .restock-meta-dot { font-size: 13px; font-weight: 700; color: #6e8175; line-height: 1; }
-.restock-date-ico { color: #4f8fe8; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1; font-family: "basket-iconfont" !important; font-style: normal; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+.restock-date-ico { color: #4f8fe8; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1; font-family: "iconfont" !important; font-style: normal; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 </style>

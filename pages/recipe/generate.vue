@@ -1,6 +1,6 @@
 <template>
-	<view class="container">
-		<view class="top">
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
+		<view class="top" :style="{ paddingRight: `${navRightGap}px` }">
 			<text class="top-title">菜谱推荐</text>
 		</view>
 		<view class="recipe-screen">
@@ -26,6 +26,7 @@
 import BottomNav from '@/components/bottom-nav.vue'
 import { getIngredientList } from '@/api/modules/ingredients'
 import { recommendRecipes } from '@/api/modules/recipes'
+import { getCurrentUserId } from '@/utils/current-user'
 
 function unwrapListPayload(source) {
 	if (Array.isArray(source)) return source
@@ -46,7 +47,8 @@ export default {
 			if (this.isGenerating) return
 			this.isGenerating = true
 			try {
-				const listRes = await getIngredientList()
+				const userId = getCurrentUserId()
+				const listRes = await getIngredientList({ userId })
 				const ingredientsRaw = unwrapListPayload(listRes)
 				const ingredients = ingredientsRaw
 					.filter((x) => x && x.name)
@@ -62,11 +64,11 @@ export default {
 				}
 
 				const aiRes = await recommendRecipes({
-					userId: 1,
+					userId,
 					ingredients,
 					tastePreference: '家常',
 					cookingTime: 30,
-					count: 3
+					count: 6
 				})
 				const recipes = Array.isArray(aiRes?.data?.recipes) ? aiRes.data.recipes : []
 				const profileApplied = aiRes?.data?.profileApplied || null
@@ -94,10 +96,6 @@ export default {
 </script>
 
 <style scoped>
-@font-face {
-	font-family: "recipe-iconfont";
-	src: url('/static/iconfont/iconfont.ttf') format('truetype');
-}
 
 .container {
 	padding: 10px 12px 88px;
@@ -183,7 +181,7 @@ export default {
 }
 
 .magic-iconfont {
-	font-family: "recipe-iconfont" !important;
+	font-family: "iconfont" !important;
 	font-size: 122rpx;
 	line-height: 1;
 	color: #4cae57;

@@ -99,34 +99,6 @@
       }
     }
   ],
-  "tabBar": {
-    "color": "#7A7E83",
-    "selectedColor": "#4CAF50",
-    "backgroundColor": "#FFFFFF",
-    "borderStyle": "black",
-    "list": [
-      {
-        "pagePath": "pages/home/index",
-        "text": "首页"
-      },
-      {
-        "pagePath": "pages/fridge/list",
-        "text": "冰箱"
-      },
-      {
-        "pagePath": "pages/fridge/add",
-        "text": "添加"
-      },
-      {
-        "pagePath": "pages/recipe/generate",
-        "text": "菜谱"
-      },
-      {
-        "pagePath": "pages/profile/index",
-        "text": "我的"
-      }
-    ]
-  },
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarBackgroundColor": "#F7F8FA",

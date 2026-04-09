@@ -1,12 +1,15 @@
 <template>
-	<view class="container">
-		<view class="top">
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
+		<view class="top" :style="{ paddingRight: `${navRightGap}px` }">
 			<text class="top-title">我的</text>
 		</view>
 		<view class="card head-card">
-			<view class="avatar">&#xe615;</view>
+			<view class="avatar">
+				<image v-if="profileAvatar" class="avatar-img" :src="profileAvatar" mode="aspectFill" />
+				<text v-else class="avatar-fallback">&#xe615;</text>
+			</view>
 			<view>
-				<text class="name">微信用户</text>
+				<text class="name">{{ profileName }}</text>
 				<text class="meta">普通会员</text>
 			</view>
 		</view>
@@ -56,10 +59,33 @@
 
 <script>
 import BottomNav from '@/components/bottom-nav.vue'
+import { getProfile } from '@/api/modules/profile'
+import { getCurrentUserId } from '@/utils/current-user'
 
 export default {
 	components: { BottomNav },
+	data() {
+		return {
+			userId: getCurrentUserId(),
+			profileName: '微信用户',
+			profileAvatar: ''
+		}
+	},
+	onShow() {
+		this.userId = getCurrentUserId()
+		this.loadProfileHeader()
+	},
 	methods: {
+		async loadProfileHeader() {
+			try {
+				const res = await getProfile(this.userId)
+				this.profileName = `${res?.name || '微信用户'}`.trim() || '微信用户'
+				this.profileAvatar = `${res?.avatar || ''}`.trim()
+			} catch (e) {
+				this.profileName = '微信用户'
+				this.profileAvatar = ''
+			}
+		},
 		goFridge() {
 			uni.navigateTo({
 				url: '/pages/fridge/shelf-life'
@@ -85,10 +111,6 @@ export default {
 </script>
 
 <style scoped>
-@font-face {
-	font-family: "profile-iconfont";
-	src: url('/static/iconfont/iconfont.ttf') format('truetype');
-}
 
 .container {
 	padding: 10px 12px 88px;
@@ -133,7 +155,6 @@ export default {
 }
 
 .avatar {
-	font-family: "profile-iconfont" !important;
 	width: 72px;
 	height: 72px;
 	border-radius: 50%;
@@ -141,8 +162,20 @@ export default {
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	overflow: hidden;
+}
+
+.avatar-img {
+	width: 100%;
+	height: 100%;
+	display: block;
+}
+
+.avatar-fallback {
+	font-family: "iconfont" !important;
 	font-size: 64rpx;
 	color: #34a853;
+	line-height: 1;
 }
 
 .name {
@@ -198,7 +231,7 @@ export default {
 }
 
 .micon {
-	font-family: "profile-iconfont" !important;
+	font-family: "iconfont" !important;
 	font-style: normal;
 	font-weight: 400;
 	color: #34a853;

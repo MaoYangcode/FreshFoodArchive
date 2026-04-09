@@ -1,6 +1,6 @@
 <template>
-	<view class="container">
-		<view class="top">
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
+		<view class="top" :style="{ paddingRight: `${navRightGap}px` }">
 			<text class="top-title">鲜食档案</text>
 		</view>
 		<view class="stats">
@@ -26,7 +26,9 @@
 
 		<view class="card">
 			<view v-if="latestIngredients.length === 0" class="row">
-				<view class="ico">🧊</view>
+				<view class="ico">
+					<IngredientIcon name="冰箱" category="其他" :size="34" />
+				</view>
 				<view class="body">
 					<text class="name">还没有食材</text>
 					<text class="meta">去添加页录入第一条食材吧</text>
@@ -72,6 +74,7 @@ export default {
 	components: { BottomNav, IngredientIcon },
 	data() {
 		return {
+			safeTop: 20,
 			stats: {
 				total: 0,
 				fresh: 0,
@@ -84,6 +87,13 @@ export default {
 				tags: ['高纤维', '低盐', '优先临期']
 			}
 		}
+	},
+	onLoad() {
+		try {
+			const info = uni.getSystemInfoSync()
+			const top = Number(info?.statusBarHeight || 0)
+			if (Number.isFinite(top) && top > 0) this.safeTop = top
+		} catch (e) {}
 	},
 	onShow() {
 		this.refreshData()
@@ -208,13 +218,8 @@ export default {
 </script>
 
 <style scoped>
-@font-face {
-	font-family: "home-iconfont";
-	src: url('/static/iconfont/iconfont.ttf') format('truetype');
-}
-
 .container {
-	padding: 10px 12px 88px;
+	padding: 0 12px 88px;
 }
 
 .top {
@@ -300,7 +305,7 @@ export default {
 }
 
 .home-iconfont {
-	font-family: "home-iconfont" !important;
+	font-family: "iconfont" !important;
 	font-style: normal;
 	font-weight: 400;
 	line-height: 1;
@@ -352,6 +357,11 @@ export default {
 	justify-content: center;
 	background: #f8fbff;
 	font-size: 40rpx;
+}
+
+.empty-ico-font {
+	width: 34px;
+	height: 34px;
 }
 
 .body {

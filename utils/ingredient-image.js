@@ -56,6 +56,7 @@ const CATEGORY_TO_EMOJI = {
 }
 
 const NAME_TO_ICONFONT = {
+	冰箱: 'icon-bingxiang',
 	苹果: 'icon-pingguo',
 	香蕉: 'icon-xiangjiao',
 	牛肉: 'icon-niurou',
@@ -128,7 +129,7 @@ const NAME_TO_ICONFONT = {
 	香菇: 'icon-mogu',
 	金针菇: 'icon-jinzhengu',
 	牛排: 'icon-niupai',
-	猪肉: 'icon-zhurou',
+	猪肉: 'icon-a-zhuroufeisou',
 	'猪肉(肥瘦)': 'icon-a-zhuroufeisou',
 	鸡肉: 'icon-jirou',
 	鸡胸肉: 'icon-jixiongrou',
@@ -139,7 +140,7 @@ const NAME_TO_ICONFONT = {
 	火腿肠: 'icon-huotuichang',
 	香肠: 'icon-xiangchang',
 	炸鸡腿: 'icon-zhajitui',
-	虾: 'icon-xia',
+	虾: 'icon-xiaren',
 	虾仁: 'icon-xiaren',
 	鸡尾虾: 'icon-jiweixia',
 	生三文鱼: 'icon-shengsanwenyu',
@@ -240,10 +241,10 @@ const KEYWORD_TO_ICONFONT = [
 	{ keyword: '洋葱', icon: 'icon-yangcong' },
 	{ keyword: '胡萝卜', icon: 'icon-huluobu' },
 	{ keyword: '萝卜', icon: 'icon-luobu' },
-	{ keyword: '虾', icon: 'icon-xia' },
+	{ keyword: '虾', icon: 'icon-xiaren' },
 	{ keyword: '鸡胸', icon: 'icon-jixiongrou' },
 	{ keyword: '鸡肉', icon: 'icon-jirou' },
-	{ keyword: '猪肉', icon: 'icon-zhurou' },
+	{ keyword: '猪肉', icon: 'icon-a-zhuroufeisou' },
 	{ keyword: '豆腐', icon: 'icon-doufu' },
 	{ keyword: '蘑菇', icon: 'icon-mogu' },
 	{ keyword: '香菇', icon: 'icon-mogu' },
@@ -357,6 +358,16 @@ function getCategoryFallbackIconfontClass(category) {
 export function getIngredientSymbolId(name, category = '') {
 	const cls = getIngredientIconfontClass(name) || getCategoryFallbackIconfontClass(category)
 	return cls ? `#${cls}` : ''
+}
+
+export function getIngredientDisplayIconfontClass(name, category = '') {
+	return getIngredientIconfontClass(name) || getCategoryFallbackIconfontClass(category)
+}
+
+export function getIngredientWeappColorClass(name, category = '') {
+	const cls = getIngredientDisplayIconfontClass(name, category)
+	if (!cls) return ''
+	return `t-icon-${cls.replace(/^icon-/, '')}`
 }
 
 export function getCategoryEmoji(category) {

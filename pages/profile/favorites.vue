@@ -1,12 +1,10 @@
 <template>
-	<view class="container">
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
 		<view class="top">
-			<text class="top-title">收藏菜谱</text>
-			<view class="capsule" @click="goBack">
-				<svg class="back-ico-svg" aria-hidden="true">
-					<use href="#icon-fanhui"></use>
-				</svg>
+			<view class="back-left" @click="goBack">
+				<text class="back-arrow">‹</text>
 			</view>
+			<text class="top-title">收藏菜谱</text>
 		</view>
 		<view v-if="recipes.length > 0" class="filter-card">
 			<view class="range-inline">
@@ -26,9 +24,7 @@
 			</view>
 		</view>
 		<view v-if="recipes.length > 0" class="search-wrap">
-			<svg class="search-ico-svg" aria-hidden="true">
-				<use href="#icon-sousuo"></use>
-			</svg>
+			<text class="search-ico-text">⌕</text>
 			<input
 				class="search-input"
 				type="text"
@@ -181,10 +177,6 @@ export default {
 </script>
 
 <style scoped>
-@font-face {
-	font-family: "result-iconfont";
-	src: url('/static/iconfont/iconfont.ttf') format('truetype');
-}
 
 .container {
 	padding: 10px 12px 88px;
@@ -192,8 +184,8 @@ export default {
 
 .top {
 	display: flex;
-	justify-content: space-between;
 	align-items: center;
+	gap: 10rpx;
 	margin-bottom: 16rpx;
 }
 
@@ -202,30 +194,16 @@ export default {
 	font-weight: 700;
 }
 
-.capsule {
-	border: 1rpx solid #e2e9e4;
-	border-radius: 999rpx;
-	background: #fff;
-	min-width: 88rpx;
-	height: 56rpx;
-	padding: 0 16rpx;
-	box-sizing: border-box;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.back-ico-svg {
-	width: 20px;
-	height: 20px;
-	display: block;
-}
+.back-left { width: 30px; height: 30px; border-radius: 999rpx; display: inline-flex; align-items: center; justify-content: center; }
+.back-arrow { font-size: 30px; line-height: 1; color: #c7ced9; transform: translateY(-1px); }
 
 .card {
 	background: #fff;
 	border: 1rpx solid #edf2ef;
 	border-radius: 14px;
 	padding: 10px;
+	font-size: 12px;
+	color: #7f8a96;
 }
 
 .filter-card {
@@ -299,13 +277,16 @@ export default {
 	box-sizing: border-box;
 }
 
-.search-ico-svg {
+.search-ico-text {
 	width: 18px;
 	height: 18px;
-	display: block;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	flex-shrink: 0;
-	shape-rendering: geometricPrecision;
-	transform: translateZ(0);
+	font-size: 16px;
+	line-height: 1;
+	color: #90a1b5;
 }
 
 .search-input {
@@ -382,7 +363,7 @@ export default {
 
 .chip-ico.recipe-iconfont,
 .recipe-iconfont {
-	font-family: "result-iconfont" !important;
+	font-family: "iconfont" !important;
 	font-style: normal;
 	font-weight: 400;
 	line-height: 1;

@@ -5,9 +5,10 @@ import { PrismaService } from '../prisma/prisma.service'
 export class IngredientsService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll() {
+  async findAll(userId: number) {
     return this.prisma.ingredient.findMany({
       where: {
+        userId,
         quantity: {
           gt: 0,
         },
@@ -18,9 +19,9 @@ export class IngredientsService {
     })
   }
 
-  async findOne(id: number) {
-    const item = await this.prisma.ingredient.findUnique({
-      where: { id },
+  async findOne(id: number, userId: number) {
+    const item = await this.prisma.ingredient.findFirst({
+      where: { id, userId },
     })
     if (!item) {
       throw new NotFoundException('食材不存在')
@@ -28,7 +29,7 @@ export class IngredientsService {
     return item
   }
 
-  async create(data: any) {
+  async create(userId: number, data: any) {
     return this.prisma.ingredient.create({
       data: {
         name: data.name,
@@ -37,14 +38,14 @@ export class IngredientsService {
         unit: data.unit,
         location: data.location,
         expireDate: data.expireDate ? new Date(data.expireDate) : null,
-        userId: data.userId ?? 1,
+        userId,
       },
     })
   }
 
-  async remove(id: number) {
-  const item = await this.prisma.ingredient.findUnique({
-    where: { id },
+  async remove(id: number, userId: number) {
+  const item = await this.prisma.ingredient.findFirst({
+    where: { id, userId },
   })
 
   if (!item) {
@@ -66,7 +67,14 @@ export class IngredientsService {
   }
 }
 
-  async update(id: number, data: any) {
+  async update(id: number, userId: number, data: any) {
+    const exists = await this.prisma.ingredient.findFirst({
+      where: { id, userId },
+      select: { id: true },
+    })
+    if (!exists) {
+      throw new NotFoundException('食材不存在')
+    }
     return this.prisma.ingredient.update({
       where: { id },
       data: {
@@ -80,15 +88,15 @@ export class IngredientsService {
     })
   }
 
-  async consume(id: number, data: any) {
+  async consume(id: number, userId: number, data: any) {
     const quantity = Number(data.quantity || 1)
 
     if (!quantity || quantity <= 0) {
       throw new BadRequestException('取出数量必须大于 0')
     }
 
-    const ingredient = await this.prisma.ingredient.findUnique({
-      where: { id },
+    const ingredient = await this.prisma.ingredient.findFirst({
+      where: { id, userId },
     })
 
     if (!ingredient) {
@@ -115,8 +123,13 @@ export class IngredientsService {
 
     return updatedIngredient
   }
-  async getTakeoutRecords() {
+  async getTakeoutRecords(userId: number) {
   const records = await this.prisma.takeoutRecord.findMany({
+    where: {
+      ingredient: {
+        userId,
+      },
+    },
     orderBy: {time: 'desc' }, 
     include: {
       ingredient: {

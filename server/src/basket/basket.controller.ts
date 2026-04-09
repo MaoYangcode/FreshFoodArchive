@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Req } from '@nestjs/common'
 import { BasketService } from './basket.service'
 
 @Controller('basket-items')
@@ -6,41 +6,41 @@ export class BasketController {
   constructor(private readonly basketService: BasketService) {}
 
   @Get()
-  findAll(@Query('userId') userId?: string) {
-    return this.basketService.findAll(Number(userId || 1))
+  findAll(@Req() req: any) {
+    return this.basketService.findAll(Number(req?.userId || 1))
   }
 
   @Post()
-  create(@Body() body: any) {
-    return this.basketService.create(Number(body?.userId || 1), body || {})
+  create(@Req() req: any, @Body() body: any) {
+    return this.basketService.create(Number(req?.userId || 1), body || {})
   }
 
   @Post('upsert')
-  upsert(@Body() body: any) {
+  upsert(@Req() req: any, @Body() body: any) {
     return this.basketService.upsertItems(
-      Number(body?.userId || 1),
+      Number(req?.userId || 1),
       Array.isArray(body?.items) ? body.items : [],
       `${body?.sourceRecipeName || ''}`,
     )
   }
 
   @Patch(':id/toggle')
-  toggle(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
-    return this.basketService.toggleStatus(id, Number(body?.userId || 1))
+  toggle(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.basketService.toggleStatus(id, Number(req?.userId || 1))
   }
 
   @Delete('done/clear')
-  clearDone(@Query('userId') userId?: string) {
-    return this.basketService.clearDone(Number(userId || 1))
+  clearDone(@Req() req: any) {
+    return this.basketService.clearDone(Number(req?.userId || 1))
   }
 
   @Post('done/restock')
-  restockDone(@Body() body: any) {
-    return this.basketService.restockDone(Number(body?.userId || 1), body || {})
+  restockDone(@Req() req: any, @Body() body: any) {
+    return this.basketService.restockDone(Number(req?.userId || 1), body || {})
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number, @Query('userId') userId?: string) {
-    return this.basketService.remove(id, Number(userId || 1))
+  remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.basketService.remove(id, Number(req?.userId || 1))
   }
 }

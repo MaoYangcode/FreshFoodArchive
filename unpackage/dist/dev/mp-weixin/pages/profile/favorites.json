@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "收藏菜谱",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "bottom-nav": "../../components/bottom-nav",
+    "ingredient-icon": "../../components/ingredient-icon"
+  }
+}

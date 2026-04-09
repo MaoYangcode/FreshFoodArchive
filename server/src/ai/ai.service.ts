@@ -216,7 +216,7 @@ export class AiService {
 
   async generateRecipeList(payload: any): Promise<RecipeGenerateResult> {
     const ingredients = Array.isArray(payload?.ingredients) ? payload.ingredients : []
-    const count = Math.min(Math.max(Number(payload?.count || 3), 1), 6)
+    const count = Math.min(Math.max(Number(payload?.count || 6), 1), 10)
     const cookingTime = Number(payload?.cookingTime || 30)
     const tastePreference = `${payload?.tastePreference || '家常'}`
     const userId = Math.max(Number(payload?.userId || 1), 1)

@@ -1,0 +1,201 @@
+
+.container.data-v-39dbef3f {
+	padding: 10px 12px 88px;
+}
+.top.data-v-39dbef3f {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 14rpx;
+}
+.top-title.data-v-39dbef3f {
+	font-size: 20px;
+	font-weight: 700;
+}
+.recipe-banner.data-v-39dbef3f {
+	border-radius: 14px;
+	padding: 12rpx 14rpx;
+	background: linear-gradient(135deg, #f4f8f5, #f8fbf8);
+	border: 1rpx solid #e2ebe4;
+	margin-bottom: 22rpx;
+}
+.banner-label.data-v-39dbef3f {
+	display: block;
+	font-size: 12px;
+	color: #66756b;
+	margin-bottom: 6rpx;
+}
+.pill-food.data-v-39dbef3f {
+	display: inline-block;
+	margin: 4rpx 8rpx 0 0;
+	padding: 4rpx 12rpx;
+	border-radius: 999rpx;
+	font-size: 11px;
+	background: #eaf2ec;
+	color: #55645a;
+}
+.control-row.data-v-39dbef3f {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8rpx;
+	margin-bottom: 20rpx;
+}
+.chip-ico.data-v-39dbef3f {
+	margin-right: 5rpx;
+}
+.chip-ico.recipe-iconfont.data-v-39dbef3f,
+.recipe-iconfont.data-v-39dbef3f {
+	font-family: "iconfont" !important;
+	font-style: normal;
+	font-weight: 400;
+	line-height: 1;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+.control-divider.data-v-39dbef3f {
+	color: #c0c9d4;
+	padding: 0 4rpx;
+}
+.control-chip.data-v-39dbef3f {
+	padding: 7rpx 14rpx;
+	border-radius: 999rpx;
+	font-size: 12px;
+	background: #f4f6f9;
+	color: #4e5f74;
+	font-weight: 600;
+}
+.control-chip.compact.data-v-39dbef3f {
+	padding: 7rpx 12rpx;
+}
+.picker-chip.data-v-39dbef3f {
+	display: inline-flex;
+	align-items: center;
+	gap: 6rpx;
+	border: 1rpx solid #f2d6b0;
+	background: #fff8ef;
+	color: #b68652;
+}
+.picker-arrow.data-v-39dbef3f {
+	font-size: 7px;
+	color: #b68652;
+	line-height: 1;
+}
+.control-chip.active.data-v-39dbef3f {
+	background: #e8effd;
+	color: #4b74d9;
+	font-weight: 600;
+}
+.recipe-card.data-v-39dbef3f {
+	display: grid;
+	grid-template-columns: 68px 1fr auto;
+	column-gap: 10px;
+	row-gap: 8rpx;
+	align-items: center;
+	border: 1rpx solid #edf2ef;
+	border-radius: 14px;
+	padding: 10px 12px;
+	background: #fff;
+	margin-bottom: 10rpx;
+}
+.recipe-avatar.data-v-39dbef3f {
+	width: 60px;
+	height: 60px;
+	border-radius: 14px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #f4f9f5;
+	border: 1rpx solid #e7efea;
+}
+.recipe-main.data-v-39dbef3f {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+.title-row.data-v-39dbef3f {
+	display: block;
+}
+.name-score-row.data-v-39dbef3f {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-start;
+	flex-wrap: nowrap;
+	gap: 4rpx;
+	max-width: 100%;
+	position: relative;
+	top: -2rpx;
+}
+.meta.data-v-39dbef3f {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6rpx;
+	color: #738177;
+	font-size: 12px;
+	margin-top: 12rpx;
+}
+.name.data-v-39dbef3f {
+	font-weight: 700;
+	font-size: 15px;
+	color: #1f2a22;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: 1.25;
+	max-width: 320rpx;
+}
+.score-pill.data-v-39dbef3f {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 10px;
+	font-weight: 600;
+	color: #4e6f56;
+	background: #edf5ef;
+	border-radius: 999rpx;
+	padding: 3rpx 8rpx;
+	line-height: 1.2;
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+.meta-item.data-v-39dbef3f {
+	display: inline-flex;
+	align-items: center;
+	color: #8a939e;
+}
+.meta-icon.data-v-39dbef3f {
+	font-size: 12px;
+	margin-right: 4rpx;
+	opacity: 0.9;
+}
+.chip-ico.recipe-iconfont.data-v-39dbef3f,
+.meta-icon.recipe-iconfont.data-v-39dbef3f {
+	font-size: 14px;
+}
+.duration-ico.data-v-39dbef3f {
+	font-size: 13px !important;
+}
+.meta-dot.data-v-39dbef3f {
+	color: #b3bcc8;
+	padding: 0 2rpx;
+}
+.recipe-cta.data-v-39dbef3f {
+	padding: 8rpx 13rpx;
+	border-radius: 999rpx;
+	font-size: 12px;
+	background: #eaf7ee;
+	color: #409a4d;
+	font-weight: 700;
+}
+.recipe-cta.blue.data-v-39dbef3f {
+	background: #edf4ff;
+	color: #4a73d9;
+}
+.empty-hint.data-v-39dbef3f {
+	margin-top: 16rpx;
+	text-align: center;
+	color: #8a939e;
+	font-size: 12px;
+}
+

@@ -58,6 +58,29 @@ const DEFAULT_RESTOCK_SHELF_LIFE_DAYS: Record<string, number> = {
   其他: 7,
 }
 
+const SMART_PURCHASE_RULES: Array<{ keywords: string[]; unit: string; quantity: number }> = [
+  {
+    keywords: ['生抽', '老抽', '酱油', '蚝油', '料酒', '醋', '香油', '麻油', '芝麻油', '橄榄油', '菜籽油', '花生油', '食用油'],
+    unit: '瓶',
+    quantity: 1,
+  },
+  {
+    keywords: ['番茄酱', '沙拉酱', '芝麻酱', '豆瓣酱', '辣椒酱'],
+    unit: '瓶',
+    quantity: 1,
+  },
+  {
+    keywords: ['盐', '糖', '白糖', '红糖', '冰糖', '淀粉', '鸡精', '味精', '十三香', '孜然', '胡椒', '胡椒粉', '花椒粉', '辣椒面', '咖喱粉'],
+    unit: '袋',
+    quantity: 1,
+  },
+  {
+    keywords: ['蜂蜜'],
+    unit: '瓶',
+    quantity: 1,
+  },
+]
+
 @Injectable()
 export class BasketService {
   constructor(private readonly prisma: PrismaService) {}
@@ -85,6 +108,35 @@ export class BasketService {
     const n = Number(value)
     if (!Number.isFinite(n) || n <= 0) return 1
     return n
+  }
+
+  private isTinyRecipeUnit(unitText: unknown) {
+    const text = `${unitText || ''}`.trim()
+    if (!text) return false
+    return /(勺|匙|茶匙|汤匙|小勺|大勺|少许|适量|撮|滴)/.test(text)
+  }
+
+  private pickSmartPurchaseSpecByName(name: unknown) {
+    const text = `${name || ''}`.trim()
+    for (const rule of SMART_PURCHASE_RULES) {
+      if (rule.keywords.some((kw) => text.includes(kw))) {
+        return { unit: rule.unit, quantity: this.normalizeQuantity(rule.quantity) }
+      }
+    }
+    const liquidLike = /(酱油|生抽|老抽|蚝油|料酒|醋|香油|麻油|芝麻油|橄榄油|菜籽油|花生油|食用油|蜂蜜)/.test(text)
+    return { unit: liquidLike ? '瓶' : '袋', quantity: 1 }
+  }
+
+  private toSmartPurchaseForBasket(input: { name: string; category: string; quantity: number; unit: string }) {
+    const likelyCondiment = input.category === '调味品' || this.inferCategoryByName(input.name) === '调味品'
+    if (!likelyCondiment || !this.isTinyRecipeUnit(input.unit)) return input
+    const smart = this.pickSmartPurchaseSpecByName(input.name)
+    return {
+      ...input,
+      category: '调味品',
+      unit: smart.unit,
+      quantity: this.normalizeQuantity(smart.quantity),
+    }
   }
 
   private normalizeShelfLifeDays(value: unknown, fallback: number) {
@@ -146,12 +198,19 @@ export class BasketService {
 
   private normalizePayload(raw: any, sourceRecipeName = '') {
     const name = `${raw?.name || ''}`.trim()
-    return {
+    const category = this.pickCategory(raw?.category, name)
+    const normalized = this.toSmartPurchaseForBasket({
       name,
-      normalizedName: this.normalizeName(name),
+      category,
       quantity: this.normalizeQuantity(raw?.quantity),
       unit: `${raw?.unit || '份'}`.trim() || '份',
-      category: this.pickCategory(raw?.category, name),
+    })
+    return {
+      name: normalized.name,
+      normalizedName: this.normalizeName(name),
+      quantity: normalized.quantity,
+      unit: normalized.unit,
+      category: normalized.category,
       status: raw?.status === 'done' ? 'done' : 'todo',
       sourceRecipeName: `${sourceRecipeName || raw?.sourceRecipeName || ''}`.trim(),
       note: `${raw?.note || ''}`.trim(),
@@ -166,10 +225,40 @@ export class BasketService {
 
   async findAll(userId = 1) {
     await this.ensureUserExists(userId)
-    return this.prisma.basketItem.findMany({
+    const list = await this.prisma.basketItem.findMany({
       where: { userId },
       orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
     })
+    const updates: Array<Promise<unknown>> = []
+    const nextList = list.map((row) => {
+      const smart = this.toSmartPurchaseForBasket({
+        name: row.name,
+        category: this.pickCategory(row.category, row.name),
+        quantity: this.normalizeQuantity(row.quantity),
+        unit: `${row.unit || '份'}`,
+      })
+      if (smart.unit === row.unit && Number(smart.quantity) === Number(row.quantity) && smart.category === row.category) {
+        return row
+      }
+      updates.push(
+        this.prisma.basketItem.update({
+          where: { id: row.id },
+          data: {
+            unit: smart.unit,
+            quantity: smart.quantity,
+            category: smart.category,
+          },
+        }),
+      )
+      return {
+        ...row,
+        unit: smart.unit,
+        quantity: smart.quantity,
+        category: smart.category,
+      }
+    })
+    if (updates.length) await Promise.all(updates)
+    return nextList
   }
 
   async create(userId: number, raw: any) {
@@ -218,9 +307,11 @@ export class BasketService {
       await this.prisma.basketItem.update({
         where: { id: existing.id },
         data: {
-          quantity: Number(existing.quantity || 0) + Number(item.quantity || 0),
-          unit: existing.unit || item.unit,
-          category: this.pickCategory(existing.category || item.category, existing.name || item.name),
+          quantity: this.isTinyRecipeUnit(existing.unit)
+            ? this.normalizeQuantity(item.quantity)
+            : Number(existing.quantity || 0) + Number(item.quantity || 0),
+          unit: this.isTinyRecipeUnit(existing.unit) ? item.unit : (existing.unit || item.unit),
+          category: this.pickCategory(existing.category || item.category || '其他', existing.name || item.name),
           sourceRecipeName: existing.sourceRecipeName || item.sourceRecipeName,
         },
       })

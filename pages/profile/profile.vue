@@ -1,18 +1,16 @@
 <template>
-	<view class="container">
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
 		<view class="top">
-			<text class="top-title">我的资料</text>
-			<view class="capsule" @click="goBack">
-				<svg class="back-ico-svg" aria-hidden="true">
-					<use href="#icon-fanhui"></use>
-				</svg>
+			<view class="back-left" @click="goBack">
+				<text class="back-arrow">‹</text>
 			</view>
+			<text class="top-title">我的资料</text>
 		</view>
 
 		<view class="hero-bg">
 			<view class="avatar-wrap" @click="pickAvatar">
 				<view class="avatar-box">
-					<image v-if="form.avatar" class="avatar-img" :src="form.avatar" mode="aspectFill" />
+					<image v-if="avatarSrc" class="avatar-img" :src="avatarSrc" mode="aspectFill" />
 					<text v-else class="profile-iconfont avatar-fallback-ico">&#xe615;</text>
 				</view>
 			</view>
@@ -89,6 +87,7 @@
 <script>
 import BottomNav from '@/components/bottom-nav.vue'
 import { getProfile, updateProfile } from '@/api/modules/profile'
+import { getCurrentUserId } from '@/utils/current-user'
 
 const DEFAULT_FORM = {
 	name: '微信用户',
@@ -108,21 +107,29 @@ export default {
 	components: { BottomNav },
 	data() {
 		return {
-			userId: 1,
+			userId: getCurrentUserId(),
 			householdOptions: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
 			dietOptions: ['清淡', '低脂', '高蛋白', '少糖', '少盐', '增肌'],
 			avoidanceOptions: ['海鲜', '花生', '乳糖', '辛辣', '香菜', '葱姜蒜'],
 			cookwareOptions: ['空气炸锅', '电饭煲', '烤箱', '炒锅', '蒸锅', '微波炉'],
-			form: cloneDefaultForm()
+			form: cloneDefaultForm(),
+			avatarPreview: '',
+			avatarDataForSave: ''
 		}
 	},
 	computed: {
 		avatarText() {
 			const text = `${this.form.name || ''}`.trim()
 			return text ? text.slice(0, 1) : '我'
+		},
+		avatarSrc() {
+			const preview = `${this.avatarPreview || ''}`.trim()
+			if (preview) return preview
+			return `${this.form.avatar || ''}`.trim()
 		}
 	},
 	onLoad() {
+		this.userId = getCurrentUserId()
 		this.loadProfile()
 	},
 	methods: {
@@ -154,8 +161,12 @@ export default {
 					cookware: this.parseCookware(res.note),
 					note: `${res.note || ''}`.trim()
 				}
+				this.avatarPreview = `${this.form.avatar || ''}`.trim()
+				this.avatarDataForSave = ''
 			} catch (e) {
 				this.form = cloneDefaultForm()
+				this.avatarPreview = ''
+				this.avatarDataForSave = ''
 				uni.showToast({ title: '资料加载失败', icon: 'none' })
 			}
 		},
@@ -186,6 +197,26 @@ export default {
 				})
 			})
 		},
+		compressAvatar(path) {
+			return new Promise((resolve) => {
+				if (!path || typeof uni.compressImage !== 'function') {
+					resolve(path)
+					return
+				}
+				uni.compressImage({
+					src: path,
+					quality: 50,
+					compressedWidth: 320,
+					compressedHeight: 320,
+					success: (res) => {
+						resolve(res?.tempFilePath || path)
+					},
+					fail: () => {
+						resolve(path)
+					}
+				})
+			})
+		},
 		pickAvatar() {
 			uni.chooseImage({
 				count: 1,
@@ -193,14 +224,34 @@ export default {
 				success: async (res) => {
 					const path = res?.tempFilePaths?.[0]
 					if (!path) return
+					this.avatarPreview = path
+					this.avatarDataForSave = ''
 					try {
-						const dataUrl = await this.readAsDataUrl(path)
-						this.form.avatar = `${dataUrl || ''}`
+						const compressedPath = await this.compressAvatar(path)
+						const dataUrl = await this.readAsDataUrl(compressedPath || path)
+						const normalized = `${dataUrl || ''}`.trim()
+						if (!normalized.startsWith('data:image/')) {
+							throw new Error('invalid avatar data')
+						}
+						this.form.avatar = normalized
+						this.avatarDataForSave = normalized
 					} catch (e) {
-						this.form.avatar = path
+						uni.showToast({ title: '已选头像，保存时将再次处理', icon: 'none' })
 					}
 				}
 			})
+		},
+		async resolveAvatarForSave() {
+			const direct = `${this.avatarDataForSave || this.form.avatar || ''}`.trim()
+			if (direct.startsWith('data:image/')) return direct
+			const preview = `${this.avatarPreview || ''}`.trim()
+			if (!preview) return ''
+			try {
+				const dataUrl = await this.readAsDataUrl(preview)
+				const normalized = `${dataUrl || ''}`.trim()
+				if (normalized.startsWith('data:image/')) return normalized
+			} catch (e) {}
+			return ''
 		},
 		toggleListValue(field, value) {
 			const current = Array.isArray(this.form[field]) ? this.form[field] : []
@@ -212,13 +263,18 @@ export default {
 		},
 		resetDefaults() {
 			this.form = cloneDefaultForm()
+			this.avatarPreview = ''
+			this.avatarDataForSave = ''
 			uni.showToast({ title: '已恢复默认', icon: 'none' })
 		},
 		async saveProfile() {
+			const avatarToSave = await this.resolveAvatarForSave()
+			const currentSavedAvatar = `${this.form.avatar || ''}`.trim()
+			const safeAvatar = avatarToSave || (currentSavedAvatar.startsWith('data:image/') ? currentSavedAvatar : '')
 			const payload = {
 				userId: this.userId,
 				name: `${this.form.name || ''}`.trim() || DEFAULT_FORM.name,
-				avatar: `${this.form.avatar || ''}`.trim(),
+				avatar: safeAvatar,
 				householdSize: Number(this.form.householdSize || DEFAULT_FORM.householdSize),
 				dietPreferences: this.normalizeArray(this.form.dietPreferences),
 				avoidances: this.normalizeArray(this.form.avoidances),
@@ -235,6 +291,8 @@ export default {
 					cookware: this.parseCookware(saved?.note || payload.note),
 					note: `${saved?.note || payload.note}`.trim()
 				}
+				this.avatarPreview = `${this.form.avatar || ''}`.trim()
+				this.avatarDataForSave = `${this.form.avatar || ''}`.trim()
 				uni.showToast({ title: '资料已更新', icon: 'success' })
 			} catch (e) {
 				uni.showToast({ title: '保存失败，请重试', icon: 'none' })
@@ -245,16 +303,12 @@ export default {
 </script>
 
 <style scoped>
-@font-face {
-	font-family: "profile-iconfont";
-	src: url('/static/iconfont/iconfont.ttf') format('truetype');
-}
 
 .container { padding: 10px 12px 88px; background: #f4f6f8; }
-.top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; }
+.top { display: flex; align-items: center; gap: 10rpx; margin-bottom: 12rpx; }
 .top-title { font-size: 20px; font-weight: 700; }
-.capsule { border: 1rpx solid #e2e9e4; border-radius: 999rpx; background: #fff; min-width: 88rpx; height: 56rpx; padding: 0 16rpx; box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
-.back-ico-svg { width: 20px; height: 20px; display: block; }
+.back-left { width: 30px; height: 30px; border-radius: 999rpx; display: inline-flex; align-items: center; justify-content: center; }
+.back-arrow { font-size: 30px; line-height: 1; color: #c7ced9; transform: translateY(-1px); }
 
 .hero-bg { padding: 16rpx 10px 14rpx; display: flex; align-items: center; justify-content: center; margin-bottom: 10rpx; }
 .avatar-wrap { position: relative; }
@@ -262,7 +316,7 @@ export default {
 .white-card { background: #fff; border: 1rpx solid #edf2ef; border-radius: 16px; padding: 12px; box-shadow: 0 8rpx 18rpx rgba(30, 50, 34, 0.07); }
 .avatar-box { width: 108px; height: 108px; border-radius: 50%; background: #eaf7ee; display: flex; align-items: center; justify-content: center; }
 .avatar-img { width: 100%; height: 100%; border-radius: 50%; display: block; }
-.profile-iconfont { font-family: "profile-iconfont" !important; font-style: normal; font-weight: 400; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+.profile-iconfont { font-family: "iconfont" !important; font-style: normal; font-weight: 400; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 .avatar-fallback-ico { font-size: 76px; color: #34a853; line-height: 1; }
 
 .row { display: flex; align-items: center; justify-content: space-between; min-height: 64rpx; border-top: 1rpx solid #e6ede9; }
