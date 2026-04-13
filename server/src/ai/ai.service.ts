@@ -58,9 +58,12 @@ export class AiService {
 
   private readonly apiKey = process.env.DASHSCOPE_API_KEY || ''
   private readonly endpoint = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
+  private readonly asrEndpoint =
+    process.env.DASHSCOPE_ASR_ENDPOINT ||
+    'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation'
   private readonly visionModel = process.env.DASHSCOPE_VISION_MODEL || 'qwen2.5-vl-7b-instruct'
   private readonly textModel = process.env.DASHSCOPE_TEXT_MODEL || 'qwen2.5-14b-instruct'
-  private readonly asrModel = process.env.DASHSCOPE_ASR_MODEL || 'qwen-audio-turbo'
+  private readonly asrModel = process.env.DASHSCOPE_ASR_MODEL || 'qwen3-asr-flash'
   private readonly allowMockFallback =
     `${process.env.AI_RECOGNIZE_FALLBACK_TO_MOCK || ''}`.trim() === '1'
   private readonly validCategories = new Set(['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'])
@@ -151,40 +154,21 @@ export class AiService {
 
     const audioBase64 = file?.buffer?.toString('base64')
     if (!audioBase64) return { text: '', name: '' }
-    const audioFormat = this.inferAudioFormat(file?.mimetype, file?.originalname)
+    const audioMimeType = this.inferAudioMimeType(file?.mimetype, file?.originalname)
+    const dataUri = `data:${audioMimeType};base64,${audioBase64}`
 
     try {
+      // qwen3-asr-flash on DashScope ASR endpoint expects pure audio content.
+      // Keep structured extraction in local post-processing for stability.
       const content = await this.callDashScope(
         this.asrModel,
         [
-          { role: 'system', content: '你是语音转写助手。' },
           {
             role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: [
-                  '请将音频转写并做结构化提取，只返回 JSON，不要其它文字。',
-                  'JSON 结构：{"text":"完整转写","name":"食材名","quantity":2,"unit":"个","items":[{"name":"西红柿","quantity":2,"unit":"个","category":"蔬菜"}]}',
-                  '规则：',
-                  '1) text 必填；name尽量提取主要食材；如果说到多个食材，items 里要尽量完整列出；',
-                  '2) 如果未说数量，quantity可省略；',
-                  '3) unit 仅在有明确单位时给出；',
-                  '4) category 仅可取：水果、蔬菜、肉类、蛋奶、海鲜、饮料、调味品、其他；可省略。',
-                  '5) 不要臆造不存在的信息。',
-                ].join('\n'),
-              },
-              {
-                type: 'input_audio',
-                input_audio: {
-                  data: audioBase64,
-                  format: audioFormat,
-                },
-              },
-            ],
+            content: [{ audio: dataUri }],
           },
         ],
-        true,
+        false,
       )
       const parsed = this.parseJson(content)
       const text = (
@@ -422,6 +406,15 @@ export class AiService {
   }
 
   private async callDashScope(model: string, messages: any[], forceJson = false): Promise<string> {
+    const modelName = `${model || ''}`.toLowerCase()
+    const isAsrModel = modelName.includes('asr')
+    if (isAsrModel) {
+      const response = await this.callDashScopeAsr(model, messages)
+      return this.extractMessageText(
+        response?.output?.choices?.[0]?.message?.content || response?.choices?.[0]?.message?.content,
+      )
+    }
+
     const body: any = {
       model,
       messages,
@@ -431,9 +424,63 @@ export class AiService {
       body.response_format = { type: 'json_object' }
     }
 
+    const response = await this.postDashScopeJson(this.endpoint, body)
+    return this.extractMessageText(response?.choices?.[0]?.message?.content)
+  }
+
+  private async callDashScopeAsr(model: string, messages: any[]) {
+    const body = {
+      model,
+      input: {
+        messages: this.toDashScopeAsrMessages(messages),
+      },
+      parameters: {
+        asr_options: {
+          enable_itn: false,
+          language: 'zh',
+        },
+      },
+    }
+    return this.postDashScopeJson(this.asrEndpoint, body)
+  }
+
+  private toDashScopeAsrMessages(messages: any[]) {
+    return (Array.isArray(messages) ? messages : []).map((msg: any) => {
+      const role = `${msg?.role || 'user'}`
+      const content = msg?.content
+      if (Array.isArray(content)) {
+        const normalized = content
+          .map((part: any) => {
+            if (part?.type === 'input_audio') {
+              const audio = `${part?.input_audio?.data || part?.input_audio?.url || part?.audio || ''}`.trim()
+              return audio ? { audio } : null
+            }
+            if (part?.type === 'text') {
+              const text = `${part?.text || ''}`.trim()
+              return text ? { text } : null
+            }
+            if (part?.audio) {
+              const audio = `${part.audio || ''}`.trim()
+              return audio ? { audio } : null
+            }
+            if (part?.text) {
+              const text = `${part.text || ''}`.trim()
+              return text ? { text } : null
+            }
+            return null
+          })
+          .filter(Boolean)
+        if (normalized.length) return { role, content: normalized }
+      }
+      const text = `${content || ''}`.trim()
+      return { role, content: text ? [{ text }] : [{ text: '' }] }
+    })
+  }
+
+  private async postDashScopeJson(url: string, body: any) {
     let response: Response
     try {
-      response = await fetch(this.endpoint, {
+      response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -448,10 +495,14 @@ export class AiService {
 
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) {
-      throw new Error(payload?.error?.message || `DashScope request failed: ${response.status}`)
+      const msg =
+        payload?.error?.message ||
+        payload?.message ||
+        payload?.output?.message ||
+        `DashScope request failed: ${response.status}`
+      throw new Error(msg)
     }
-
-    return this.extractMessageText(payload?.choices?.[0]?.message?.content)
+    return payload
   }
 
   private extractMessageText(content: any): string {
@@ -501,6 +552,17 @@ export class AiService {
     if (mime.includes('webm') || name.endsWith('.webm')) return 'webm'
     if (mime.includes('m4a') || mime.includes('mp4') || name.endsWith('.m4a')) return 'm4a'
     return 'mp3'
+  }
+
+  private inferAudioMimeType(mimeType: unknown, fileName: unknown) {
+    const mime = `${mimeType || ''}`.toLowerCase().trim()
+    const name = `${fileName || ''}`.toLowerCase()
+    if (mime === 'audio/mpeg' || mime === 'audio/mp3' || name.endsWith('.mp3')) return 'audio/mpeg'
+    if (mime === 'audio/wav' || mime === 'audio/x-wav' || name.endsWith('.wav')) return 'audio/wav'
+    if (mime === 'audio/webm' || name.endsWith('.webm')) return 'audio/webm'
+    if (mime === 'audio/aac' || name.endsWith('.aac')) return 'audio/aac'
+    if (mime === 'audio/mp4' || mime === 'audio/x-m4a' || name.endsWith('.m4a')) return 'audio/mp4'
+    return 'audio/mpeg'
   }
 
   private parseVoiceTextFallback(text: string) {

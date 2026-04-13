@@ -4,7 +4,8 @@ export function recommendRecipes(payload) {
 	return request({
 		url: '/ai/generate-recipe',
 		method: 'POST',
-		data: payload
+		data: payload,
+		timeout: 60000
 	})
 }
 
@@ -14,7 +15,8 @@ export function getRecipeDetail(payload) {
 	return request({
 		url: '/ai/generate-recipe',
 		method: 'POST',
-		data: payload
+		data: payload,
+		timeout: 60000
 	})
 }
 

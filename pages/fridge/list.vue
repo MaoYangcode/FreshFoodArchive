@@ -376,7 +376,8 @@ export default {
 	
 		getTagText(expireDate) {
 			const days = this.getDays(expireDate)
-			if (days <= 0) return `过期${Math.abs(days)}天`
+			if (days < 0) return `过期${Math.abs(days)}天`
+			if (days === 0) return '今天过期'
 			if (days <= 2) return `剩${days}天`
 			return '新鲜'
 		},
