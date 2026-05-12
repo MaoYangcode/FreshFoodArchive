@@ -1,14 +1,4 @@
 "use strict";
-const CATEGORY_TO_EMOJI = {
-  水果: "🍎",
-  蔬菜: "🥬",
-  肉类: "🥩",
-  蛋奶: "🥚",
-  海鲜: "🦐",
-  饮料: "🥛",
-  调味品: "🧂",
-  其他: "🍽️"
-};
 const NAME_TO_ICONFONT = {
   冰箱: "icon-bingxiang",
   苹果: "icon-pingguo",
@@ -316,9 +306,5 @@ function getIngredientWeappColorClass(name, category = "") {
     return "";
   return `t-icon-${cls.replace(/^icon-/, "")}`;
 }
-function getCategoryEmoji(category) {
-  return CATEGORY_TO_EMOJI[`${category || ""}`.trim()] || "🍽️";
-}
-exports.getCategoryEmoji = getCategoryEmoji;
 exports.getIngredientWeappColorClass = getIngredientWeappColorClass;
 //# sourceMappingURL=../../.sourcemap/mp-weixin/utils/ingredient-image.js.map
