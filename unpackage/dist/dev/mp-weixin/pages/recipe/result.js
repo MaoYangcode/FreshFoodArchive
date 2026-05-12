@@ -71,6 +71,9 @@ const _sfc_main = {
     this.loadGeneratedRecipes();
   },
   methods: {
+    normalizeName(text) {
+      return `${text || ""}`.trim().toLowerCase().replace(/[（(].*?[）)]/g, "").replace(/[^a-z0-9\u4e00-\u9fa5]/g, "");
+    },
     onCookingTimeChange(e) {
       var _a;
       const idx = Number((_a = e == null ? void 0 : e.detail) == null ? void 0 : _a.value);
@@ -97,7 +100,7 @@ const _sfc_main = {
       this.profileApplied = profileApplied && typeof profileApplied === "object" ? profileApplied : null;
       if (!Array.isArray(generated) || !generated.length)
         return;
-      this.recipes = generated.map((item, idx) => ({
+      this.recipes = generated.slice(0, 6).map((item, idx) => ({
         id: item.id || idx + 1,
         name: item.name || `菜谱 ${idx + 1}`,
         score: Number(item.matchScore || item.score || 85),
@@ -107,9 +110,6 @@ const _sfc_main = {
         sourceIndex: idx,
         raw: item
       }));
-    },
-    normalizeName(text) {
-      return `${text || ""}`.trim().replace(/\s+/g, "").toLowerCase();
     },
     getDifficultyWeight(v) {
       if (v === "简单")

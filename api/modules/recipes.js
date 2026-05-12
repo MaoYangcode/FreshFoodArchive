@@ -5,7 +5,7 @@ export function recommendRecipes(payload) {
 		url: '/ai/generate-recipe',
 		method: 'POST',
 		data: payload,
-		timeout: 60000
+		timeout: 90000
 	})
 }
 
@@ -16,7 +16,7 @@ export function getRecipeDetail(payload) {
 		url: '/ai/generate-recipe',
 		method: 'POST',
 		data: payload,
-		timeout: 60000
+		timeout: 90000
 	})
 }
 

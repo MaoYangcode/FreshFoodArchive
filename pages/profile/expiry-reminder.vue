@@ -113,10 +113,15 @@ export default {
 				uni.navigateBack()
 				return
 			}
-			uni.reLaunch({
+			uni.redirectTo({
 				url: '/pages/profile/index',
 				fail: () => {
-					uni.navigateTo({ url: '/pages/profile/index' })
+					uni.navigateTo({
+						url: '/pages/profile/index',
+						fail: () => {
+							uni.reLaunch({ url: '/pages/profile/index' })
+						}
+					})
 				}
 			})
 		},
@@ -172,9 +177,6 @@ export default {
 			}
 			uni.requestSubscribeMessage({
 				tmplIds: templateIds,
-				success: () => {
-					uni.showToast({ title: '授权弹窗已完成', icon: 'none' })
-				},
 				fail: () => {
 					uni.showToast({ title: '授权取消或失败，请重试', icon: 'none' })
 				}

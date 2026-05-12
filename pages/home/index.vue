@@ -25,7 +25,17 @@
 		</view>
 
 		<view class="card">
-			<view v-if="latestIngredients.length === 0" class="row">
+			<view v-if="isLoading" class="row">
+				<view class="ico">
+					<IngredientIcon name="冰箱" category="其他" :size="34" />
+				</view>
+				<view class="body">
+					<text class="name">正在加载...</text>
+					<text class="meta">正在同步最新食材数据</text>
+				</view>
+				<text class="tag ok">加载中</text>
+			</view>
+			<view v-else-if="latestIngredients.length === 0" class="row">
 				<view class="ico">
 					<IngredientIcon name="冰箱" category="其他" :size="34" />
 				</view>
@@ -70,11 +80,14 @@ import { getIngredientList } from '@/api/modules/ingredients'
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 
+const HOME_INGREDIENT_CACHE_KEY = 'FFA_HOME_INGREDIENTS_CACHE'
+
 export default {
 	components: { BottomNav, IngredientIcon },
 	data() {
 		return {
 			safeTop: 20,
+			isLoading: true,
 			stats: {
 				total: 0,
 				fresh: 0,
@@ -94,39 +107,64 @@ export default {
 			const top = Number(info?.statusBarHeight || 0)
 			if (Number.isFinite(top) && top > 0) this.safeTop = top
 		} catch (e) {}
+		this.hydrateFromCache()
 	},
 	onShow() {
 		this.refreshData()
 	},
 	methods: {
+		hydrateFromCache() {
+			try {
+				const cached = uni.getStorageSync(HOME_INGREDIENT_CACHE_KEY)
+				const list = Array.isArray(cached) ? cached : []
+				if (!list.length) return
+				this.applyList(list)
+				this.isLoading = false
+			} catch (_) {}
+		},
+		persistCache(list) {
+			try {
+				uni.setStorageSync(HOME_INGREDIENT_CACHE_KEY, Array.isArray(list) ? list : [])
+			} catch (_) {}
+		},
+		extractList(res) {
+			if (Array.isArray(res)) return res
+			if (Array.isArray(res?.data)) return res.data
+			if (Array.isArray(res?.data?.data)) return res.data.data
+			return []
+		},
+		applyList(list) {
+			const safeList = Array.isArray(list) ? list : []
+			const total = safeList.length
+			const now = new Date()
+			now.setHours(0, 0, 0, 0)
+			const threeDaysMs = 3 * 24 * 60 * 60 * 1000
+			const expiring = safeList.filter((item) => {
+				const t = new Date(item.expireDate).getTime()
+				if (!Number.isFinite(t)) return false
+				return t - now.getTime() <= threeDaysMs
+			}).length
+			const fresh = Math.max(total - expiring, 0)
+			this.stats = { total, fresh, expiring }
+			const toTs = (item) => {
+				const t = new Date(item.expireDate).getTime()
+				return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY
+			}
+			this.latestIngredients = [...safeList].sort((a, b) => toTs(a) - toTs(b)).slice(0, 3)
+			this.tip = this.buildSmartTip(safeList)
+		},
 		async refreshData() {
 			try {
 				const res = await getIngredientList()
-				const list = Array.isArray(res)
-					? res
-					: (Array.isArray(res?.data) ? res.data : (Array.isArray(res?.data?.data) ? res.data.data : []))
-				const total = list.length
-				const now = new Date()
-				now.setHours(0, 0, 0, 0)
-				const threeDaysMs = 3 * 24 * 60 * 60 * 1000
-				const expiring = list.filter((item) => {
-					const t = new Date(item.expireDate).getTime()
-					if (!Number.isFinite(t)) return false
-					return t - now.getTime() <= threeDaysMs
-				}).length
-				const fresh = Math.max(total - expiring, 0)
-				this.stats = { total, fresh, expiring }
-				const toTs = (item) => {
-					const t = new Date(item.expireDate).getTime()
-					return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY
-				}
-				this.latestIngredients = [...list].sort((a, b) => toTs(a) - toTs(b)).slice(0, 3)
-				this.tip = this.buildSmartTip(list)
+				const list = this.extractList(res)
+				this.applyList(list)
+				this.persistCache(list)
 			} catch (e) {
-				this.stats = { total: 0, fresh: 0, expiring: 0 }
-				this.latestIngredients = []
-				this.tip = this.buildSmartTip([])
-				uni.showToast({ title: '首页加载失败', icon: 'none' })
+				if (!this.latestIngredients.length) {
+					uni.showToast({ title: '首页加载失败', icon: 'none' })
+				}
+			} finally {
+				this.isLoading = false
 			}
 		},
 		buildSmartTip(list) {
@@ -212,7 +250,7 @@ export default {
 			return Math.floor((t.getTime() - now.getTime()) / (24 * 3600 * 1000))
 		},
 		goFridge() {
-			uni.reLaunch({
+			uni.redirectTo({
 				url: '/pages/fridge/list',
 				fail: () => {
 					uni.navigateTo({ url: '/pages/fridge/list' })

@@ -138,10 +138,15 @@ export default {
 				uni.navigateBack()
 				return
 			}
-			uni.reLaunch({
+			uni.redirectTo({
 				url: '/pages/profile/index',
 				fail: () => {
-					uni.navigateTo({ url: '/pages/profile/index' })
+					uni.navigateTo({
+						url: '/pages/profile/index',
+						fail: () => {
+							uni.reLaunch({ url: '/pages/profile/index' })
+						}
+					})
 				}
 			})
 		},

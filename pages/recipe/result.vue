@@ -125,6 +125,13 @@ export default {
 		this.loadGeneratedRecipes()
 	},
 	methods: {
+		normalizeName(text) {
+			return `${text || ''}`
+				.trim()
+				.toLowerCase()
+				.replace(/[（(].*?[）)]/g, '')
+				.replace(/[^a-z0-9\u4e00-\u9fa5]/g, '')
+		},
 		onCookingTimeChange(e) {
 			const idx = Number(e?.detail?.value)
 			if (!Number.isFinite(idx) || idx < 0 || idx >= this.cookingTimeOptions.length) return
@@ -147,7 +154,7 @@ export default {
 			this.profileApplied = profileApplied && typeof profileApplied === 'object' ? profileApplied : null
 			if (!Array.isArray(generated) || !generated.length) return
 
-			this.recipes = generated.map((item, idx) => ({
+			this.recipes = generated.slice(0, 6).map((item, idx) => ({
 				id: item.id || idx + 1,
 				name: item.name || `菜谱 ${idx + 1}`,
 				score: Number(item.matchScore || item.score || 85),
@@ -157,9 +164,6 @@ export default {
 				sourceIndex: idx,
 				raw: item
 			}))
-		},
-		normalizeName(text) {
-			return `${text || ''}`.trim().replace(/\s+/g, '').toLowerCase()
 		},
 		getDifficultyWeight(v) {
 			if (v === '简单') return 1

@@ -50,10 +50,15 @@ const _sfc_main = {
         common_vendor.index.navigateBack();
         return;
       }
-      common_vendor.index.reLaunch({
+      common_vendor.index.redirectTo({
         url: "/pages/profile/index",
         fail: () => {
-          common_vendor.index.navigateTo({ url: "/pages/profile/index" });
+          common_vendor.index.navigateTo({
+            url: "/pages/profile/index",
+            fail: () => {
+              common_vendor.index.reLaunch({ url: "/pages/profile/index" });
+            }
+          });
         }
       });
     },
@@ -110,9 +115,6 @@ const _sfc_main = {
       }
       common_vendor.index.requestSubscribeMessage({
         tmplIds: templateIds,
-        success: () => {
-          common_vendor.index.showToast({ title: "授权弹窗已完成", icon: "none" });
-        },
         fail: () => {
           common_vendor.index.showToast({ title: "授权取消或失败，请重试", icon: "none" });
         }

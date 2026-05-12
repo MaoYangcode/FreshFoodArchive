@@ -3,11 +3,13 @@ const common_vendor = require("../../common/vendor.js");
 const api_modules_ingredients = require("../../api/modules/ingredients.js");
 const BottomNav = () => "../../components/bottom-nav.js";
 const IngredientIcon = () => "../../components/ingredient-icon.js";
+const HOME_INGREDIENT_CACHE_KEY = "FFA_HOME_INGREDIENTS_CACHE";
 const _sfc_main = {
   components: { BottomNav, IngredientIcon },
   data() {
     return {
       safeTop: 20,
+      isLoading: true,
       stats: {
         total: 0,
         fresh: 0,
@@ -29,39 +31,72 @@ const _sfc_main = {
         this.safeTop = top;
     } catch (e) {
     }
+    this.hydrateFromCache();
   },
   onShow() {
     this.refreshData();
   },
   methods: {
-    async refreshData() {
+    hydrateFromCache() {
+      try {
+        const cached = common_vendor.index.getStorageSync(HOME_INGREDIENT_CACHE_KEY);
+        const list = Array.isArray(cached) ? cached : [];
+        if (!list.length)
+          return;
+        this.applyList(list);
+        this.isLoading = false;
+      } catch (_) {
+      }
+    },
+    persistCache(list) {
+      try {
+        common_vendor.index.setStorageSync(HOME_INGREDIENT_CACHE_KEY, Array.isArray(list) ? list : []);
+      } catch (_) {
+      }
+    },
+    extractList(res) {
       var _a;
+      if (Array.isArray(res))
+        return res;
+      if (Array.isArray(res == null ? void 0 : res.data))
+        return res.data;
+      if (Array.isArray((_a = res == null ? void 0 : res.data) == null ? void 0 : _a.data))
+        return res.data.data;
+      return [];
+    },
+    applyList(list) {
+      const safeList = Array.isArray(list) ? list : [];
+      const total = safeList.length;
+      const now = /* @__PURE__ */ new Date();
+      now.setHours(0, 0, 0, 0);
+      const threeDaysMs = 3 * 24 * 60 * 60 * 1e3;
+      const expiring = safeList.filter((item) => {
+        const t = new Date(item.expireDate).getTime();
+        if (!Number.isFinite(t))
+          return false;
+        return t - now.getTime() <= threeDaysMs;
+      }).length;
+      const fresh = Math.max(total - expiring, 0);
+      this.stats = { total, fresh, expiring };
+      const toTs = (item) => {
+        const t = new Date(item.expireDate).getTime();
+        return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+      };
+      this.latestIngredients = [...safeList].sort((a, b) => toTs(a) - toTs(b)).slice(0, 3);
+      this.tip = this.buildSmartTip(safeList);
+    },
+    async refreshData() {
       try {
         const res = await api_modules_ingredients.getIngredientList();
-        const list = Array.isArray(res) ? res : Array.isArray(res == null ? void 0 : res.data) ? res.data : Array.isArray((_a = res == null ? void 0 : res.data) == null ? void 0 : _a.data) ? res.data.data : [];
-        const total = list.length;
-        const now = /* @__PURE__ */ new Date();
-        now.setHours(0, 0, 0, 0);
-        const threeDaysMs = 3 * 24 * 60 * 60 * 1e3;
-        const expiring = list.filter((item) => {
-          const t = new Date(item.expireDate).getTime();
-          if (!Number.isFinite(t))
-            return false;
-          return t - now.getTime() <= threeDaysMs;
-        }).length;
-        const fresh = Math.max(total - expiring, 0);
-        this.stats = { total, fresh, expiring };
-        const toTs = (item) => {
-          const t = new Date(item.expireDate).getTime();
-          return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
-        };
-        this.latestIngredients = [...list].sort((a, b) => toTs(a) - toTs(b)).slice(0, 3);
-        this.tip = this.buildSmartTip(list);
+        const list = this.extractList(res);
+        this.applyList(list);
+        this.persistCache(list);
       } catch (e) {
-        this.stats = { total: 0, fresh: 0, expiring: 0 };
-        this.latestIngredients = [];
-        this.tip = this.buildSmartTip([]);
-        common_vendor.index.showToast({ title: "首页加载失败", icon: "none" });
+        if (!this.latestIngredients.length) {
+          common_vendor.index.showToast({ title: "首页加载失败", icon: "none" });
+        }
+      } finally {
+        this.isLoading = false;
       }
     },
     buildSmartTip(list) {
@@ -147,7 +182,7 @@ const _sfc_main = {
       return Math.floor((t.getTime() - now.getTime()) / (24 * 3600 * 1e3));
     },
     goFridge() {
-      common_vendor.index.reLaunch({
+      common_vendor.index.redirectTo({
         url: "/pages/fridge/list",
         fail: () => {
           common_vendor.index.navigateTo({ url: "/pages/fridge/list" });
@@ -168,17 +203,24 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     c: common_vendor.t($data.stats.fresh),
     d: common_vendor.t($data.stats.expiring),
     e: common_vendor.o((...args) => $options.goFridge && $options.goFridge(...args)),
-    f: $data.latestIngredients.length === 0
-  }, $data.latestIngredients.length === 0 ? {
+    f: $data.isLoading
+  }, $data.isLoading ? {
     g: common_vendor.p({
       name: "冰箱",
       category: "其他",
       size: 34
     })
+  } : $data.latestIngredients.length === 0 ? {
+    i: common_vendor.p({
+      name: "冰箱",
+      category: "其他",
+      size: 34
+    })
   } : {}, {
-    h: common_vendor.f($data.latestIngredients, (item, k0, i0) => {
+    h: $data.latestIngredients.length === 0,
+    j: common_vendor.f($data.latestIngredients, (item, k0, i0) => {
       return {
-        a: "4978fed5-1-" + i0,
+        a: "4978fed5-2-" + i0,
         b: common_vendor.p({
           name: item.name,
           category: item.category,
@@ -194,18 +236,18 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         j: item.id
       };
     }),
-    i: common_vendor.t($data.tip.title),
-    j: common_vendor.t($data.tip.text),
-    k: common_vendor.f($data.tip.tags, (tag, k0, i0) => {
+    k: common_vendor.t($data.tip.title),
+    l: common_vendor.t($data.tip.text),
+    m: common_vendor.f($data.tip.tags, (tag, k0, i0) => {
       return {
         a: common_vendor.t(tag),
         b: tag
       };
     }),
-    l: common_vendor.p({
+    n: common_vendor.p({
       current: "home"
     }),
-    m: `${$data.safeTop + 14}px`
+    o: `${$data.safeTop + 14}px`
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-4978fed5"]]);

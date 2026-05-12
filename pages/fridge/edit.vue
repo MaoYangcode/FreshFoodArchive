@@ -132,10 +132,15 @@ export default {
 				uni.navigateBack()
 				return
 			}
-			uni.reLaunch({
+			uni.redirectTo({
 				url: '/pages/fridge/list',
 				fail: () => {
-					uni.navigateTo({ url: '/pages/fridge/list' })
+					uni.navigateTo({
+						url: '/pages/fridge/list',
+						fail: () => {
+							uni.reLaunch({ url: '/pages/fridge/list' })
+						}
+					})
 				}
 			})
 		},

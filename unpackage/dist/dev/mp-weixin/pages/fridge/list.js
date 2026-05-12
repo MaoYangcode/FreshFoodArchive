@@ -5,6 +5,7 @@ const BottomNav = () => "../../components/bottom-nav.js";
 const FridgeViewControls = () => "../../components/fridge-view-controls.js";
 const IngredientIcon = () => "../../components/ingredient-icon.js";
 const LocationIcon = () => "../../components/location-icon.js";
+const FRIDGE_LIST_CACHE_KEY = "FFA_FRIDGE_LIST_CACHE";
 const PINYIN_CHAR_MAP = {
   全: "quan",
   部: "bu",
@@ -124,6 +125,7 @@ const _sfc_main = {
       viewMode: "list",
       sortDirection: "asc",
       list: [],
+      isLoading: true,
       openSwipeId: "",
       touchStartX: 0,
       touchStartY: 0,
@@ -154,6 +156,7 @@ const _sfc_main = {
     } catch (e) {
       this.isDesktop = true;
     }
+    this.hydrateListCache();
   },
   mounted() {
     this.bindWindowEvents();
@@ -255,14 +258,35 @@ const _sfc_main = {
     async refreshList() {
       try {
         const res = await api_modules_ingredients.getIngredientList();
-        this.list = Array.isArray(res) ? res : [];
+        const list = Array.isArray(res) ? res : [];
+        this.list = list;
+        this.persistListCache(list);
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/list.vue:333", "获取失败", e);
-        common_vendor.index.showToast({
-          title: "加载失败",
-          icon: "none"
-        });
-        this.list = [];
+        common_vendor.index.__f__("error", "at pages/fridge/list.vue:346", "获取失败", e);
+        if (!this.list.length) {
+          common_vendor.index.showToast({
+            title: "加载失败",
+            icon: "none"
+          });
+        }
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    hydrateListCache() {
+      try {
+        const cached = common_vendor.index.getStorageSync(FRIDGE_LIST_CACHE_KEY);
+        if (!Array.isArray(cached) || !cached.length)
+          return;
+        this.list = cached;
+        this.isLoading = false;
+      } catch (_) {
+      }
+    },
+    persistListCache(list) {
+      try {
+        common_vendor.index.setStorageSync(FRIDGE_LIST_CACHE_KEY, Array.isArray(list) ? list : []);
+      } catch (_) {
       }
     },
     getEmoji(category) {
@@ -564,7 +588,7 @@ const _sfc_main = {
         });
         this.refreshList();
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/list.vue:630", "取出失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/list.vue:659", "取出失败", e);
         common_vendor.index.showToast({
           title: "取出失败",
           icon: "none"
@@ -621,20 +645,26 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       viewMode: $data.viewMode,
       sortDirection: $data.sortDirection
     }),
-    i: $options.filteredList.length === 0
-  }, $options.filteredList.length === 0 ? {
+    i: $data.isLoading && $options.filteredList.length === 0
+  }, $data.isLoading && $options.filteredList.length === 0 ? {
     j: common_vendor.p({
       name: "冰箱",
       category: "其他",
       size: 66
     })
+  } : $options.filteredList.length === 0 ? {
+    l: common_vendor.p({
+      name: "冰箱",
+      category: "其他",
+      size: 66
+    })
   } : common_vendor.e({
-    k: $data.viewMode === "list"
+    m: $data.viewMode === "list"
   }, $data.viewMode === "list" ? {
-    l: common_vendor.f($options.filteredList, (item, k0, i0) => {
+    n: common_vendor.f($options.filteredList, (item, k0, i0) => {
       return {
         a: common_vendor.o(($event) => $options.openConsumeDialog(item), item.id),
-        b: "e946cee4-3-" + i0,
+        b: "e946cee4-4-" + i0,
         c: common_vendor.p({
           name: item.name,
           category: item.category,
@@ -644,7 +674,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         e: common_vendor.t(item.quantity),
         f: common_vendor.t(item.unit),
         g: common_vendor.t(item.category),
-        h: "e946cee4-4-" + i0,
+        h: "e946cee4-5-" + i0,
         i: common_vendor.p({
           location: item.location,
           size: 14,
@@ -668,17 +698,17 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       };
     })
   } : {
-    m: common_vendor.f($options.filteredList, (item, k0, i0) => {
+    o: common_vendor.f($options.filteredList, (item, k0, i0) => {
       return {
         a: common_vendor.t($options.formatQty(item)),
-        b: "e946cee4-5-" + i0,
+        b: "e946cee4-6-" + i0,
         c: common_vendor.p({
           name: item.name,
           category: item.category,
           size: 40
         }),
         d: common_vendor.t(item.name),
-        e: "e946cee4-6-" + i0,
+        e: "e946cee4-7-" + i0,
         f: common_vendor.p({
           location: item.location,
           size: 14,
@@ -691,28 +721,29 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       };
     })
   }, {
-    n: common_vendor.n($data.viewMode === "list" ? "card" : "tiles-wrap")
+    p: common_vendor.n($data.viewMode === "list" ? "card" : "tiles-wrap")
   }), {
-    o: $data.consumeDialogVisible
+    k: $options.filteredList.length === 0,
+    q: $data.consumeDialogVisible
   }, $data.consumeDialogVisible ? {
-    p: common_vendor.t($options.formatConsumeName($data.pendingConsumeItem ? $data.pendingConsumeItem.name : "")),
-    q: common_vendor.o(($event) => $options.changeConsumeQty(-1)),
-    r: common_vendor.o([($event) => $data.consumeQty = $event.detail.value, (...args) => $options.onConsumeQtyInput && $options.onConsumeQtyInput(...args)]),
-    s: common_vendor.o((...args) => $options.normalizeConsumeQty && $options.normalizeConsumeQty(...args)),
-    t: $data.consumeQty,
-    v: common_vendor.o(($event) => $options.changeConsumeQty(1)),
-    w: common_vendor.t($data.pendingConsumeItem ? $data.pendingConsumeItem.unit : ""),
-    x: common_vendor.o((...args) => $options.closeConsumeDialog && $options.closeConsumeDialog(...args)),
-    y: common_vendor.o((...args) => $options.confirmConsume && $options.confirmConsume(...args)),
-    z: common_vendor.o(() => {
+    r: common_vendor.t($options.formatConsumeName($data.pendingConsumeItem ? $data.pendingConsumeItem.name : "")),
+    s: common_vendor.o(($event) => $options.changeConsumeQty(-1)),
+    t: common_vendor.o([($event) => $data.consumeQty = $event.detail.value, (...args) => $options.onConsumeQtyInput && $options.onConsumeQtyInput(...args)]),
+    v: common_vendor.o((...args) => $options.normalizeConsumeQty && $options.normalizeConsumeQty(...args)),
+    w: $data.consumeQty,
+    x: common_vendor.o(($event) => $options.changeConsumeQty(1)),
+    y: common_vendor.t($data.pendingConsumeItem ? $data.pendingConsumeItem.unit : ""),
+    z: common_vendor.o((...args) => $options.closeConsumeDialog && $options.closeConsumeDialog(...args)),
+    A: common_vendor.o((...args) => $options.confirmConsume && $options.confirmConsume(...args)),
+    B: common_vendor.o(() => {
     }),
-    A: common_vendor.o((...args) => $options.closeConsumeDialog && $options.closeConsumeDialog(...args))
+    C: common_vendor.o((...args) => $options.closeConsumeDialog && $options.closeConsumeDialog(...args))
   } : {}, {
-    B: common_vendor.p({
+    D: common_vendor.p({
       current: "fridge"
     }),
-    C: `${_ctx.safeTop + 14}px`,
-    D: common_vendor.o((...args) => $options.closeSwipe && $options.closeSwipe(...args))
+    E: `${_ctx.safeTop + 14}px`,
+    F: common_vendor.o((...args) => $options.closeSwipe && $options.closeSwipe(...args))
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-e946cee4"]]);

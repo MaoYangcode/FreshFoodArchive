@@ -28,6 +28,8 @@
 </template>
 
 <script>
+let navLocked = false
+
 export default {
 	props: {
 		current: {
@@ -37,9 +39,33 @@ export default {
 	},
 	methods: {
 		go(url) {
+			if (navLocked) return
 			const currentRoute = `/${getCurrentPages().slice(-1)[0].route}`
 			if (currentRoute === url) return
-			uni.reLaunch({ url })
+			navLocked = true
+			const releaseLock = () => {
+				setTimeout(() => {
+					navLocked = false
+				}, 400)
+			}
+			uni.redirectTo({
+				url,
+				fail: () => {
+					uni.navigateTo({
+						url,
+						fail: () => {
+							uni.reLaunch({
+								url,
+								complete: releaseLock
+							})
+						},
+						complete: releaseLock
+					})
+				},
+				complete: () => {
+					releaseLock()
+				}
+			})
 		}
 	}
 }

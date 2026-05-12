@@ -82,10 +82,15 @@ const _sfc_main = {
         common_vendor.index.navigateBack();
         return;
       }
-      common_vendor.index.reLaunch({
+      common_vendor.index.redirectTo({
         url: "/pages/fridge/list",
         fail: () => {
-          common_vendor.index.navigateTo({ url: "/pages/fridge/list" });
+          common_vendor.index.navigateTo({
+            url: "/pages/fridge/list",
+            fail: () => {
+              common_vendor.index.reLaunch({ url: "/pages/fridge/list" });
+            }
+          });
         }
       });
     },
@@ -163,7 +168,7 @@ const _sfc_main = {
           }
           this.applyDetail(current);
         } catch (fallbackErr) {
-          common_vendor.index.__f__("error", "at pages/fridge/edit.vue:213", "获取食材失败", fallbackErr);
+          common_vendor.index.__f__("error", "at pages/fridge/edit.vue:218", "获取食材失败", fallbackErr);
           common_vendor.index.showToast({
             title: "获取食材失败",
             icon: "none"
@@ -199,7 +204,7 @@ const _sfc_main = {
           common_vendor.index.navigateBack();
         }, 300);
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/edit.vue:255", "更新失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/edit.vue:260", "更新失败", e);
         common_vendor.index.showToast({ title: "保存失败", icon: "none" });
       }
     },
@@ -215,7 +220,7 @@ const _sfc_main = {
           common_vendor.index.navigateBack();
         }, 300);
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/edit.vue:274", "删除失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/edit.vue:279", "删除失败", e);
         common_vendor.index.showToast({ title: "删除失败", icon: "none" });
       }
     }

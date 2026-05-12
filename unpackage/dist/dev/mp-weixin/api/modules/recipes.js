@@ -5,7 +5,7 @@ function recommendRecipes(payload) {
     url: "/ai/generate-recipe",
     method: "POST",
     data: payload,
-    timeout: 6e4
+    timeout: 9e4
   });
 }
 exports.recommendRecipes = recommendRecipes;

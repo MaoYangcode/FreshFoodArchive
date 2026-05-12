@@ -64,6 +64,7 @@ export class AiService {
   private readonly visionModel = process.env.DASHSCOPE_VISION_MODEL || 'qwen2.5-vl-7b-instruct'
   private readonly textModel = process.env.DASHSCOPE_TEXT_MODEL || 'qwen2.5-14b-instruct'
   private readonly asrModel = process.env.DASHSCOPE_ASR_MODEL || 'qwen3-asr-flash'
+  private readonly recipeRetryEnabled = `${process.env.AI_RECIPE_ENABLE_RETRY || ''}`.trim() === '1'
   private readonly allowMockFallback =
     `${process.env.AI_RECOGNIZE_FALLBACK_TO_MOCK || ''}`.trim() === '1'
   private readonly validCategories = new Set(['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'])
@@ -203,6 +204,8 @@ export class AiService {
     const count = Math.min(Math.max(Number(payload?.count || 6), 1), 10)
     const cookingTime = Number(payload?.cookingTime || 30)
     const tastePreference = `${payload?.tastePreference || '家常'}`
+    const excludeNames = this.normalizeStringArray(payload?.excludeNames)
+    const requestNonce = `${payload?.requestNonce || ''}`.trim()
     const userId = Math.max(Number(payload?.userId || 1), 1)
     const profile = await this.loadUserProfileForRecipe(userId)
     const avoidances = profile.avoidances
@@ -250,6 +253,8 @@ export class AiService {
       '规则：任何菜谱名称、食材列表、步骤、tips 中都不允许出现忌口食材或其同义表述。',
       `期望总烹饪时长（分钟）：${cookingTime}`,
       `候选数量：${count}`,
+      `已展示菜谱名（禁止重复）：${excludeNames.length ? excludeNames.join('、') : '无'}`,
+      `本次生成随机标识：${requestNonce || 'none'}`,
       `食材：${ingredientText}`,
       'JSON 结构：',
       '{"recipes":[{"id":"ai_001","name":"菜名","duration":15,"difficulty":"简单","matchScore":95,"coverImage":"","ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["步骤1","步骤2"],"tips":"可选"}]}',
@@ -266,6 +271,7 @@ export class AiService {
         { role: 'user', content: prompt },
       ],
       true,
+      0.2,
     )
 
     const parsed = this.parseJson(content)
@@ -273,16 +279,24 @@ export class AiService {
     let recipes = list
       .map((item: any, idx: number) => this.normalizeRecipe(item, idx))
       .filter((x: GeneratedRecipe) => !!x.name && Array.isArray(x.steps) && x.steps.length > 0)
+    recipes = this.dedupeRecipesByName(recipes)
+    if (excludeNames.length) {
+      const blocked = new Set(excludeNames.map((x) => this.normalizeTextForCompare(x)))
+      recipes = recipes.filter((x) => !blocked.has(this.normalizeTextForCompare(x.name)))
+    }
     const beforeFilterCount = recipes.length
     recipes = this.filterRecipesByAvoidances(recipes, avoidances)
     let removedByAvoidanceCount = Math.max(beforeFilterCount - recipes.length, 0)
 
-    if (recipes.length < count) {
+    const shouldRetry = (this.recipeRetryEnabled || excludeNames.length > 0) && recipes.length < count
+    if (shouldRetry) {
       const remain = count - recipes.length
       const retryPrompt = [
         '你是家庭烹饪助手。仅返回 JSON，不要附带解释文本。',
         `请补充生成 ${remain} 道新菜谱，且与已有菜谱不要重复。`,
-        `已有菜谱名：${recipes.map((x) => x.name).join('、') || '无'}`,
+        `已有菜谱名：${[...excludeNames, ...recipes.map((x) => x.name)].filter(Boolean).join('、') || '无'}`,
+        `以下菜名绝对禁止出现：${[...excludeNames, ...recipes.map((x) => x.name)].filter(Boolean).join('、') || '无'}`,
+        '如果菜名与已有菜谱重复，则该条视为无效，不要返回。',
         `口味偏好：${tastePreference}`,
         `饮食偏好（软约束）：${dietPreferences.length ? dietPreferences.join('、') : '无特别偏好'}`,
         `可用厨具（软约束）：${cookwareNote || '按常见家用厨具处理'}`,
@@ -290,6 +304,7 @@ export class AiService {
         '规则：任何菜谱名称、食材列表、步骤、tips 中都不允许出现忌口食材或其同义表述。',
         `期望总烹饪时长（分钟）：${cookingTime}`,
         `食材：${ingredientText}`,
+        `本次生成随机标识：${requestNonce || Date.now()}`,
         'JSON 结构：',
         '{"recipes":[{"id":"ai_001","name":"菜名","duration":15,"difficulty":"简单","matchScore":95,"coverImage":"","ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["步骤1","步骤2"],"tips":"可选"}]}',
         'difficulty 仅可取：简单、中等、困难。',
@@ -303,15 +318,20 @@ export class AiService {
           { role: 'user', content: retryPrompt },
         ],
         true,
+        excludeNames.length ? 0.55 : 0.2,
       )
       const retryParsed = this.parseJson(retryContent)
       const retryList = Array.isArray(retryParsed?.recipes) ? retryParsed.recipes : []
       const retryNormalized = retryList
         .map((item: any, idx: number) => this.normalizeRecipe(item, recipes.length + idx))
         .filter((x: GeneratedRecipe) => !!x.name && Array.isArray(x.steps) && x.steps.length > 0)
-      const retryRecipes = this.filterRecipesByAvoidances(retryNormalized, avoidances)
-      removedByAvoidanceCount += Math.max(retryNormalized.length - retryRecipes.length, 0)
-      const seen = new Set(recipes.map((x) => this.normalizeTextForCompare(x.name)))
+      const retryDeduped = this.dedupeRecipesByName(retryNormalized)
+      const retryRecipes = this.filterRecipesByAvoidances(retryDeduped, avoidances)
+      removedByAvoidanceCount += Math.max(retryDeduped.length - retryRecipes.length, 0)
+      const seen = new Set([
+        ...excludeNames.map((x) => this.normalizeTextForCompare(x)),
+        ...recipes.map((x) => this.normalizeTextForCompare(x.name)),
+      ])
       for (const item of retryRecipes) {
         const key = this.normalizeTextForCompare(item.name)
         if (!key || seen.has(key)) continue
@@ -405,7 +425,20 @@ export class AiService {
     return list.filter((item) => !this.recipeContainsAvoidance(item, avoidances))
   }
 
-  private async callDashScope(model: string, messages: any[], forceJson = false): Promise<string> {
+  private dedupeRecipesByName(recipes: GeneratedRecipe[]) {
+    const list = Array.isArray(recipes) ? recipes : []
+    const seen = new Set<string>()
+    const output: GeneratedRecipe[] = []
+    for (const item of list) {
+      const key = this.normalizeTextForCompare(item?.name)
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      output.push(item)
+    }
+    return output
+  }
+
+  private async callDashScope(model: string, messages: any[], forceJson = false, temperature = 0.2): Promise<string> {
     const modelName = `${model || ''}`.toLowerCase()
     const isAsrModel = modelName.includes('asr')
     if (isAsrModel) {
@@ -418,7 +451,7 @@ export class AiService {
     const body: any = {
       model,
       messages,
-      temperature: 0.2,
+      temperature: Math.max(0, Math.min(1.2, Number(temperature || 0.2))),
     }
     if (forceJson) {
       body.response_format = { type: 'json_object' }

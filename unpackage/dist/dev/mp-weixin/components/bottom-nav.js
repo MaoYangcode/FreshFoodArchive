@@ -1,5 +1,6 @@
 "use strict";
 const common_vendor = require("../common/vendor.js");
+let navLocked = false;
 const _sfc_main = {
   props: {
     current: {
@@ -9,10 +10,35 @@ const _sfc_main = {
   },
   methods: {
     go(url) {
+      if (navLocked)
+        return;
       const currentRoute = `/${getCurrentPages().slice(-1)[0].route}`;
       if (currentRoute === url)
         return;
-      common_vendor.index.reLaunch({ url });
+      navLocked = true;
+      const releaseLock = () => {
+        setTimeout(() => {
+          navLocked = false;
+        }, 400);
+      };
+      common_vendor.index.redirectTo({
+        url,
+        fail: () => {
+          common_vendor.index.navigateTo({
+            url,
+            fail: () => {
+              common_vendor.index.reLaunch({
+                url,
+                complete: releaseLock
+              });
+            },
+            complete: releaseLock
+          });
+        },
+        complete: () => {
+          releaseLock();
+        }
+      });
     }
   }
 };

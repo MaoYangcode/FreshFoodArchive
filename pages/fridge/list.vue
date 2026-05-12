@@ -51,7 +51,14 @@
 			/>
 		</view>
 
-		<view v-if="filteredList.length === 0" class="card empty">
+		<view v-if="isLoading && filteredList.length === 0" class="card empty">
+			<view class="empty-icon">
+				<IngredientIcon name="冰箱" category="其他" :size="66" />
+			</view>
+			<text class="empty-title">正在加载食材...</text>
+			<text class="empty-sub">正在同步你的库存数据</text>
+		</view>
+		<view v-else-if="filteredList.length === 0" class="card empty">
 			<view class="empty-icon">
 				<IngredientIcon name="冰箱" category="其他" :size="66" />
 			</view>
@@ -145,6 +152,8 @@ import FridgeViewControls from '@/components/fridge-view-controls.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import LocationIcon from '@/components/location-icon.vue'
 
+const FRIDGE_LIST_CACHE_KEY = 'FFA_FRIDGE_LIST_CACHE'
+
 const PINYIN_CHAR_MAP = {
 	全: 'quan', 部: 'bu', 位: 'wei', 置: 'zhi', 类: 'lei', 别: 'bie',
 	水: 'shui', 果: 'guo', 蔬: 'shu', 菜: 'cai', 肉: 'rou', 蛋: 'dan', 奶: 'nai', 海: 'hai', 鲜: 'xian',
@@ -190,6 +199,7 @@ export default {
 			viewMode: 'list',
 			sortDirection: 'asc',
 			list: [],
+			isLoading: true,
 			openSwipeId: '',
 			touchStartX: 0,
 			touchStartY: 0,
@@ -220,6 +230,7 @@ export default {
 		} catch (e) {
 			this.isDesktop = true
 		}
+		this.hydrateListCache()
 	},
 	mounted() {
 		this.bindWindowEvents()
@@ -328,15 +339,33 @@ export default {
 		async refreshList() {
 			try {
 				const res = await getIngredientList()
-				this.list = Array.isArray(res) ? res : []
+				const list = Array.isArray(res) ? res : []
+				this.list = list
+				this.persistListCache(list)
 			} catch (e) {
 				console.error('获取失败', e)
-				uni.showToast({
-					title: '加载失败',
-					icon: 'none'
-				})
-				this.list = []
+				if (!this.list.length) {
+					uni.showToast({
+						title: '加载失败',
+						icon: 'none'
+					})
+				}
+			} finally {
+				this.isLoading = false
 			}
+		},
+		hydrateListCache() {
+			try {
+				const cached = uni.getStorageSync(FRIDGE_LIST_CACHE_KEY)
+				if (!Array.isArray(cached) || !cached.length) return
+				this.list = cached
+				this.isLoading = false
+			} catch (_) {}
+		},
+		persistListCache(list) {
+			try {
+				uni.setStorageSync(FRIDGE_LIST_CACHE_KEY, Array.isArray(list) ? list : [])
+			} catch (_) {}
 		},
 	
 		getEmoji(category) {

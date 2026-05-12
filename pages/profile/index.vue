@@ -62,6 +62,8 @@ import BottomNav from '@/components/bottom-nav.vue'
 import { getProfile } from '@/api/modules/profile'
 import { getCurrentUserId } from '@/utils/current-user'
 
+const PROFILE_HEADER_CACHE_KEY = 'FFA_PROFILE_HEADER_CACHE'
+
 export default {
 	components: { BottomNav },
 	data() {
@@ -71,19 +73,41 @@ export default {
 			profileAvatar: ''
 		}
 	},
+	onLoad() {
+		this.hydrateProfileHeader()
+	},
 	onShow() {
 		this.userId = getCurrentUserId()
+		this.hydrateProfileHeader()
 		this.loadProfileHeader()
 	},
 	methods: {
+		hydrateProfileHeader() {
+			try {
+				const cached = uni.getStorageSync(PROFILE_HEADER_CACHE_KEY)
+				const cacheUserId = Number(cached?.userId || 0)
+				if (!cacheUserId || cacheUserId !== Number(this.userId || 0)) return
+				this.profileName = `${cached?.name || '微信用户'}`.trim() || '微信用户'
+				this.profileAvatar = `${cached?.avatar || ''}`.trim()
+			} catch (_) {}
+		},
+		persistProfileHeaderCache(payload) {
+			try {
+				uni.setStorageSync(PROFILE_HEADER_CACHE_KEY, {
+					userId: Number(this.userId || 0),
+					name: `${payload?.name || '微信用户'}`.trim() || '微信用户',
+					avatar: `${payload?.avatar || ''}`.trim()
+				})
+			} catch (_) {}
+		},
 		async loadProfileHeader() {
 			try {
 				const res = await getProfile(this.userId)
 				this.profileName = `${res?.name || '微信用户'}`.trim() || '微信用户'
 				this.profileAvatar = `${res?.avatar || ''}`.trim()
+				this.persistProfileHeaderCache({ name: this.profileName, avatar: this.profileAvatar })
 			} catch (e) {
-				this.profileName = '微信用户'
-				this.profileAvatar = ''
+				if (!`${this.profileName || ''}`.trim()) this.profileName = '微信用户'
 			}
 		},
 		goFridge() {
