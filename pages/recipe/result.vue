@@ -1,7 +1,7 @@
 <template>
 	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
 		<view class="top" :style="{ paddingRight: `${navRightGap}px` }">
-			<text class="top-title">智能菜谱</text>
+			<text class="top-title">菜谱推荐</text>
 		</view>
 		<view class="recipe-banner">
 			<text class="banner-label">可用食材</text>

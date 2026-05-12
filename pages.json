@@ -45,7 +45,7 @@
     {
       "path": "pages/recipe/result",
       "style": {
-        "navigationBarTitleText": "智能菜谱",
+        "navigationBarTitleText": "菜谱推荐",
         "navigationStyle": "custom"
       }
     },

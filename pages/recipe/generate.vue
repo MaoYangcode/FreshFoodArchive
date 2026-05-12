@@ -5,14 +5,14 @@
 		</view>
 		<view class="recipe-screen">
 			<view class="recipe-inner recipe-hero">
-				<text class="title">智能菜谱</text>
+				<text class="title">菜谱推荐</text>
 				<text class="meta">基于冰箱现有食材推荐</text>
 				<view class="magic">
 					<text class="magic-iconfont">&#xe699;</text>
 				</view>
 				<text class="headline">准备做饭了吗？</text>
 				<view class="desc-wrap">
-					<text class="desc">AI 将分析当前库存食材，快速给出可做菜谱，</text>
+					<text class="desc">分析当前库存食材，快速给出可做菜谱，</text>
 					<text class="desc">减少浪费并提升搭配效率。</text>
 				</view>
 				<button class="btn primary" :loading="isGenerating" :disabled="isGenerating" @click="generate">{{ generateButtonText }}</button>
