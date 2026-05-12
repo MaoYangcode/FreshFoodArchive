@@ -3,8 +3,7 @@ import { getAuthToken, getCurrentUserId } from '../utils/current-user'
 // NOTE: Real-device debug often changes LAN IP.
 // Read storage-configured base URL first, then fall back to defaults.
 const DEFAULT_BASE_URL_CANDIDATES = [
-	'https://nnvicode.com',
-	'http://172.20.10.10:3000'
+	'https://nnvicode.com'
 ]
 
 const BASE_URL_STORAGE_KEY = 'FFA_API_BASE_URL'
@@ -73,43 +72,63 @@ function requestOnce(baseUrl, { url, method = 'GET', data = {}, header = {}, tim
 	return new Promise((resolve, reject) => {
 		const safeUrl = `${url || ''}`.trim()
 		const isAuthLogin = safeUrl === '/auth/wechat-login'
-		const token = getAuthToken()
-		if (!isAuthLogin && !token) {
-			reject({
-				code: 401,
-				message: '请先完成微信登录'
-			})
-			return
-		}
-		const userId = getCurrentUserId()
-		const headers = {
-			Authorization: token ? `Bearer ${token}` : '',
-			'x-user-id': userId > 0 ? String(userId) : '',
-			...header
-		}
-		uni.request({
-			url: `${baseUrl}${url}`,
-			method,
-			data,
-			header: headers,
-			timeout,
-			success: (res) => {
-				const payload = res.data || {}
-				const statusCode = Number(res?.statusCode || 0)
-				if (statusCode < 200 || statusCode >= 300) {
-					reject(payload)
+		const pickToken = () => `${getAuthToken() || ''}`.trim()
+		const waitForToken = (maxWaitMs = 5000) => new Promise((resolveToken) => {
+			const start = Date.now()
+			const loop = () => {
+				const current = pickToken()
+				if (current) {
+					resolveToken(current)
 					return
 				}
-				if (payload.code === 0 || payload.code === undefined) {
-					resolve(payload)
+				if (Date.now() - start >= maxWaitMs) {
+					resolveToken('')
 					return
 				}
-				reject(payload)
-			},
-			fail: (err) => {
-				reject(err)
+				setTimeout(loop, 200)
 			}
+			loop()
 		})
+		const userId = getCurrentUserId()
+		Promise.resolve(isAuthLogin ? '' : waitForToken())
+			.then((token) => {
+				if (!isAuthLogin && !token) {
+					reject({
+						code: 401,
+						message: '请先完成微信登录'
+					})
+					return
+				}
+				const headers = {
+					Authorization: token ? `Bearer ${token}` : '',
+					'x-user-id': userId > 0 ? String(userId) : '',
+					...header
+				}
+				uni.request({
+					url: `${baseUrl}${url}`,
+					method,
+					data,
+					header: headers,
+					timeout,
+					success: (res) => {
+						const payload = res.data || {}
+						const statusCode = Number(res?.statusCode || 0)
+						if (statusCode < 200 || statusCode >= 300) {
+							reject(payload)
+							return
+						}
+						if (payload.code === 0 || payload.code === undefined) {
+							resolve(payload)
+							return
+						}
+						reject(payload)
+					},
+					fail: (err) => {
+						reject(err)
+					}
+				})
+			})
+			.catch((err) => reject(err))
 	})
 }
 
