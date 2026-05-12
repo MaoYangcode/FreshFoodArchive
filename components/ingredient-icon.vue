@@ -44,8 +44,9 @@ export default {
 		iconUrl() {
 			if (this.iconLoadFailed) return ''
 			const cls = `${this.weappColorClass || ''}`.trim()
-			if (!cls) return ''
-			const file = cls.replace(/^t-icon-/, '')
+			const rawText = `${this.name || this.category || ''}`.trim()
+			const fallbackFile = rawText.includes('冰') ? 'icon-bingxiang' : ''
+			const file = (cls ? cls.replace(/^t-icon-/, '') : fallbackFile).trim()
 			if (!file) return ''
 			return `${resolveIconBaseUrl()}/${encodeURIComponent(file)}.svg`
 		},
