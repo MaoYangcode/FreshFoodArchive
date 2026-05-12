@@ -4,7 +4,8 @@ function recommendRecipes(payload) {
   return api_request.request({
     url: "/ai/generate-recipe",
     method: "POST",
-    data: payload
+    data: payload,
+    timeout: 6e4
   });
 }
 exports.recommendRecipes = recommendRecipes;

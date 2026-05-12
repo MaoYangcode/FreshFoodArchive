@@ -1,9 +1,9 @@
-import { getCurrentUserId } from '../utils/current-user'
+import { getAuthToken, getCurrentUserId } from '../utils/current-user'
 
 // NOTE: Real-device debug often changes LAN IP.
 // Read storage-configured base URL first, then fall back to defaults.
 const DEFAULT_BASE_URL_CANDIDATES = [
-	'http://192.168.10.215:3000',
+	'https://nnvicode.com',
 	'http://172.20.10.10:3000'
 ]
 
@@ -71,9 +71,20 @@ export function setApiBaseUrl(baseUrl) {
 
 function requestOnce(baseUrl, { url, method = 'GET', data = {}, header = {}, timeout = 8000 }) {
 	return new Promise((resolve, reject) => {
+		const safeUrl = `${url || ''}`.trim()
+		const isAuthLogin = safeUrl === '/auth/wechat-login'
+		const token = getAuthToken()
+		if (!isAuthLogin && !token) {
+			reject({
+				code: 401,
+				message: '请先完成微信登录'
+			})
+			return
+		}
 		const userId = getCurrentUserId()
 		const headers = {
-			'x-user-id': String(userId),
+			Authorization: token ? `Bearer ${token}` : '',
+			'x-user-id': userId > 0 ? String(userId) : '',
 			...header
 		}
 		uni.request({
@@ -84,6 +95,11 @@ function requestOnce(baseUrl, { url, method = 'GET', data = {}, header = {}, tim
 			timeout,
 			success: (res) => {
 				const payload = res.data || {}
+				const statusCode = Number(res?.statusCode || 0)
+				if (statusCode < 200 || statusCode >= 300) {
+					reject(payload)
+					return
+				}
 				if (payload.code === 0 || payload.code === undefined) {
 					resolve(payload)
 					return

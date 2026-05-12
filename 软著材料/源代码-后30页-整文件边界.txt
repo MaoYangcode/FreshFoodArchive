@@ -1,0 +1,1538 @@
+<template>
+	<view class="view-controls">
+		<view class="vm-btn active" @click="$emit('toggle-view')">
+			<view v-if="viewMode === 'list'" class="ico-grid">
+				<text class="g-cell"></text><text class="g-cell"></text>
+				<text class="g-cell"></text><text class="g-cell"></text>
+			</view>
+			<view v-else class="ico-list">
+				<view class="lr-row"><text class="lr-dot"></text><text class="lr-bar"></text></view>
+				<view class="lr-row"><text class="lr-dot"></text><text class="lr-bar"></text></view>
+				<view class="lr-row"><text class="lr-dot"></text><text class="lr-bar"></text></view>
+			</view>
+		</view>
+		<view class="vm-btn vm-sort" @click="$emit('toggle-sort')">
+			<text class="tri up" :class="{ on: sortDirection === 'asc' }"></text>
+			<text class="tri down" :class="{ on: sortDirection === 'desc' }"></text>
+		</view>
+	</view>
+</template>
+
+<script>
+export default {
+	name: 'FridgeViewControls',
+	props: {
+		viewMode: { type: String, default: 'list' },
+		sortDirection: { type: String, default: 'asc' }
+	}
+}
+</script>
+
+<style scoped>
+.view-controls {
+	display: flex;
+	align-items: center;
+	gap: 10rpx;
+}
+
+.vm-btn {
+	width: 58rpx;
+	height: 58rpx;
+	border-radius: 14rpx;
+	background: #f6f9ff;
+	border: 1rpx solid #dbe6f7;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.9);
+}
+
+.vm-btn.active {
+	background: linear-gradient(180deg, #fafdff, #eef5ff);
+	border-color: #a7c6f4;
+	box-shadow: 0 4rpx 10rpx rgba(93, 143, 224, 0.16);
+}
+
+.ico-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 4rpx;
+	width: 22rpx;
+}
+
+.g-cell {
+	width: 9rpx;
+	height: 9rpx;
+	background: linear-gradient(135deg, #9bc4ff 0%, #6b9ef0 55%, #4f86e8 100%);
+	border-radius: 3rpx;
+}
+
+.ico-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4rpx;
+}
+
+.lr-row {
+	display: flex;
+	align-items: center;
+	gap: 4rpx;
+}
+
+.lr-dot {
+	width: 5rpx;
+	height: 5rpx;
+	border-radius: 2rpx;
+	background: linear-gradient(135deg, #9bc4ff 0%, #6b9ef0 55%, #4f86e8 100%);
+}
+
+.lr-bar {
+	width: 14rpx;
+	height: 4rpx;
+	border-radius: 999rpx;
+	background: linear-gradient(135deg, #9bc4ff 0%, #6b9ef0 55%, #4f86e8 100%);
+}
+
+.vm-sort {
+	flex-direction: column;
+	gap: 3rpx;
+}
+
+.tri {
+	width: 0;
+	height: 0;
+	border-left: 6rpx solid transparent;
+	border-right: 6rpx solid transparent;
+}
+
+.tri.up { border-bottom: 9rpx solid #9da9ba; }
+.tri.down { border-top: 9rpx solid #9da9ba; }
+.tri.on.up { border-bottom-color: #4f8fe8; }
+.tri.on.down { border-top-color: #4f8fe8; }
+</style>
+
+<template>
+	<view class="icon-wrap" :style="wrapStyle">
+		<view v-if="weappColorClass" class="t-icon ingredient-weapp-icon" :class="weappColorClass" :style="iconStyle"></view>
+		<text v-else class="icon-emoji">{{ emoji }}</text>
+	</view>
+</template>
+
+<script>
+import { getCategoryEmoji, getIngredientWeappColorClass } from '@/utils/ingredient-image'
+
+export default {
+	name: 'IngredientIcon',
+	props: {
+		name: { type: String, default: '' },
+		category: { type: String, default: '' },
+		size: { type: Number, default: 44 },
+		imageScale: { type: Number, default: 1.52 }
+	},
+	computed: {
+		weappColorClass() { return getIngredientWeappColorClass(this.name, this.category) },
+		emoji() { return getCategoryEmoji(this.category) },
+		wrapStyle() {
+			const n = Math.max(18, Number(this.size) || 44)
+			return { width: `${n}px`, height: `${n}px` }
+		},
+		iconStyle() {
+			const n = Math.max(18, Number(this.size) || 44)
+			return { width: `${n}px`, height: `${n}px` }
+		}
+	}
+}
+</script>
+
+<style>
+@import "@/pages/assets/ingredient-icons.css";
+</style>
+
+<style scoped>
+.icon-wrap {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+.ingredient-weapp-icon {
+	flex-shrink: 0;
+}
+.icon-emoji { font-size: 20px; line-height: 1; }
+</style>
+
+<template>
+	<view class="loc-wrap" :style="wrapStyle">
+		<text class="loc-font" :style="iconStyle">{{ iconChar }}</text>
+	</view>
+</template>
+
+<script>
+function kindFromLocation(loc) {
+	const s = `${loc || ''}`.trim()
+	if (s.includes('冷冻')) return 'frozen'
+	if (s.includes('冷藏')) return 'cold'
+	return ''
+}
+
+export default {
+	name: 'LocationIcon',
+	props: {
+		location: { type: String, default: '' },
+		size: { type: Number, default: 18 },
+		color: { type: String, default: '#8fb7e8' }
+	},
+	computed: {
+		iconChar() {
+			const kind = kindFromLocation(this.location)
+			if (kind === 'frozen') return '\ue636'
+			if (kind === 'cold') return '\ue64d'
+			return '•'
+		},
+		wrapStyle() {
+			const n = Math.max(12, Number(this.size) || 18)
+			return { width: `${n}px`, height: `${n}px` }
+		},
+		iconStyle() {
+			const n = Math.max(12, Number(this.size) || 18)
+			return { fontSize: `${n}px`, lineHeight: '1', color: this.color }
+		}
+	}
+}
+</script>
+
+<style scoped>
+
+.loc-wrap {
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.loc-font {
+	font-family: "iconfont" !important;
+	font-weight: 400;
+	line-height: 1;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+</style>
+
+<template>
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
+		<view class="top">
+			<view class="back-left" @click="goBack">
+				<text class="back-arrow">‹</text>
+			</view>
+			<text class="top-title">保质期设置</text>
+		</view>
+
+		<view class="card">
+			<text class="hint">这里设置的是各分类的默认保质期天数，后续自动计算会按此值，可在具体条目中再调整。</text>
+			<view v-for="cat in categories" :key="cat" class="rule-row">
+				<view class="rule-main">
+					<view class="cat-ico">
+						<IngredientIcon :name="cat" :category="cat" :size="34" />
+					</view>
+					<text class="cat">{{ cat }}</text>
+				</view>
+				<picker :range="dayOptions" :value="getValueIndex(cat)" @change="onRulePick(cat, $event)">
+					<view class="days-inline">
+						<text class="day-box">{{ values[cat] }}</text>
+						<text class="suf">天</text>
+					</view>
+				</picker>
+			</view>
+		</view>
+
+		<view class="action-row">
+			<button class="btn ghost" @click="resetDefaults">恢复默认</button>
+			<button class="btn primary" @click="save">保存设置</button>
+		</view>
+	</view>
+</template>
+
+<script>
+import IngredientIcon from '@/components/ingredient-icon.vue'
+import { getShelfLifeSettings, updateShelfLifeSettings } from '@/api/modules/shelf-life'
+import { getCurrentUserId } from '@/utils/current-user'
+import { DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY, normalizeShelfLifeDaysByCategory } from '@/utils/shelf-life'
+
+export default {
+	components: { IngredientIcon },
+	data() {
+		return {
+			userId: getCurrentUserId(),
+			categories: ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'],
+			dayOptions: Array.from({ length: 365 }, (_, i) => i + 1),
+			values: { ...DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY }
+		}
+	},
+	async onShow() {
+		this.userId = getCurrentUserId()
+		await this.loadSettings()
+	},
+	methods: {
+		async loadSettings() {
+			try {
+				const res = await getShelfLifeSettings(this.userId)
+				const rules = res?.rules || res?.data?.rules || {}
+				this.values = normalizeShelfLifeDaysByCategory(rules)
+			} catch (e) {
+				this.values = { ...DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY }
+				uni.showToast({ title: '读取配置失败，已使用默认值', icon: 'none' })
+			}
+		},
+		goBack() {
+			uni.navigateBack()
+		},
+		getValueIndex(category) {
+			const value = Number(this.values[category] || 1)
+			const idx = this.dayOptions.findIndex((x) => Number(x) === value)
+			return idx >= 0 ? idx : 0
+		},
+		onRulePick(category, e) {
+			const idx = Number(e?.detail?.value)
+			const picked = Number(this.dayOptions[idx] || 1)
+			this.values = {
+				...this.values,
+				[category]: Math.min(Math.max(Math.round(picked), 1), 3650)
+			}
+		},
+		resetDefaults() {
+			this.values = { ...DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY }
+			uni.showToast({ title: '已恢复默认', icon: 'none' })
+		},
+		async save() {
+			try {
+				const normalized = normalizeShelfLifeDaysByCategory(this.values)
+				const defaultDays = Number(normalized?.其他 || 7)
+				const res = await updateShelfLifeSettings({
+					userId: this.userId,
+					defaultDays,
+					rules: normalized
+				})
+				const rules = res?.rules || res?.data?.rules || normalized
+				this.values = normalizeShelfLifeDaysByCategory(rules)
+				uni.showToast({ title: '保存成功', icon: 'success' })
+			} catch (e) {
+				uni.showToast({ title: '保存失败，请重试', icon: 'none' })
+			}
+		}
+	}
+}
+</script>
+
+<style scoped>
+.container { padding: 10px 12px 20px; }
+.top { display: flex; align-items: center; gap: 10rpx; margin-bottom: 12rpx; }
+.top-title { font-size: 20px; font-weight: 700; }
+.back-left { width: 30px; height: 30px; border-radius: 999rpx; display: inline-flex; align-items: center; justify-content: center; }
+.back-arrow { font-size: 30px; line-height: 1; color: #c7ced9; transform: translateY(-1px); }
+
+.card { background: #fff; border: 1rpx solid #edf2ef; border-radius: 16px; padding: 12px; margin-bottom: 10rpx; box-shadow: 0 8rpx 18rpx rgba(30, 50, 34, 0.07); }
+.rule-row { display: flex; align-items: center; justify-content: space-between; min-height: 92rpx; padding: 8rpx 0; border-top: 1rpx solid #eef3f1; }
+.rule-row:first-of-type { border-top: none; }
+.rule-main { display: inline-flex; align-items: center; gap: 10rpx; }
+.cat-ico { width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; background: #ffffff; }
+.cat { font-size: 16px; font-weight: 600; color: #233229; }
+.hint { display: block; margin-bottom: 6rpx; font-size: 11px; color: #8d9c93; line-height: 1.5; }
+.days-inline { display: inline-flex; align-items: center; gap: 6rpx; }
+.suf { font-size: 14px; color: #28372e; }
+.day-box { min-width: 50rpx; height: 46rpx; border-radius: 10px; border: 1rpx solid #dcebe1; background: #f6fcf8; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #6ebf85; padding: 0 8rpx; box-sizing: border-box; }
+
+.action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12rpx; margin-top: 8rpx; }
+.btn { width: 100%; border-radius: 999rpx; font-size: 13px; font-weight: 700; height: 42px; line-height: 42px; }
+.btn.ghost { background: #ecf1ed; color: #637268; }
+.btn.primary { background: linear-gradient(135deg, #70c977, #4cae57); color: #fff; box-shadow: 0 8rpx 16rpx rgba(76, 174, 87, 0.26); }
+.btn::after { border: none; }
+</style>
+<template>
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
+		<view class="top" :style="{ paddingRight: `${navRightGap}px` }">
+			<text class="top-title">我的</text>
+		</view>
+		<view class="card head-card">
+			<view class="avatar">
+				<image v-if="profileAvatar" class="avatar-img" :src="profileAvatar" mode="aspectFill" />
+				<text v-else class="avatar-fallback">&#xe615;</text>
+			</view>
+			<view>
+				<text class="name">{{ profileName }}</text>
+				<text class="meta">普通会员</text>
+			</view>
+		</view>
+
+		<view class="menu">
+			<view class="menu-item group-end" @click="goFridge">
+				<text class="micon">&#xe90b;</text>
+				<text>冰箱管理</text>
+				<text class="arrow">›</text>
+			</view>
+			<view class="menu-item group-end" @click="goTakeout">
+				<text class="micon">&#xe614;</text>
+				<text>取出记录</text>
+				<text class="arrow">›</text>
+			</view>
+			<view class="menu-item group-end" @click="goExpiryReminder">
+				<text class="micon">&#xe629;</text>
+				<text>临期提醒</text>
+				<text class="arrow">›</text>
+			</view>
+			<view class="menu-sep"></view>
+			<view class="menu-item group-end" @click="goFavorites">
+				<text class="micon">&#xe62e;</text>
+				<text>收藏菜谱</text>
+				<text class="arrow">›</text>
+			</view>
+			<view class="menu-item group-end" @click="goBasket">
+				<text class="micon">&#xe61b;</text>
+				<text>菜篮子</text>
+				<text class="arrow">›</text>
+			</view>
+			<view class="menu-sep"></view>
+			<view class="menu-item group-end" @click="goProfile">
+				<text class="micon">&#xe632;</text>
+				<text>我的资料</text>
+				<text class="arrow">›</text>
+			</view>
+			<view class="menu-item">
+				<text class="micon">&#xe631;</text>
+				<text>问题反馈</text>
+				<text class="arrow">›</text>
+			</view>
+		</view>
+		<BottomNav current="profile" />
+	</view>
+</template>
+
+<script>
+import BottomNav from '@/components/bottom-nav.vue'
+import { getProfile } from '@/api/modules/profile'
+import { getCurrentUserId } from '@/utils/current-user'
+
+export default {
+	components: { BottomNav },
+	data() {
+		return {
+			userId: getCurrentUserId(),
+			profileName: '微信用户',
+			profileAvatar: ''
+		}
+	},
+	onShow() {
+		this.userId = getCurrentUserId()
+		this.loadProfileHeader()
+	},
+	methods: {
+		async loadProfileHeader() {
+			try {
+				const res = await getProfile(this.userId)
+				this.profileName = `${res?.name || '微信用户'}`.trim() || '微信用户'
+				this.profileAvatar = `${res?.avatar || ''}`.trim()
+			} catch (e) {
+				this.profileName = '微信用户'
+				this.profileAvatar = ''
+			}
+		},
+		goFridge() {
+			uni.navigateTo({
+				url: '/pages/fridge/shelf-life'
+			})
+		},
+		goFavorites() {
+			uni.navigateTo({ url: '/pages/profile/favorites' })
+		},
+		goTakeout() {
+			uni.navigateTo({ url: '/pages/profile/takeout-records' })
+		},
+		goBasket() {
+			uni.navigateTo({ url: '/pages/profile/basket' })
+		},
+		goExpiryReminder() {
+			uni.navigateTo({ url: '/pages/profile/expiry-reminder' })
+		},
+		goProfile() {
+			uni.navigateTo({ url: '/pages/profile/profile' })
+		}
+	}
+}
+</script>
+
+<style scoped>
+
+.container {
+	padding: 10px 12px 88px;
+}
+
+.top {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 8rpx;
+}
+
+.top-title {
+	font-size: 20px;
+	font-weight: 700;
+}
+
+.capsule {
+	border: 1rpx solid #e2e9e4;
+	border-radius: 999rpx;
+	background: #fff;
+	padding: 6rpx 16rpx;
+	font-size: 14px;
+	display: flex;
+	gap: 10rpx;
+}
+
+.card {
+	background: #fff;
+	border: 1rpx solid #edf2ef;
+	border-radius: 16px;
+	padding: 12px;
+	margin-bottom: 14rpx;
+}
+
+.head-card {
+	display: grid;
+	grid-template-columns: 72px 1fr;
+	gap: 12rpx;
+	align-items: center;
+	margin-top: 10rpx;
+}
+
+.avatar {
+	width: 72px;
+	height: 72px;
+	border-radius: 50%;
+	background: #eaf7ee;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+}
+
+.avatar-img {
+	width: 100%;
+	height: 100%;
+	display: block;
+}
+
+.avatar-fallback {
+	font-family: "iconfont" !important;
+	font-size: 64rpx;
+	color: #34a853;
+	line-height: 1;
+}
+
+.name {
+	font-weight: 700;
+	font-size: 18px;
+}
+
+.meta {
+	display: block;
+	margin-top: 6rpx;
+	font-size: 12px;
+	color: #738177;
+}
+
+.menu {
+	border: 1rpx solid #edf1ef;
+	border-radius: 16px;
+	background: #fff;
+}
+
+.menu-item {
+	display: grid;
+	grid-template-columns: 50rpx 1fr auto;
+	gap: 14rpx;
+	align-items: center;
+	padding: 20rpx 12rpx 20rpx 17px;
+	border-bottom: 1rpx solid #eff3f1;
+	font-size: 15px;
+}
+
+.menu-item:last-child {
+	border-bottom: none;
+}
+
+.menu-item.group-end {
+	border-bottom: none;
+}
+
+.menu-sep {
+	height: 24rpx;
+	position: relative;
+}
+
+.menu-sep::after {
+	content: '';
+	position: absolute;
+	left: 18px;
+	right: 12px;
+	top: 50%;
+	height: 1rpx;
+	background: #e9eeeb;
+	transform: translateY(-50%);
+}
+
+.micon {
+	font-family: "iconfont" !important;
+	font-style: normal;
+	font-weight: 400;
+	color: #34a853;
+	font-size: 23px;
+	text-align: center;
+	line-height: 1;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+.arrow {
+	font-size: 28px;
+	color: #c7ced9;
+	line-height: 1;
+}
+</style>
+<template>
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
+		<view class="top">
+			<view class="back-left" @click="goBack">
+				<text class="back-arrow">‹</text>
+			</view>
+			<text class="top-title">临期提醒</text>
+		</view>
+
+		<view class="card top-setting-card">
+			<view class="row">
+				<view class="row-half">
+					<text class="label">每日提醒</text>
+				</view>
+				<view class="row-half right">
+					<button class="sub-btn compact right-control" @click="requestSubscribe">微信授权</button>
+				</view>
+			</view>
+			<view class="row">
+				<view class="row-half">
+					<text class="label">提醒时间</text>
+				</view>
+				<view class="row-half right">
+					<picker mode="time" :value="settings.remindTime" @change="onTimeChange">
+						<view class="time-pill right-control">{{ settings.remindTime }}</view>
+					</picker>
+				</view>
+			</view>
+			<text class="hint">授权后将在设定时间提醒临期食材</text>
+		</view>
+
+		<view class="card">
+			<view v-for="cat in categories" :key="cat" class="rule-row">
+				<view class="rule-main">
+					<view class="cat-ico">
+						<IngredientIcon :name="cat" :category="cat" :size="34" />
+					</view>
+					<text class="cat">{{ cat }}</text>
+				</view>
+				<picker :range="dayOptions" :value="getLimitDays(cat)" @change="onRulePick(cat, $event)">
+					<view class="days-inline">
+						<text class="pre">提前</text>
+						<text class="day-box">{{ getLimitDays(cat) }}</text>
+						<text class="suf">天</text>
+					</view>
+				</picker>
+			</view>
+		</view>
+
+		<view class="action-row">
+			<button class="btn ghost" @click="resetDefaults">恢复默认</button>
+			<button class="btn primary" @click="saveSettings">保存设置</button>
+		</view>
+
+		<BottomNav current="profile" />
+	</view>
+</template>
+
+<script>
+import BottomNav from '@/components/bottom-nav.vue'
+import IngredientIcon from '@/components/ingredient-icon.vue'
+import {
+	getExpiryReminderSettings,
+	updateExpiryReminderSettings
+} from '@/api/modules/expiry-reminder'
+import { getCurrentUserId } from '@/utils/current-user'
+
+const CATEGORIES = ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他']
+const DEV_SUBSCRIBE_TEMPLATE_IDS = ['Be9XDSuceuvjfxx01bjzV_yAh9T2WkvQt8ReSw0GUyw']
+const DEFAULT_SETTINGS = {
+	enabled: true,
+	remindTime: '09:00',
+	defaultDays: 2,
+	subscribe: {
+		templateIds: [],
+		authResult: {},
+		lastAuthAt: '',
+		lastAuthStatus: 'unknown'
+	},
+	rules: {
+		水果: 1,
+		蔬菜: 2,
+		肉类: 3,
+		蛋奶: 2,
+		海鲜: 1,
+		饮料: 5,
+		调味品: 7,
+		其他: 2
+	}
+}
+
+function cloneDefaults() {
+	return JSON.parse(JSON.stringify(DEFAULT_SETTINGS))
+}
+
+export default {
+	components: { BottomNav, IngredientIcon },
+	data() {
+		return {
+			userId: getCurrentUserId(),
+			categories: CATEGORIES,
+			settings: cloneDefaults(),
+			dayOptions: Array.from({ length: 31 }, (_, i) => i)
+		}
+	},
+	onLoad() {
+		this.userId = getCurrentUserId()
+		this.loadSettings()
+	},
+	methods: {
+		goBack() {
+			uni.switchTab({
+				url: '/pages/profile/index'
+			})
+		},
+		clampDays(value) {
+			const n = Number(value)
+			if (!Number.isFinite(n)) return 0
+			return Math.min(Math.max(Math.round(n), 0), 30)
+		},
+		getLimitDays(category) {
+			const rule = this.settings.rules && this.settings.rules[category]
+			if (rule === undefined || rule === null) return this.settings.defaultDays
+			return this.clampDays(rule)
+		},
+		normalizeSubscribe(raw) {
+			const source = raw && typeof raw === 'object' ? raw : {}
+			const templateIds = Array.isArray(source.templateIds)
+				? source.templateIds.map((x) => `${x || ''}`.trim()).filter(Boolean).slice(0, 20)
+				: []
+			const authResultRaw = source.authResult && typeof source.authResult === 'object' ? source.authResult : {}
+			const authResult = {}
+			Object.keys(authResultRaw).forEach((key) => {
+				const k = `${key || ''}`.trim()
+				if (!k) return
+				authResult[k] = `${authResultRaw[key] || ''}`.trim()
+			})
+			const lastAuthAt = `${source.lastAuthAt || ''}`.trim()
+			const lastAuthStatus = `${source.lastAuthStatus || ''}`.trim() || 'unknown'
+			return {
+				templateIds: templateIds.length ? templateIds : [...DEV_SUBSCRIBE_TEMPLATE_IDS],
+				authResult,
+				lastAuthAt,
+				lastAuthStatus
+			}
+		},
+		resolveTemplateIds() {
+			const saved = this.settings?.subscribe?.templateIds || []
+			const cleaned = saved.map((x) => `${x || ''}`.trim()).filter(Boolean)
+			const valid = cleaned.filter((id) => !id.includes('替换') && !id.includes('YOUR_'))
+			if (valid.length) return valid
+			return DEV_SUBSCRIBE_TEMPLATE_IDS
+				.map((x) => `${x || ''}`.trim())
+				.filter((id) => !!id && !id.includes('替换') && !id.includes('YOUR_'))
+		},
+		requestSubscribe() {
+			const templateIds = this.resolveTemplateIds()
+			if (!templateIds.length) {
+				uni.showToast({ title: '请先配置订阅模板ID', icon: 'none' })
+				return
+			}
+			if (typeof uni.requestSubscribeMessage !== 'function') {
+				uni.showToast({ title: '当前环境不支持订阅授权', icon: 'none' })
+				return
+			}
+			uni.requestSubscribeMessage({
+				tmplIds: templateIds,
+				success: () => {
+					uni.showToast({ title: '授权弹窗已完成', icon: 'none' })
+				},
+				fail: () => {
+					uni.showToast({ title: '授权取消或失败，请重试', icon: 'none' })
+				}
+			})
+		},
+		async loadSettings() {
+			try {
+				const raw = await getExpiryReminderSettings(this.userId)
+				if (!raw || typeof raw !== 'object') {
+					this.settings = cloneDefaults()
+					return
+				}
+				const merged = cloneDefaults()
+				merged.enabled = !!raw.enabled
+				merged.remindTime = `${raw.remindTime || merged.remindTime}`
+				merged.defaultDays = this.clampDays(raw.defaultDays)
+				merged.rules = { ...merged.rules }
+				merged.subscribe = this.normalizeSubscribe(raw?.subscribe)
+				this.categories.forEach((cat) => {
+					const fromRaw = raw?.rules?.[cat]
+					if (fromRaw !== undefined && fromRaw !== null) {
+						merged.rules[cat] = this.clampDays(fromRaw)
+					}
+				})
+				this.settings = merged
+			} catch (e) {
+				this.settings = cloneDefaults()
+				uni.showToast({ title: '提醒设置加载失败', icon: 'none' })
+			}
+		},
+		onTimeChange(e) {
+			const value = `${e?.detail?.value || ''}`
+			this.settings.remindTime = value || '09:00'
+		},
+		onRulePick(category, e) {
+			const idx = Number(e?.detail?.value)
+			const picked = this.dayOptions[idx]
+			const next = this.clampDays(picked)
+			this.settings.rules = {
+				...this.settings.rules,
+				[category]: next
+			}
+		},
+		resetDefaults() {
+			this.settings = cloneDefaults()
+			uni.showToast({ title: '已恢复默认', icon: 'none' })
+		},
+		saveSettings() {
+			updateExpiryReminderSettings({
+				userId: this.userId,
+				enabled: this.settings.enabled,
+				remindTime: this.settings.remindTime,
+				defaultDays: this.settings.defaultDays,
+				rules: this.settings.rules,
+				subscribe: this.normalizeSubscribe(this.settings.subscribe)
+			})
+				.then((saved) => {
+					if (saved && typeof saved === 'object') {
+						this.settings = {
+							...this.settings,
+							enabled: !!saved.enabled,
+							remindTime: `${saved.remindTime || this.settings.remindTime}`,
+							defaultDays: this.clampDays(saved.defaultDays),
+							subscribe: this.normalizeSubscribe(saved?.subscribe || this.settings.subscribe),
+							rules: {
+								...this.settings.rules,
+								...(saved.rules && typeof saved.rules === 'object' ? saved.rules : {})
+							}
+						}
+					}
+					uni.showToast({ title: '已保存提醒设置', icon: 'success' })
+				})
+				.catch(() => {
+					uni.showToast({ title: '保存失败，请重试', icon: 'none' })
+				})
+		}
+	}
+}
+</script>
+
+<style scoped>
+.container { padding: 10px 12px 88px; }
+.top { display: flex; align-items: center; gap: 10rpx; margin-bottom: 12rpx; }
+.top-title { font-size: 20px; font-weight: 700; }
+.back-left { width: 30px; height: 30px; border-radius: 999rpx; display: inline-flex; align-items: center; justify-content: center; }
+.back-arrow { font-size: 30px; line-height: 1; color: #c7ced9; transform: translateY(-1px); }
+
+.card { background: #fff; border: 1rpx solid #edf2ef; border-radius: 16px; padding: 12px; margin-bottom: 10rpx; box-shadow: 0 8rpx 18rpx rgba(30, 50, 34, 0.07); }
+.top-setting-card { margin-top: 20rpx; }
+.row { display: flex; align-items: center; justify-content: space-between; min-height: 64rpx; border-bottom: 1rpx solid #eef3f1; }
+.top-setting-card .row:first-of-type { padding-bottom: 8rpx; }
+.row:last-of-type { border-bottom: none; }
+.row + .row { margin-top: 8rpx; }
+.row-half { flex: 1; display: flex; align-items: center; min-width: 0; }
+.row-half.right { justify-content: flex-end; }
+.right-control { margin-left: auto; }
+.label { font-size: 14px; font-weight: 700; color: #26352d; }
+.time-pill { min-width: 106rpx; text-align: center; background: #edf5ef; color: #408a4d; border-radius: 999rpx; padding: 6rpx 12rpx; font-size: 12px; font-weight: 700; }
+.sub-btn { border-radius: 999rpx; font-size: 12px; font-weight: 700; height: 34px; line-height: 34px; padding: 0 16rpx; background: #eef5ff; color: #4a73d9; border: 1rpx solid #d5e4ff; }
+.sub-btn.compact { height: 30px; line-height: 30px; min-width: 106rpx; padding: 0 12rpx; text-align: center; margin: 0; }
+.sub-btn::after { border: none; }
+.status-line { margin-top: 6rpx; margin-bottom: 2rpx; }
+
+.rule-row { display: flex; align-items: center; justify-content: space-between; min-height: 92rpx; padding: 8rpx 0; border-top: 1rpx solid #eef3f1; }
+.rule-row:first-of-type { border-top: none; }
+.rule-main { display: inline-flex; align-items: center; gap: 10rpx; }
+.cat-ico { width: 44px; height: 44px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; background: #ffffff; }
+.cat { font-size: 16px; font-weight: 600; color: #233229; }
+.days-inline { display: inline-flex; align-items: center; gap: 6rpx; }
+.pre, .suf { font-size: 14px; color: #28372e; }
+.day-box { min-width: 50rpx; height: 46rpx; border-radius: 10px; border: 1rpx solid #dcebe1; background: #f6fcf8; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #6ebf85; padding: 0 8rpx; box-sizing: border-box; }
+
+.hint { display: block; margin-top: 4rpx; font-size: 11px; color: #8d9c93; line-height: 1.5; }
+
+.action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12rpx; margin-top: 8rpx; }
+.btn { width: 100%; border-radius: 999rpx; font-size: 13px; font-weight: 700; height: 42px; line-height: 42px; }
+.btn.ghost { background: #ecf1ed; color: #637268; }
+.btn.primary { background: linear-gradient(135deg, #70c977, #4cae57); color: #fff; box-shadow: 0 8rpx 16rpx rgba(76, 174, 87, 0.26); }
+
+.btn::after { border: none; }
+</style>
+<template>
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
+		<view class="top">
+			<view class="back-left" @click="goBack">
+				<text class="back-arrow">‹</text>
+			</view>
+			<text class="top-title">取出记录</text>
+		</view>
+		<view v-if="records.length > 0" class="filter-card">
+			<view class="range-inline">
+				<text class="range-label">取出时间：</text>
+				<picker mode="date" :value="startDate" @change="onStartDateChange">
+					<view class="range-btn">{{ startDate || '开始日期' }}</view>
+				</picker>
+				<text class="range-sep">~</text>
+				<picker mode="date" :value="endDate" @change="onEndDateChange">
+					<view class="range-btn">{{ endDate || '结束日期' }}</view>
+				</picker>
+			</view>
+			<view class="quick-row">
+				<view class="quick-chip" :class="{ active: quickRange === 'all' }" @click="applyQuickRange('all')">全部</view>
+				<view class="quick-chip" :class="{ active: quickRange === '7d' }" @click="applyQuickRange('7d')">近7天</view>
+				<view class="quick-chip" :class="{ active: quickRange === '30d' }" @click="applyQuickRange('30d')">近30天</view>
+			</view>
+		</view>
+		<view v-if="filteredRecords.length === 0" class="card">
+			<text class="meta">{{ records.length === 0 ? '暂无记录，右滑食材并点击“已取出”后会显示在这里。' : '当前时间范围内暂无记录，可切换到“全部”查看。' }}</text>
+		</view>
+		<view class="row" v-for="record in filteredRecords" :key="record.id">
+			<view class="ico">
+				<IngredientIcon :name="record.name" :category="record.category" :size="36" />
+			</view>
+			<view class="body">
+				<text class="name">{{ record.name }}</text>
+				<view class="meta">
+					<text>{{ record.quantity }}{{ record.unit }} · </text>
+					<LocationIcon :location="record.location" :size="13" color="#8fb7e8" />
+					<text>{{ record.location }}</text>
+				</view>
+			</view>
+			<view class="time-wrap">
+				<text class="time-label">取出时间</text>
+				<text class="time-value">{{ formatDateTime(record.time) }}</text>
+			</view>
+		</view>
+		<BottomNav current="profile" />
+	</view>
+</template>
+
+<script>
+	
+import { getTakeoutRecords } from '@/api/modules/ingredients'
+import BottomNav from '@/components/bottom-nav.vue'
+import IngredientIcon from '@/components/ingredient-icon.vue'
+import LocationIcon from '@/components/location-icon.vue'
+
+export default {
+	components: { BottomNav, IngredientIcon, LocationIcon },
+	data() {
+		return {
+			records: [],
+			startDate: '',
+			endDate: '',
+			quickRange: 'all'
+		}
+	},
+	computed: {
+		filteredRecords() {
+			const start = this.startDate
+			const end = this.endDate
+			return this.records.filter((record) => {
+				const day = this.extractDay(record.time)
+				if (!day) return false
+				if (start && day < start) return false
+				if (end && day > end) return false
+				return true
+			})
+		}
+	},
+	async onShow() {
+	  try {
+	    const res = await getTakeoutRecords()
+	    this.records = Array.isArray(res)
+	      ? res
+	      : (Array.isArray(res?.data) ? res.data : (Array.isArray(res?.data?.data) ? res.data.data : []))
+	  } catch (e) {
+	    this.records = []
+	    uni.showToast({ title: '加载记录失败', icon: 'none' })
+	  }
+	},
+	methods: {
+		goBack() {
+			uni.navigateBack()
+		},
+		formatDateTime(time) {
+			if (!time) return '--'
+			const date = new Date(time)
+			if (Number.isFinite(date.getTime())) {
+				const pad = (n) => `${n}`.padStart(2, '0')
+				const y = date.getFullYear()
+				const m = pad(date.getMonth() + 1)
+				const d = pad(date.getDate())
+				const hh = pad(date.getHours())
+				const mm = pad(date.getMinutes())
+				return `${y}-${m}-${d} ${hh}:${mm}`
+			}
+			const text = `${time}`
+			if (text.includes('T')) return text.replace('T', ' ').slice(0, 16)
+			return text.slice(0, 16)
+		},
+		extractDay(time) {
+			if (!time) return ''
+			const date = new Date(time)
+			if (Number.isFinite(date.getTime())) {
+				const pad = (n) => `${n}`.padStart(2, '0')
+				const y = date.getFullYear()
+				const m = pad(date.getMonth() + 1)
+				const d = pad(date.getDate())
+				return `${y}-${m}-${d}`
+			}
+			const text = `${time}`
+			if (text.includes('T')) return text.slice(0, 10)
+			return text.slice(0, 10)
+		},
+		onStartDateChange(e) {
+			this.startDate = e.detail.value
+			this.quickRange = 'custom'
+			if (this.endDate && this.startDate > this.endDate) {
+				this.endDate = this.startDate
+			}
+		},
+		onEndDateChange(e) {
+			this.endDate = e.detail.value
+			this.quickRange = 'custom'
+			if (this.startDate && this.endDate < this.startDate) {
+				this.startDate = this.endDate
+			}
+		},
+		applyQuickRange(type) {
+			this.quickRange = type
+			if (type === 'all') {
+				this.startDate = ''
+				this.endDate = ''
+				return
+			}
+			const today = new Date()
+			const pad = (n) => `${n}`.padStart(2, '0')
+			const format = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+			const end = new Date(today)
+			const start = new Date(today)
+			start.setDate(today.getDate() - (type === '7d' ? 6 : 29))
+			this.startDate = format(start)
+			this.endDate = format(end)
+		}
+	}
+}
+</script>
+
+<style scoped>
+.container {
+	padding: 10px 12px 88px;
+}
+
+.top {
+	display: flex;
+	align-items: center;
+	gap: 10rpx;
+	margin-bottom: 8rpx;
+}
+
+.top-title {
+	font-size: 20px;
+	font-weight: 700;
+}
+
+.back-left { width: 30px; height: 30px; border-radius: 999rpx; display: inline-flex; align-items: center; justify-content: center; }
+.back-arrow { font-size: 30px; line-height: 1; color: #c7ced9; transform: translateY(-1px); }
+
+.card {
+	background: #fff;
+	border: 1rpx solid #edf2ef;
+	border-radius: 14px;
+	padding: 10px;
+}
+
+.filter-card {
+	background: #fff;
+	border: 1rpx solid #e8edf0;
+	border-radius: 14px;
+	padding: 10px;
+	margin-bottom: 10rpx;
+}
+
+.range-inline {
+	display: flex;
+	align-items: center;
+	gap: 8rpx;
+	flex-wrap: wrap;
+}
+
+.range-label {
+	font-size: 13px;
+	font-weight: 600;
+	color: #536173;
+}
+
+.range-btn {
+	min-width: 160rpx;
+	text-align: center;
+	background: #f3f7fb;
+	border: 1rpx solid #e2e8ef;
+	border-radius: 999rpx;
+	padding: 8rpx 12rpx;
+	font-size: 12px;
+	color: #5d6775;
+}
+
+.range-sep {
+	color: #9aa4b2;
+	font-size: 13px;
+}
+
+.quick-row {
+	display: flex;
+	gap: 8rpx;
+	margin-top: 8rpx;
+}
+
+.quick-chip {
+	background: #f3f6f8;
+	color: #6b7583;
+	border: 1rpx solid #e6ebef;
+	border-radius: 999rpx;
+	padding: 4rpx 12rpx;
+	font-size: 11px;
+}
+
+.quick-chip.active {
+	background: #e8f0ff;
+	color: #4a73d9;
+	border-color: #d9e5ff;
+}
+
+.row {
+	display: grid;
+	grid-template-columns: 40px 1fr auto;
+	gap: 10rpx;
+	align-items: start;
+	border: 1rpx solid #eef3f0;
+	border-radius: 14px;
+	padding: 9px;
+	background: #fbfdfb;
+	margin-bottom: 10rpx;
+}
+
+.ico {
+	width: 40px;
+	height: 40px;
+	border-radius: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #f1f8f2;
+	font-size: 20px;
+}
+
+.name {
+	display: block;
+	font-size: 14px;
+	font-weight: 700;
+}
+
+.body {
+	min-width: 0;
+}
+
+.meta {
+	display: inline-flex;
+	align-items: center;
+	gap: 4rpx;
+	font-size: 12px;
+	color: #738177;
+	margin-top: 4rpx;
+}
+
+.time-wrap {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	padding-top: 2rpx;
+}
+
+.time-label {
+	font-size: 11px;
+	color: #93a198;
+}
+
+.time-value {
+	margin-top: 4rpx;
+	font-size: 12px;
+	color: #3f9f4d;
+	background: #e9f8ec;
+	border-radius: 999rpx;
+	padding: 4rpx 10rpx;
+}
+</style>
+<template>
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
+		<view class="top">
+			<view class="back-left" @click="goBack">
+				<text class="back-arrow">‹</text>
+			</view>
+			<text class="top-title">我的资料</text>
+		</view>
+
+		<view class="hero-bg">
+			<view class="avatar-wrap" @click="pickAvatar">
+				<view class="avatar-box">
+					<image v-if="avatarSrc" class="avatar-img" :src="avatarSrc" mode="aspectFill" />
+					<text v-else class="profile-iconfont avatar-fallback-ico">&#xe615;</text>
+				</view>
+			</view>
+		</view>
+
+		<view class="card white-card">
+			<view class="row first-row">
+				<text class="label">昵称</text>
+				<input v-model="form.name" class="field-input row-input" maxlength="20" placeholder="请输入昵称" />
+			</view>
+			<view class="row">
+				<text class="label">家庭人数</text>
+				<view class="right-wrap">
+					<picker mode="selector" :range="householdOptions" @change="onHouseholdChange">
+						<view class="pill">{{ form.householdSize }}人</view>
+					</picker>
+				</view>
+			</view>
+		</view>
+
+		<view class="card white-card">
+			<text class="section-title">饮食偏好</text>
+			<view class="chip-wrap">
+				<view
+					v-for="item in dietOptions"
+					:key="item"
+					class="chip"
+					:class="{ on: form.dietPreferences.includes(item) }"
+					@click="toggleListValue('dietPreferences', item)"
+				>
+					{{ item }}
+				</view>
+			</view>
+			<view class="sub-section">
+				<text class="section-title sub">忌口与限制</text>
+				<view class="chip-wrap">
+					<view
+						v-for="item in avoidanceOptions"
+						:key="item"
+						class="chip"
+						:class="{ on: form.avoidances.includes(item) }"
+						@click="toggleListValue('avoidances', item)"
+					>
+						{{ item }}
+					</view>
+				</view>
+			</view>
+		</view>
+
+		<view class="card white-card">
+			<text class="section-title">可用厨具</text>
+			<view class="chip-wrap">
+				<view
+					v-for="item in cookwareOptions"
+					:key="item"
+					class="chip"
+					:class="{ on: form.cookware.includes(item) }"
+					@click="toggleListValue('cookware', item)"
+				>
+					{{ item }}
+				</view>
+			</view>
+		</view>
+
+		<view class="action-row">
+			<button class="btn ghost" @click="resetDefaults">恢复默认</button>
+			<button class="btn primary" @click="saveProfile">保存资料</button>
+		</view>
+
+		<BottomNav current="profile" />
+	</view>
+</template>
+
+<script>
+import BottomNav from '@/components/bottom-nav.vue'
+import { getProfile, updateProfile } from '@/api/modules/profile'
+import { getCurrentUserId } from '@/utils/current-user'
+
+const DEFAULT_FORM = {
+	name: '微信用户',
+	avatar: '',
+	householdSize: 2,
+	dietPreferences: [],
+	avoidances: [],
+	cookware: [],
+	note: ''
+}
+
+function cloneDefaultForm() {
+	return JSON.parse(JSON.stringify(DEFAULT_FORM))
+}
+
+export default {
+	components: { BottomNav },
+	data() {
+		return {
+			userId: getCurrentUserId(),
+			householdOptions: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+			dietOptions: ['清淡', '低脂', '高蛋白', '少糖', '少盐', '增肌'],
+			avoidanceOptions: ['海鲜', '花生', '乳糖', '辛辣', '香菜', '葱姜蒜'],
+			cookwareOptions: ['空气炸锅', '电饭煲', '烤箱', '炒锅', '蒸锅', '微波炉'],
+			form: cloneDefaultForm(),
+			avatarPreview: '',
+			avatarDataForSave: ''
+		}
+	},
+	computed: {
+		avatarText() {
+			const text = `${this.form.name || ''}`.trim()
+			return text ? text.slice(0, 1) : '我'
+		},
+		avatarSrc() {
+			const preview = `${this.avatarPreview || ''}`.trim()
+			if (preview) return preview
+			return `${this.form.avatar || ''}`.trim()
+		}
+	},
+	onLoad() {
+		this.userId = getCurrentUserId()
+		this.loadProfile()
+	},
+	methods: {
+		goBack() {
+			uni.switchTab({ url: '/pages/profile/index' })
+		},
+		normalizeArray(value) {
+			return Array.isArray(value) ? value.map((x) => `${x || ''}`.trim()).filter(Boolean) : []
+		},
+		parseCookware(text) {
+			return `${text || ''}`
+				.split(/[、,，\s]+/)
+				.map((x) => `${x || ''}`.trim())
+				.filter(Boolean)
+		},
+		async loadProfile() {
+			try {
+				const res = await getProfile(this.userId)
+				if (!res || typeof res !== 'object') {
+					this.form = cloneDefaultForm()
+					return
+				}
+				this.form = {
+					name: `${res.name || DEFAULT_FORM.name}`.trim() || DEFAULT_FORM.name,
+					avatar: `${res.avatar || ''}`.trim(),
+					householdSize: Number(res.householdSize || DEFAULT_FORM.householdSize),
+					dietPreferences: this.normalizeArray(res.dietPreferences),
+					avoidances: this.normalizeArray(res.avoidances),
+					cookware: this.parseCookware(res.note),
+					note: `${res.note || ''}`.trim()
+				}
+				this.avatarPreview = `${this.form.avatar || ''}`.trim()
+				this.avatarDataForSave = ''
+			} catch (e) {
+				this.form = cloneDefaultForm()
+				this.avatarPreview = ''
+				this.avatarDataForSave = ''
+				uni.showToast({ title: '资料加载失败', icon: 'none' })
+			}
+		},
+		onHouseholdChange(e) {
+			const idx = Number(e?.detail?.value)
+			const picked = this.householdOptions[idx]
+			this.form.householdSize = Number(picked || DEFAULT_FORM.householdSize)
+		},
+		readAsDataUrl(path) {
+			return new Promise((resolve, reject) => {
+				const fs = uni.getFileSystemManager && uni.getFileSystemManager()
+				if (!fs || !fs.readFile) {
+					reject(new Error('readFile not available'))
+					return
+				}
+				const ext = `${path}`.split('.').pop()?.toLowerCase() || ''
+				let mime = 'image/jpeg'
+				if (ext === 'png') mime = 'image/png'
+				if (ext === 'webp') mime = 'image/webp'
+				if (ext === 'gif') mime = 'image/gif'
+				fs.readFile({
+					filePath: path,
+					encoding: 'base64',
+					success: (res) => {
+						resolve(`data:${mime};base64,${res.data || ''}`)
+					},
+					fail: (e) => reject(e)
+				})
+			})
+		},
+		compressAvatar(path) {
+			return new Promise((resolve) => {
+				if (!path || typeof uni.compressImage !== 'function') {
+					resolve(path)
+					return
+				}
+				uni.compressImage({
+					src: path,
+					quality: 50,
+					compressedWidth: 320,
+					compressedHeight: 320,
+					success: (res) => {
+						resolve(res?.tempFilePath || path)
+					},
+					fail: () => {
+						resolve(path)
+					}
+				})
+			})
+		},
+		pickAvatar() {
+			uni.chooseImage({
+				count: 1,
+				sizeType: ['compressed'],
+				success: async (res) => {
+					const path = res?.tempFilePaths?.[0]
+					if (!path) return
+					this.avatarPreview = path
+					this.avatarDataForSave = ''
+					try {
+						const compressedPath = await this.compressAvatar(path)
+						const dataUrl = await this.readAsDataUrl(compressedPath || path)
+						const normalized = `${dataUrl || ''}`.trim()
+						if (!normalized.startsWith('data:image/')) {
+							throw new Error('invalid avatar data')
+						}
+						this.form.avatar = normalized
+						this.avatarDataForSave = normalized
+					} catch (e) {
+						uni.showToast({ title: '已选头像，保存时将再次处理', icon: 'none' })
+					}
+				}
+			})
+		},
+		async resolveAvatarForSave() {
+			const direct = `${this.avatarDataForSave || this.form.avatar || ''}`.trim()
+			if (direct.startsWith('data:image/')) return direct
+			const preview = `${this.avatarPreview || ''}`.trim()
+			if (!preview) return ''
+			try {
+				const dataUrl = await this.readAsDataUrl(preview)
+				const normalized = `${dataUrl || ''}`.trim()
+				if (normalized.startsWith('data:image/')) return normalized
+			} catch (e) {}
+			return ''
+		},
+		toggleListValue(field, value) {
+			const current = Array.isArray(this.form[field]) ? this.form[field] : []
+			if (current.includes(value)) {
+				this.form[field] = current.filter((x) => x !== value)
+				return
+			}
+			this.form[field] = [...current, value]
+		},
+		resetDefaults() {
+			this.form = cloneDefaultForm()
+			this.avatarPreview = ''
+			this.avatarDataForSave = ''
+			uni.showToast({ title: '已恢复默认', icon: 'none' })
+		},
+		async saveProfile() {
+			const avatarToSave = await this.resolveAvatarForSave()
+			const currentSavedAvatar = `${this.form.avatar || ''}`.trim()
+			const safeAvatar = avatarToSave || (currentSavedAvatar.startsWith('data:image/') ? currentSavedAvatar : '')
+			const payload = {
+				userId: this.userId,
+				name: `${this.form.name || ''}`.trim() || DEFAULT_FORM.name,
+				avatar: safeAvatar,
+				householdSize: Number(this.form.householdSize || DEFAULT_FORM.householdSize),
+				dietPreferences: this.normalizeArray(this.form.dietPreferences),
+				avoidances: this.normalizeArray(this.form.avoidances),
+				note: this.normalizeArray(this.form.cookware).join('、')
+			}
+			try {
+				const saved = await updateProfile(payload)
+				this.form = {
+					name: `${saved?.name || payload.name}`.trim() || DEFAULT_FORM.name,
+					avatar: `${saved?.avatar || payload.avatar || ''}`.trim(),
+					householdSize: Number(saved?.householdSize || payload.householdSize),
+					dietPreferences: this.normalizeArray(saved?.dietPreferences || payload.dietPreferences),
+					avoidances: this.normalizeArray(saved?.avoidances || payload.avoidances),
+					cookware: this.parseCookware(saved?.note || payload.note),
+					note: `${saved?.note || payload.note}`.trim()
+				}
+				this.avatarPreview = `${this.form.avatar || ''}`.trim()
+				this.avatarDataForSave = `${this.form.avatar || ''}`.trim()
+				uni.showToast({ title: '资料已更新', icon: 'success' })
+			} catch (e) {
+				uni.showToast({ title: '保存失败，请重试', icon: 'none' })
+			}
+		}
+	}
+}
+</script>
+
+<style scoped>
+
+.container { padding: 10px 12px 88px; background: #f4f6f8; }
+.top { display: flex; align-items: center; gap: 10rpx; margin-bottom: 12rpx; }
+.top-title { font-size: 20px; font-weight: 700; }
+.back-left { width: 30px; height: 30px; border-radius: 999rpx; display: inline-flex; align-items: center; justify-content: center; }
+.back-arrow { font-size: 30px; line-height: 1; color: #c7ced9; transform: translateY(-1px); }
+
+.hero-bg { padding: 16rpx 10px 14rpx; display: flex; align-items: center; justify-content: center; margin-bottom: 10rpx; }
+.avatar-wrap { position: relative; }
+.card { margin-bottom: 22rpx; }
+.white-card { background: #fff; border: 1rpx solid #edf2ef; border-radius: 16px; padding: 12px; box-shadow: 0 8rpx 18rpx rgba(30, 50, 34, 0.07); }
+.avatar-box { width: 108px; height: 108px; border-radius: 50%; background: #eaf7ee; display: flex; align-items: center; justify-content: center; }
+.avatar-img { width: 100%; height: 100%; border-radius: 50%; display: block; }
+.profile-iconfont { font-family: "iconfont" !important; font-style: normal; font-weight: 400; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+.avatar-fallback-ico { font-size: 76px; color: #34a853; line-height: 1; }
+
+.row { display: flex; align-items: center; justify-content: space-between; min-height: 64rpx; border-top: 1rpx solid #e6ede9; }
+.first-row { border-top: none; }
+.label { font-size: 14px; font-weight: 700; color: #26352d; }
+.field-input { flex: 1; text-align: right; font-size: 13px; color: #2f3f36; }
+.row-input { text-align: right; font-size: 14px; font-weight: 500; color: #5f7a6b; }
+.right-wrap { flex: 1; display: flex; justify-content: flex-end; }
+.pill { min-width: 92rpx; text-align: center; background: #edf5ef; color: #408a4d; border-radius: 999rpx; padding: 6rpx 12rpx; font-size: 12px; font-weight: 700; }
+
+.section-title { display: block; font-size: 14px; font-weight: 700; color: #26352d; margin-bottom: 8rpx; }
+.section-title.sub { margin-top: 12rpx; }
+.sub-section { margin-top: 8rpx; border-top: 1rpx solid #eef3f1; padding-top: 10rpx; }
+.chip-wrap { display: flex; gap: 8rpx; flex-wrap: wrap; }
+.chip { border-radius: 999rpx; border: 1rpx solid #e4e9e6; background: #f7faf8; color: #6c7a72; padding: 6rpx 14rpx; font-size: 12px; }
+.chip.on { background: #e9f8ec; border-color: #d5eedc; color: #3f9f4d; font-weight: 700; }
+
+.action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12rpx; margin-top: 18rpx; }
+.btn { width: 100%; border-radius: 999rpx; font-size: 13px; font-weight: 700; height: 42px; line-height: 42px; }
+.btn.ghost { background: #ecf1ed; color: #637268; }
+.btn.primary { background: linear-gradient(135deg, #70c977, #4cae57); color: #fff; box-shadow: 0 8rpx 16rpx rgba(76, 174, 87, 0.26); }
+.btn::after { border: none; }
+</style>

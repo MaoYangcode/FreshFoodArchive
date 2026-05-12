@@ -16,7 +16,7 @@ export class AppController {
   getIconFont(@Res() res: Response) {
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-user-id')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
     res.setHeader('Content-Type', 'font/ttf')
     return res.sendFile(path.join(process.cwd(), '../static/iconfont/iconfont.ttf'))

@@ -13,6 +13,7 @@ datasource db {
 
 model User {
   id              Int      @id @default(autoincrement())
+  wechatOpenId    String?  @unique @db.VarChar(128)
   name            String?
   avatar          String?  @db.Text
   householdSize   Int      @default(2)

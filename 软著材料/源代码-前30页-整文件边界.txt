@@ -1,0 +1,1521 @@
+import 'dotenv/config';
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import { resolveRequestUserId } from './common/user-context';
+import { json, urlencoded } from 'express';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  app.use(json({ limit: '10mb' }))
+  app.use(urlencoded({ extended: true, limit: '10mb' }))
+  app.enableCors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id'],
+  })
+  app.use((req: any, _res: any, next: any) => {
+    req.userId = resolveRequestUserId(req)
+    next()
+  })
+  const port = Number(process.env.PORT ?? 3000)
+  await app.listen(port, '0.0.0.0');
+}
+bootstrap();
+import { Module } from '@nestjs/common'
+import { AppController } from './app.controller'
+import { AppService } from './app.service'
+import { IngredientsModule } from './ingredients/ingredients.module'
+import { PrismaModule } from './prisma/prisma.module'
+import { AiModule } from './ai/ai.module'
+import { ExpiryReminderModule } from './expiry-reminder/expiry-reminder.module'
+import { BasketModule } from './basket/basket.module'
+import { ProfileModule } from './profile/profile.module'
+import { ShelfLifeModule } from './shelf-life/shelf-life.module'
+
+@Module({
+  imports: [PrismaModule, IngredientsModule, AiModule, ExpiryReminderModule, BasketModule, ProfileModule, ShelfLifeModule],
+  controllers: [AppController],
+  providers: [AppService],
+})
+export class AppModule {}
+import { Controller, Get, Res } from '@nestjs/common';
+import { AppService } from './app.service';
+import type { Response } from 'express'
+import * as path from 'path'
+
+@Controller()
+export class AppController {
+  constructor(private readonly appService: AppService) {}
+
+  @Get()
+  getHello(): string {
+    return this.appService.getHello();
+  }
+
+  @Get('iconfont.ttf')
+  getIconFont(@Res() res: Response) {
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-user-id')
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+    res.setHeader('Content-Type', 'font/ttf')
+    return res.sendFile(path.join(process.cwd(), '../static/iconfont/iconfont.ttf'))
+  }
+}
+import { Injectable } from '@nestjs/common';
+
+@Injectable()
+export class AppService {
+  getHello(): string {
+    return 'Hello World!';
+  }
+}
+export function resolveRequestUserId(req: any) {
+  const fromHeader =
+    req?.headers?.['x-user-id'] ??
+    req?.headers?.['x-userid'] ??
+    req?.headers?.['x_user_id']
+  const n = Number(fromHeader)
+  if (!Number.isFinite(n) || n <= 0) return 1
+  return Math.floor(n)
+}
+import { Module } from '@nestjs/common';
+import { IngredientsService } from './ingredients.service';
+import { IngredientsController } from './ingredients.controller';
+
+@Module({
+  providers: [IngredientsService],
+  controllers: [IngredientsController]
+})
+export class IngredientsModule {}
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Req } from '@nestjs/common'
+import { IngredientsService } from './ingredients.service'
+
+@Controller('ingredients')
+export class IngredientsController {
+  constructor(private readonly ingredientsService: IngredientsService) {}
+
+  @Get()
+  findAll(@Req() req: any) {
+    return this.ingredientsService.findAll(Number(req?.userId || 1))
+  }
+
+  @Get('takeout-records')
+  getTakeoutRecords(@Req() req: any) {
+    return this.ingredientsService.getTakeoutRecords(Number(req?.userId || 1))
+  }
+
+  @Get(':id')
+  findOne(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.ingredientsService.findOne(id, Number(req?.userId || 1))
+  }
+
+  @Post()
+  create(@Req() req: any, @Body() body: any) {
+    return this.ingredientsService.create(Number(req?.userId || 1), body)
+  }
+
+  @Delete(':id')
+  remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.ingredientsService.remove(id, Number(req?.userId || 1))
+  }
+
+  @Patch(':id')
+  update(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: any) {
+    return this.ingredientsService.update(id, Number(req?.userId || 1), body)
+  }
+
+  @Post(':id/consume')
+  consume(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: any) {
+    return this.ingredientsService.consume(id, Number(req?.userId || 1), body)
+  }
+}
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
+import { PrismaService } from '../prisma/prisma.service'
+
+@Injectable()
+export class IngredientsService {
+  constructor(private prisma: PrismaService) {}
+
+  async findAll(userId: number) {
+    return this.prisma.ingredient.findMany({
+      where: {
+        userId,
+        quantity: {
+          gt: 0,
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    })
+  }
+
+  async findOne(id: number, userId: number) {
+    const item = await this.prisma.ingredient.findFirst({
+      where: { id, userId },
+    })
+    if (!item) {
+      throw new NotFoundException('食材不存在')
+    }
+    return item
+  }
+
+  async create(userId: number, data: any) {
+    return this.prisma.ingredient.create({
+      data: {
+        name: data.name,
+        category: data.category,
+        quantity: Number(data.quantity),
+        unit: data.unit,
+        location: data.location,
+        expireDate: data.expireDate ? new Date(data.expireDate) : null,
+        userId,
+      },
+    })
+  }
+
+  async remove(id: number, userId: number) {
+  const item = await this.prisma.ingredient.findFirst({
+    where: { id, userId },
+  })
+
+  if (!item) {
+    throw new NotFoundException('食材不存在')
+  }
+
+  try {
+    const [, deleted] = await this.prisma.$transaction([
+      this.prisma.takeoutRecord.deleteMany({
+        where: { ingredientId: id },
+      }),
+      this.prisma.ingredient.delete({
+        where: { id },
+      }),
+    ])
+    return deleted
+  } catch (e) {
+    throw new BadRequestException('删除失败：该食材存在关联记录或数据异常')
+  }
+}
+
+  async update(id: number, userId: number, data: any) {
+    const exists = await this.prisma.ingredient.findFirst({
+      where: { id, userId },
+      select: { id: true },
+    })
+    if (!exists) {
+      throw new NotFoundException('食材不存在')
+    }
+    return this.prisma.ingredient.update({
+      where: { id },
+      data: {
+        name: data.name,
+        category: data.category,
+        quantity: Number(data.quantity),
+        unit: data.unit,
+        location: data.location,
+        expireDate: data.expireDate ? new Date(data.expireDate) : undefined,
+      },
+    })
+  }
+
+  async consume(id: number, userId: number, data: any) {
+    const quantity = Number(data.quantity || 1)
+
+    if (!quantity || quantity <= 0) {
+      throw new BadRequestException('取出数量必须大于 0')
+    }
+
+    const ingredient = await this.prisma.ingredient.findFirst({
+      where: { id, userId },
+    })
+
+    if (!ingredient) {
+      throw new NotFoundException('食材不存在')
+    }
+
+    if (ingredient.quantity < quantity) {
+      throw new BadRequestException('库存不足')
+    }
+
+    const updatedIngredient = await this.prisma.ingredient.update({
+      where: { id },
+      data: {
+        quantity: ingredient.quantity - quantity,
+      },
+    })
+
+    await this.prisma.takeoutRecord.create({
+      data: {
+        quantity,
+        ingredientId: id,
+      },
+    })
+
+    return updatedIngredient
+  }
+  async getTakeoutRecords(userId: number) {
+  const records = await this.prisma.takeoutRecord.findMany({
+    where: {
+      ingredient: {
+        userId,
+      },
+    },
+    orderBy: {time: 'desc' }, 
+    include: {
+      ingredient: {
+        select: {
+          name: true,
+          category: true,
+          unit: true,
+          location: true,
+        },
+      },
+    },
+  })
+
+  return records.map((x) => ({
+    id: x.id,
+    name: x.ingredient?.name || '已删除食材',
+    category: x.ingredient?.category || '其他',
+    quantity: x.quantity,
+    unit: x.ingredient?.unit || '',
+    location: x.ingredient?.location || '',
+    time: x.time, 
+  }))
+}
+}
+import { Module } from '@nestjs/common'
+import { ShelfLifeController } from './shelf-life.controller'
+import { ShelfLifeService } from './shelf-life.service'
+
+@Module({
+  controllers: [ShelfLifeController],
+  providers: [ShelfLifeService],
+  exports: [ShelfLifeService],
+})
+export class ShelfLifeModule {}
+import { Body, Controller, Get, Put, Req } from '@nestjs/common'
+import { ShelfLifeService } from './shelf-life.service'
+
+@Controller('shelf-life-settings')
+export class ShelfLifeController {
+  constructor(private readonly shelfLifeService: ShelfLifeService) {}
+
+  @Get()
+  getSettings(@Req() req: any) {
+    return this.shelfLifeService.getSettings(Number(req?.userId || 1))
+  }
+
+  @Put()
+  updateSettings(@Req() req: any, @Body() body: any) {
+    return this.shelfLifeService.updateSettings(Number(req?.userId || 1), body || {})
+  }
+}
+import { Injectable } from '@nestjs/common'
+import { PrismaService } from '../prisma/prisma.service'
+
+const CATEGORIES = ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他']
+const DEFAULT_RULES: Record<string, number> = {
+  水果: 5,
+  蔬菜: 3,
+  肉类: 2,
+  蛋奶: 5,
+  海鲜: 2,
+  饮料: 30,
+  调味品: 90,
+  其他: 7,
+}
+
+@Injectable()
+export class ShelfLifeService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private clampDays(value: unknown, fallback = 7) {
+    const n = Math.floor(Number(value))
+    if (!Number.isFinite(n) || n <= 0) return fallback
+    return Math.min(n, 3650)
+  }
+
+  private normalizeRules(raw: unknown) {
+    const source = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+    const rules: Record<string, number> = { ...DEFAULT_RULES }
+    CATEGORIES.forEach((cat) => {
+      rules[cat] = this.clampDays(source[cat], DEFAULT_RULES[cat])
+    })
+    return rules
+  }
+
+  private async ensureUserExists(userId: number) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (user) return user
+    return this.prisma.user.create({ data: { id: userId } })
+  }
+
+  async getSettings(userId = 1) {
+    const safeUserId = Math.max(Number(userId || 1), 1)
+    await this.ensureUserExists(safeUserId)
+    const row = await this.prisma.shelfLifeSetting.findUnique({
+      where: { userId: safeUserId },
+    })
+    const rules = this.normalizeRules(row?.rules)
+    const defaultDays = this.clampDays(row?.defaultDays, 7)
+    return {
+      userId: safeUserId,
+      defaultDays,
+      rules,
+    }
+  }
+
+  async updateSettings(userId: number, payload: any) {
+    const safeUserId = Math.max(Number(userId || 1), 1)
+    await this.ensureUserExists(safeUserId)
+    const rules = this.normalizeRules(payload?.rules)
+    const defaultDays = this.clampDays(payload?.defaultDays, 7)
+    await this.prisma.shelfLifeSetting.upsert({
+      where: { userId: safeUserId },
+      create: {
+        userId: safeUserId,
+        defaultDays,
+        rules,
+      },
+      update: {
+        defaultDays,
+        rules,
+      },
+    })
+    return {
+      userId: safeUserId,
+      defaultDays,
+      rules,
+    }
+  }
+}
+import { Module } from '@nestjs/common'
+import { PrismaModule } from '../prisma/prisma.module'
+import { BasketController } from './basket.controller'
+import { BasketService } from './basket.service'
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [BasketController],
+  providers: [BasketService],
+})
+export class BasketModule {}
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Req } from '@nestjs/common'
+import { BasketService } from './basket.service'
+
+@Controller('basket-items')
+export class BasketController {
+  constructor(private readonly basketService: BasketService) {}
+
+  @Get()
+  findAll(@Req() req: any) {
+    return this.basketService.findAll(Number(req?.userId || 1))
+  }
+
+  @Post()
+  create(@Req() req: any, @Body() body: any) {
+    return this.basketService.create(Number(req?.userId || 1), body || {})
+  }
+
+  @Post('upsert')
+  upsert(@Req() req: any, @Body() body: any) {
+    return this.basketService.upsertItems(
+      Number(req?.userId || 1),
+      Array.isArray(body?.items) ? body.items : [],
+      `${body?.sourceRecipeName || ''}`,
+    )
+  }
+
+  @Patch(':id/toggle')
+  toggle(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.basketService.toggleStatus(id, Number(req?.userId || 1))
+  }
+
+  @Delete('done/clear')
+  clearDone(@Req() req: any) {
+    return this.basketService.clearDone(Number(req?.userId || 1))
+  }
+
+  @Post('done/restock')
+  restockDone(@Req() req: any, @Body() body: any) {
+    return this.basketService.restockDone(Number(req?.userId || 1), body || {})
+  }
+
+  @Delete(':id')
+  remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    return this.basketService.remove(id, Number(req?.userId || 1))
+  }
+}
+import { Module } from '@nestjs/common'
+import { PrismaModule } from '../prisma/prisma.module'
+import { ProfileController } from './profile.controller'
+import { ProfileService } from './profile.service'
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [ProfileController],
+  providers: [ProfileService],
+})
+export class ProfileModule {}
+import { Body, Controller, Get, Put, Req } from '@nestjs/common'
+import { ProfileService } from './profile.service'
+
+@Controller('profile')
+export class ProfileController {
+  constructor(private readonly profileService: ProfileService) {}
+
+  @Get()
+  getProfile(@Req() req: any) {
+    return this.profileService.getProfile(Number(req?.userId || 1))
+  }
+
+  @Put()
+  updateProfile(@Req() req: any, @Body() body: any) {
+    const userId = Number(req?.userId || 1)
+    return this.profileService.updateProfile(userId, body || {})
+  }
+}
+import { Injectable } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
+import { PrismaService } from '../prisma/prisma.service'
+
+const DEFAULT_PROFILE = {
+  name: '微信用户',
+  avatar: '',
+  householdSize: 2,
+  dietPreferences: [] as string[],
+  avoidances: [] as string[],
+  note: '',
+}
+
+@Injectable()
+export class ProfileService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private normalizeArray(value: unknown) {
+    if (!Array.isArray(value)) return []
+    return value.map((x) => `${x || ''}`.trim()).filter(Boolean)
+  }
+
+  private normalizeName(value: unknown) {
+    const text = `${value || ''}`.trim()
+    return text || DEFAULT_PROFILE.name
+  }
+
+  private normalizeHouseholdSize(value: unknown) {
+    const n = Number(value)
+    if (!Number.isFinite(n)) return DEFAULT_PROFILE.householdSize
+    return Math.min(Math.max(Math.round(n), 1), 10)
+  }
+
+  private normalizeNote(value: unknown) {
+    return `${value || ''}`.trim().slice(0, 120)
+  }
+
+  private normalizeAvatar(value: unknown) {
+    return `${value || ''}`.trim().slice(0, 2000000)
+  }
+
+  private async ensureUserExists(userId: number) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (user) return user
+    return this.prisma.user.create({
+      data: {
+        id: userId,
+        ...DEFAULT_PROFILE,
+        dietPreferences: [] as Prisma.JsonArray,
+        avoidances: [] as Prisma.JsonArray,
+      },
+    })
+  }
+
+  private mapProfile(user: {
+    id: number
+    name: string | null
+    avatar: string | null
+    householdSize: number
+    dietPreferences: Prisma.JsonValue | null
+    avoidances: Prisma.JsonValue | null
+    note: string | null
+    updatedAt: Date
+  }) {
+    return {
+      userId: user.id,
+      name: user.name || DEFAULT_PROFILE.name,
+      avatar: user.avatar || '',
+      householdSize: this.normalizeHouseholdSize(user.householdSize),
+      dietPreferences: this.normalizeArray(user.dietPreferences),
+      avoidances: this.normalizeArray(user.avoidances),
+      note: user.note || '',
+      updatedAt: user.updatedAt,
+    }
+  }
+
+  async getProfile(userId = 1) {
+    const user = await this.ensureUserExists(userId)
+    return this.mapProfile(user)
+  }
+
+  async updateProfile(userId: number, payload: any) {
+    const current = await this.ensureUserExists(userId)
+    const has = (key: string) => Object.prototype.hasOwnProperty.call(payload || {}, key)
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        name: has('name') ? this.normalizeName(payload?.name) : this.normalizeName(current?.name),
+        avatar: has('avatar') ? this.normalizeAvatar(payload?.avatar) : this.normalizeAvatar(current?.avatar),
+        householdSize: has('householdSize')
+          ? this.normalizeHouseholdSize(payload?.householdSize)
+          : this.normalizeHouseholdSize(current?.householdSize),
+        dietPreferences: has('dietPreferences')
+          ? (this.normalizeArray(payload?.dietPreferences) as Prisma.JsonArray)
+          : (this.normalizeArray(current?.dietPreferences) as Prisma.JsonArray),
+        avoidances: has('avoidances')
+          ? (this.normalizeArray(payload?.avoidances) as Prisma.JsonArray)
+          : (this.normalizeArray(current?.avoidances) as Prisma.JsonArray),
+        note: has('note') ? this.normalizeNote(payload?.note) : this.normalizeNote(current?.note),
+      },
+    })
+    return this.mapProfile(updated)
+  }
+}
+import { Module } from '@nestjs/common'
+import { PrismaModule } from '../prisma/prisma.module'
+import { ExpiryReminderController } from './expiry-reminder.controller'
+import { ExpiryReminderService } from './expiry-reminder.service'
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [ExpiryReminderController],
+  providers: [ExpiryReminderService],
+})
+export class ExpiryReminderModule {}
+import { Body, Controller, Get, Post, Put, Query, Req } from '@nestjs/common'
+import { ExpiryReminderService } from './expiry-reminder.service'
+
+@Controller('expiry-reminder')
+export class ExpiryReminderController {
+  constructor(private readonly expiryReminderService: ExpiryReminderService) {}
+
+  @Get('settings')
+  getSettings(@Req() req: any) {
+    return this.expiryReminderService.getSettings(Number(req?.userId || 1))
+  }
+
+  @Put('settings')
+  updateSettings(@Req() req: any, @Body() body: any) {
+    const userId = Number(req?.userId || 1)
+    return this.expiryReminderService.updateSettings(userId, body || {})
+  }
+
+  @Post('subscribe')
+  updateSubscribe(@Req() req: any, @Body() body: any) {
+    const userId = Number(req?.userId || 1)
+    return this.expiryReminderService.updateSubscribe(userId, body || {})
+  }
+
+  @Get('logs')
+  getLogs(@Req() req: any, @Query('limit') limit?: string) {
+    return this.expiryReminderService.getLogs(Number(req?.userId || 1), Number(limit || 20))
+  }
+
+  @Post('scan-now')
+  scanNow(@Req() req: any) {
+    const userId = Number(req?.userId || 1)
+    return this.expiryReminderService.scanNow(userId, 'manual')
+  }
+}
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
+import { PrismaService } from '../prisma/prisma.service'
+
+const CATEGORY_LIST = ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他']
+
+const DEFAULT_SETTINGS = {
+  enabled: true,
+  remindTime: '09:00',
+  defaultDays: 2,
+  rules: {
+    水果: 1,
+    蔬菜: 2,
+    肉类: 3,
+    蛋奶: 2,
+    海鲜: 1,
+    饮料: 5,
+    调味品: 7,
+    其他: 2,
+  } as Record<string, number>,
+}
+
+const DEFAULT_SUBSCRIBE = {
+  templateIds: [] as string[],
+  authResult: {} as Record<string, string>,
+  openId: '',
+  templateData: {} as Record<string, string>,
+  lastAuthAt: '',
+  lastAuthStatus: 'unknown',
+}
+
+@Injectable()
+export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(ExpiryReminderService.name)
+  private timer: NodeJS.Timeout | null = null
+  private wxAccessTokenCache: { token: string; expiresAt: number } | null = null
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  onModuleInit() {
+    this.timer = setInterval(() => {
+      this.runScheduledScan().catch((e) => {
+        this.logger.error(`scheduled scan failed: ${e?.message || e}`)
+      })
+    }, 30000)
+  }
+
+  onModuleDestroy() {
+    if (!this.timer) return
+    clearInterval(this.timer)
+    this.timer = null
+  }
+
+  private clampDays(value: unknown) {
+    const n = Number(value)
+    if (!Number.isFinite(n)) return 0
+    return Math.min(Math.max(Math.round(n), 0), 30)
+  }
+
+  private normalizeRules(raw: unknown, defaultDays: number) {
+    const source = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+    const rules: Record<string, number> = {}
+    CATEGORY_LIST.forEach((cat) => {
+      const candidate = source[cat]
+      if (candidate === undefined || candidate === null) {
+        rules[cat] = defaultDays
+        return
+      }
+      rules[cat] = this.clampDays(candidate)
+    })
+    return rules
+  }
+
+  private normalizeSubscribe(raw: unknown) {
+    const source = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+    const templateIds = Array.isArray(source.templateIds)
+      ? source.templateIds.map((x) => `${x || ''}`.trim()).filter(Boolean).slice(0, 20)
+      : [...DEFAULT_SUBSCRIBE.templateIds]
+    const authResultRaw = source.authResult && typeof source.authResult === 'object'
+      ? (source.authResult as Record<string, unknown>)
+      : {}
+    const authResult: Record<string, string> = {}
+    Object.keys(authResultRaw).forEach((key) => {
+      const k = `${key || ''}`.trim()
+      if (!k) return
+      authResult[k] = `${authResultRaw[key] || ''}`.trim().slice(0, 32)
+    })
+    const lastAuthAtRaw = `${source.lastAuthAt || ''}`.trim()
+    const parsed = lastAuthAtRaw ? new Date(lastAuthAtRaw) : null
+    const lastAuthAt = parsed && Number.isFinite(parsed.getTime()) ? parsed.toISOString() : ''
+    const lastAuthStatus = `${source.lastAuthStatus || ''}`.trim() || DEFAULT_SUBSCRIBE.lastAuthStatus
+    const openId = `${source.openId || ''}`.trim().slice(0, 128)
+    const templateDataRaw = source.templateData && typeof source.templateData === 'object'
+      ? (source.templateData as Record<string, unknown>)
+      : {}
+    const templateData: Record<string, string> = {}
+    Object.keys(templateDataRaw).forEach((key) => {
+      const k = `${key || ''}`.trim()
+      const v = `${templateDataRaw[key] || ''}`.trim()
+      if (!k || !v) return
+      templateData[k] = v.slice(0, 64)
+    })
+    return {
+      templateIds,
+      authResult,
+      openId,
+      templateData,
+      lastAuthAt,
+      lastAuthStatus,
+    }
+  }
+
+  private getWeChatAppId() {
+    return `${process.env.WECHAT_MINI_APP_ID || process.env.WECHAT_APP_ID || ''}`.trim()
+  }
+
+  private getWeChatAppSecret() {
+    return `${process.env.WECHAT_MINI_APP_SECRET || process.env.WECHAT_APP_SECRET || ''}`.trim()
+  }
+
+  private pickAcceptedTemplateId(subscribe: ReturnType<ExpiryReminderService['normalizeSubscribe']>) {
+    const auth = subscribe.authResult || {}
+    for (const id of subscribe.templateIds || []) {
+      if (`${auth[id] || ''}`.trim() === 'accept') return id
+    }
+    return ''
+  }
+
+  private async getWeChatAccessToken() {
+    const appId = this.getWeChatAppId()
+    const appSecret = this.getWeChatAppSecret()
+    if (!appId || !appSecret) {
+      throw new Error('WECHAT_APP_ID/WECHAT_APP_SECRET 未配置')
+    }
+    const now = Date.now()
+    if (this.wxAccessTokenCache && this.wxAccessTokenCache.expiresAt > now + 10000) {
+      return this.wxAccessTokenCache.token
+    }
+    const url = `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(appId)}&secret=${encodeURIComponent(appSecret)}`
+    const res = await fetch(url)
+    const json = await res.json() as any
+    if (!res.ok || !json?.access_token) {
+      throw new Error(`获取微信access_token失败: ${json?.errmsg || res.status}`)
+    }
+    const ttlSec = Number(json?.expires_in || 7200)
+    this.wxAccessTokenCache = {
+      token: `${json.access_token}`,
+      expiresAt: now + Math.max(300, ttlSec - 120) * 1000,
+    }
+    return this.wxAccessTokenCache.token
+  }
+
+  private async getOpenIdByCode(code: string) {
+    const appId = this.getWeChatAppId()
+    const appSecret = this.getWeChatAppSecret()
+    if (!appId || !appSecret) return ''
+    const safeCode = `${code || ''}`.trim()
+    if (!safeCode) return ''
+    const url = `https://api.weixin.qq.com/sns/jscode2session?appid=${encodeURIComponent(appId)}&secret=${encodeURIComponent(appSecret)}&js_code=${encodeURIComponent(safeCode)}&grant_type=authorization_code`
+    const res = await fetch(url)
+    const json = await res.json() as any
+    if (!res.ok || !json?.openid) {
+      this.logger.warn(`jscode2session failed: ${json?.errmsg || res.status}`)
+      return ''
+    }
+    return `${json.openid || ''}`.trim()
+  }
+
+  private buildSubscribeMessageData(items: Array<{ name: string; daysLeft: number }>, subscribe: ReturnType<ExpiryReminderService['normalizeSubscribe']>) {
+    const fromConfig = subscribe.templateData || {}
+    if (Object.keys(fromConfig).length) {
+      const mapped: Record<string, { value: string }> = {}
+      Object.keys(fromConfig).forEach((k) => {
+        mapped[k] = { value: fromConfig[k] }
+      })
+      return mapped
+    }
+    const first = items[0]
+    const name = first ? `${first.name}` : '食材'
+    const days = first ? `${first.daysLeft}` : '0'
+    const now = new Date()
+    const t = `${now.getFullYear()}-${`${now.getMonth() + 1}`.padStart(2, '0')}-${`${now.getDate()}`.padStart(2, '0')} ${`${now.getHours()}`.padStart(2, '0')}:${`${now.getMinutes()}`.padStart(2, '0')}`
+    // Default mapping for "保质期到期提醒" style template:
+    // 物品名称 / 到期日期 / 物品类型 / 存放位置 / 剩余天数
+    const expireDateText = first && Number.isFinite(first.daysLeft)
+      ? (() => {
+          const d = new Date()
+          d.setHours(0, 0, 0, 0)
+          d.setDate(d.getDate() + first.daysLeft)
+          return `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, '0')}-${`${d.getDate()}`.padStart(2, '0')}`
+        })()
+      : t.slice(0, 10)
+    return {
+      thing1: { value: `${name}`.slice(0, 20) },
+      date2: { value: expireDateText },
+      thing3: { value: '食材' },
+      thing4: { value: '冰箱' },
+      number5: { value: `${days}` },
+    }
+  }
+
+  private extractSubscribeFromRules(raw: unknown) {
+    const source = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+    return this.normalizeSubscribe(source.__subscribe)
+  }
+
+  private mergeRulesAndSubscribe(rules: Record<string, number>, subscribe: ReturnType<ExpiryReminderService['normalizeSubscribe']>) {
+    return {
+      ...rules,
+      __subscribe: subscribe,
+    }
+  }
+
+  private normalizeRemindTime(value: unknown) {
+    const text = `${value || ''}`.trim()
+    if (/^\d{2}:\d{2}$/.test(text)) return text
+    return DEFAULT_SETTINGS.remindTime
+  }
+
+  private normalizeSettingsRow(row: {
+    enabled: boolean
+    remindTime: string
+    defaultDays: number
+    rules: Prisma.JsonValue | null
+    lastTriggeredAt: Date | null
+    userId: number
+  }) {
+    const defaultDays = this.clampDays(row.defaultDays)
+    const rules = this.normalizeRules(row.rules, defaultDays)
+    const subscribe = this.extractSubscribeFromRules(row.rules)
+    return {
+      userId: row.userId,
+      enabled: !!row.enabled,
+      remindTime: this.normalizeRemindTime(row.remindTime),
+      defaultDays,
+      rules,
+      subscribe,
+      lastTriggeredAt: row.lastTriggeredAt,
+    }
+  }
+
+  private async ensureUserExists(userId: number) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (user) return user
+    return this.prisma.user.create({
+      data: {
+        id: userId,
+      },
+    })
+  }
+
+  async getSettings(userId = 1) {
+    await this.ensureUserExists(userId)
+    const setting = await this.prisma.expiryReminderSetting.findUnique({
+      where: { userId },
+    })
+    if (!setting) {
+      const created = await this.prisma.expiryReminderSetting.create({
+        data: {
+          userId,
+          ...DEFAULT_SETTINGS,
+          rules: this.mergeRulesAndSubscribe(DEFAULT_SETTINGS.rules, DEFAULT_SUBSCRIBE) as Prisma.JsonObject,
+        },
+      })
+      return this.normalizeSettingsRow(created)
+    }
+    return this.normalizeSettingsRow(setting)
+  }
+
+  async updateSettings(userId: number, payload: any) {
+    const current = await this.getSettings(userId)
+    const nextEnabled = payload?.enabled === undefined ? current.enabled : !!payload.enabled
+    const nextRemindTime = this.normalizeRemindTime(payload?.remindTime || current.remindTime)
+    const nextDefaultDays =
+      payload?.defaultDays === undefined ? current.defaultDays : this.clampDays(payload.defaultDays)
+    const nextRules = this.normalizeRules(payload?.rules ?? current.rules, nextDefaultDays)
+    const nextSubscribe = payload?.subscribe === undefined
+      ? this.normalizeSubscribe(current.subscribe)
+      : this.normalizeSubscribe(payload?.subscribe)
+    const mergedRules = this.mergeRulesAndSubscribe(nextRules, nextSubscribe)
+
+    const updated = await this.prisma.expiryReminderSetting.upsert({
+      where: { userId },
+      create: {
+        userId,
+        enabled: nextEnabled,
+        remindTime: nextRemindTime,
+        defaultDays: nextDefaultDays,
+        rules: mergedRules as Prisma.JsonObject,
+      },
+      update: {
+        enabled: nextEnabled,
+        remindTime: nextRemindTime,
+        defaultDays: nextDefaultDays,
+        rules: mergedRules as Prisma.JsonObject,
+      },
+    })
+
+    return this.normalizeSettingsRow(updated)
+  }
+
+  async updateSubscribe(userId: number, payload: any) {
+    const current = await this.getSettings(userId)
+    const currentSubscribe = this.normalizeSubscribe(current.subscribe)
+    const raw = payload && typeof payload === 'object' ? payload : {}
+    let openId = `${raw?.openId || currentSubscribe.openId || ''}`.trim()
+    const code = `${raw?.code || ''}`.trim()
+    if (!openId && code) {
+      try {
+        openId = await this.getOpenIdByCode(code)
+      } catch (e: any) {
+        this.logger.warn(`resolve openId failed: ${e?.message || e}`)
+      }
+    }
+    return this.updateSettings(userId, {
+      subscribe: {
+        ...currentSubscribe,
+        ...raw,
+        openId,
+      },
+    })
+  }
+
+  private async sendSubscribeMessage(userId: number, subscribe: ReturnType<ExpiryReminderService['normalizeSubscribe']>, items: Array<{ name: string; daysLeft: number }>) {
+    const templateId = this.pickAcceptedTemplateId(subscribe)
+    const openId = `${subscribe.openId || ''}`.trim()
+    if (!templateId) return { attempted: false, reason: 'no-template-authorized' }
+    if (!openId) return { attempted: false, reason: 'no-openid' }
+    if (!items.length) return { attempted: false, reason: 'no-items' }
+
+    try {
+      const token = await this.getWeChatAccessToken()
+      const page = '/pages/profile/expiry-reminder'
+      const payload = {
+        touser: openId,
+        template_id: templateId,
+        page,
+        data: this.buildSubscribeMessageData(items, subscribe),
+      }
+      const url = `https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=${encodeURIComponent(token)}`
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json() as any
+      const ok = Number(json?.errcode) === 0
+      if (!ok) {
+        this.logger.warn(`subscribe send failed user=${userId} code=${json?.errcode} msg=${json?.errmsg}`)
+      }
+      return {
+        attempted: true,
+        success: ok,
+        errcode: Number(json?.errcode || 0),
+        errmsg: `${json?.errmsg || ''}`.trim(),
+        msgid: `${json?.msgid || ''}`.trim(),
+      }
+    } catch (e: any) {
+      this.logger.warn(`subscribe send exception user=${userId} ${e?.message || e}`)
+      return {
+        attempted: true,
+        success: false,
+        errcode: -1,
+        errmsg: `${e?.message || e}`,
+      }
+    }
+  }
+
+  private getDaysLeft(expireDate: Date | null) {
+    if (!expireDate) return Number.POSITIVE_INFINITY
+    const now = new Date()
+    now.setHours(0, 0, 0, 0)
+    const target = new Date(expireDate)
+    target.setHours(0, 0, 0, 0)
+    return Math.floor((target.getTime() - now.getTime()) / (24 * 3600 * 1000))
+  }
+
+  private async collectRemindItems(userId: number) {
+    const settings = await this.getSettings(userId)
+    const ingredients = await this.prisma.ingredient.findMany({
+      where: {
+        userId,
+        quantity: { gt: 0 },
+      },
+      orderBy: { expireDate: 'asc' },
+    })
+
+    const byCategory: Record<string, number> = {}
+    const items = ingredients
+      .map((item) => {
+        const category = CATEGORY_LIST.includes(`${item.category || ''}`) ? `${item.category}` : '其他'
+        const limitDays = settings.rules[category] ?? settings.defaultDays
+        const daysLeft = this.getDaysLeft(item.expireDate)
+        const shouldRemind = Number.isFinite(daysLeft) && daysLeft >= 0 && daysLeft <= limitDays
+        return {
+          id: item.id,
+          name: item.name,
+          category,
+          expireDate: item.expireDate,
+          daysLeft,
+          shouldRemind,
+        }
+      })
+      .filter((x) => x.shouldRemind)
+      .map((x) => ({
+        id: x.id,
+        name: x.name,
+        category: x.category,
+        expireDate: x.expireDate,
+        daysLeft: x.daysLeft,
+      }))
+
+    items.forEach((item) => {
+      byCategory[item.category] = (byCategory[item.category] || 0) + 1
+    })
+
+    return {
+      settings,
+      items,
+      summary: byCategory,
+    }
+  }
+
+  private isSameDay(a: Date, b: Date) {
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    )
+  }
+
+  async scanNow(userId = 1, source = 'manual') {
+    const { settings, items, summary } = await this.collectRemindItems(userId)
+    const now = new Date()
+    const sendResult = await this.sendSubscribeMessage(
+      userId,
+      this.normalizeSubscribe(settings.subscribe),
+      items.map((x) => ({ name: x.name, daysLeft: x.daysLeft })),
+    )
+
+    const log = await this.prisma.expiryReminderLog.create({
+      data: {
+        userId,
+        source,
+        triggerAt: now,
+        total: items.length,
+        summary: summary as Prisma.JsonObject,
+        items: items as Prisma.JsonArray,
+      },
+    })
+
+    await this.prisma.expiryReminderSetting.update({
+      where: { userId },
+      data: { lastTriggeredAt: now },
+    })
+
+    return {
+      triggeredAt: now,
+      enabled: settings.enabled,
+      remindTime: settings.remindTime,
+      total: items.length,
+      summary,
+      items,
+      logId: log.id,
+      subscribeSend: sendResult,
+    }
+  }
+
+  async getLogs(userId = 1, limit = 20) {
+    const safeLimit = Math.min(Math.max(Number(limit || 20), 1), 100)
+    const rows = await this.prisma.expiryReminderLog.findMany({
+      where: { userId },
+      orderBy: { triggerAt: 'desc' },
+      take: safeLimit,
+    })
+    return rows.map((row) => ({
+      id: row.id,
+      source: row.source,
+      triggerAt: row.triggerAt,
+      total: row.total,
+      summary: row.summary || {},
+      items: row.items || [],
+    }))
+  }
+
+  private async runScheduledScan() {
+    const now = new Date()
+    const hh = `${now.getHours()}`.padStart(2, '0')
+    const mm = `${now.getMinutes()}`.padStart(2, '0')
+    const targetTime = `${hh}:${mm}`
+
+    const candidates = await this.prisma.expiryReminderSetting.findMany({
+      where: {
+        enabled: true,
+        remindTime: targetTime,
+      },
+      select: {
+        userId: true,
+        lastTriggeredAt: true,
+      },
+    })
+
+    for (const item of candidates) {
+      if (item.lastTriggeredAt && this.isSameDay(item.lastTriggeredAt, now)) continue
+      await this.scanNow(item.userId, 'scheduled')
+    }
+  }
+}
+import App from './App'
+
+// #ifndef VUE3
+import Vue from 'vue'
+import './uni.promisify.adaptor'
+Vue.config.productionTip = false
+
+function readInitialSafeTop() {
+  try {
+    const info = uni.getSystemInfoSync()
+    const top = Number(info?.statusBarHeight || 0)
+    if (Number.isFinite(top) && top > 0) return top
+  } catch (e) {}
+  return 20
+}
+
+function readInitialNavRightGap() {
+  try {
+    const info = uni.getSystemInfoSync()
+    if (typeof uni.getMenuButtonBoundingClientRect === 'function') {
+      const menu = uni.getMenuButtonBoundingClientRect()
+      const windowWidth = Number(info?.windowWidth || 0)
+      const rightGap = windowWidth > 0 && menu
+        ? Math.round(windowWidth - Number(menu.left || 0) + 8)
+        : 12
+      if (Number.isFinite(rightGap) && rightGap > 0) return rightGap
+    }
+  } catch (e) {}
+  return 12
+}
+
+const safeTopMixin = {
+  data() {
+    return {
+      safeTop: readInitialSafeTop(),
+      navRightGap: readInitialNavRightGap(),
+    }
+  },
+  onLoad() {
+    try {
+      const info = uni.getSystemInfoSync()
+      const top = Number(info?.statusBarHeight || 0)
+      if (Number.isFinite(top) && top > 0) this.safeTop = top
+      if (typeof uni.getMenuButtonBoundingClientRect === 'function') {
+        const menu = uni.getMenuButtonBoundingClientRect()
+        const windowWidth = Number(info?.windowWidth || 0)
+        const rightGap = windowWidth > 0 && menu
+          ? Math.round(windowWidth - Number(menu.left || 0) + 8)
+          : 12
+        if (Number.isFinite(rightGap) && rightGap > 0) this.navRightGap = rightGap
+      }
+    } catch (e) {}
+  },
+}
+Vue.mixin(safeTopMixin)
+App.mpType = 'app'
+const app = new Vue({
+  ...App
+})
+app.$mount()
+// #endif
+
+// #ifdef VUE3
+import { createSSRApp } from 'vue'
+export function createApp() {
+  const readInitialSafeTop = () => {
+    try {
+      const info = uni.getSystemInfoSync()
+      const top = Number(info?.statusBarHeight || 0)
+      if (Number.isFinite(top) && top > 0) return top
+    } catch (e) {}
+    return 20
+  }
+  const readInitialNavRightGap = () => {
+    try {
+      const info = uni.getSystemInfoSync()
+      if (typeof uni.getMenuButtonBoundingClientRect === 'function') {
+        const menu = uni.getMenuButtonBoundingClientRect()
+        const windowWidth = Number(info?.windowWidth || 0)
+        const rightGap = windowWidth > 0 && menu
+          ? Math.round(windowWidth - Number(menu.left || 0) + 8)
+          : 12
+        if (Number.isFinite(rightGap) && rightGap > 0) return rightGap
+      }
+    } catch (e) {}
+    return 12
+  }
+  const app = createSSRApp(App)
+  app.mixin({
+    data() {
+      return {
+        safeTop: readInitialSafeTop(),
+        navRightGap: readInitialNavRightGap(),
+      }
+    },
+    onLoad() {
+      try {
+        const info = uni.getSystemInfoSync()
+        const top = Number(info?.statusBarHeight || 0)
+        if (Number.isFinite(top) && top > 0) this.safeTop = top
+        if (typeof uni.getMenuButtonBoundingClientRect === 'function') {
+          const menu = uni.getMenuButtonBoundingClientRect()
+          const windowWidth = Number(info?.windowWidth || 0)
+          const rightGap = windowWidth > 0 && menu
+            ? Math.round(windowWidth - Number(menu.left || 0) + 8)
+            : 12
+          if (Number.isFinite(rightGap) && rightGap > 0) this.navRightGap = rightGap
+        }
+      } catch (e) {}
+    },
+  })
+  return {
+    app
+  }
+}
+// #endif
+<script>
+	import { setCurrentUserId } from '@/utils/current-user'
+
+	export default {
+		onLaunch: function() {
+			// Keep a stable debug user before real auth integration.
+			setCurrentUserId(1)
+			console.log('FreshFoodArchive Launch')
+		},
+		onShow: function() {
+			console.log('FreshFoodArchive Show')
+		},
+		onHide: function() {
+			console.log('FreshFoodArchive Hide')
+		}
+	}
+</script>
+
+<style>
+	@import "@/static/iconfont/iconfont.css";
+
+	page {
+		background: #f4f6f8;
+		font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+		color: #202823;
+		box-sizing: border-box;
+	}
+
+	view,
+	text,
+	button,
+	input,
+	textarea,
+	label,
+	navigator {
+		font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+	}
+</style>
+{
+  "pages": [
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationBarTitleText": "鲜食档案",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/fridge/list",
+      "style": {
+        "navigationBarTitleText": "我的冰箱",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/fridge/add",
+      "style": {
+        "navigationBarTitleText": "添加食材",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/fridge/edit",
+      "style": {
+        "navigationBarTitleText": "编辑食材",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/fridge/shelf-life",
+      "style": {
+        "navigationBarTitleText": "保质期设置",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/recipe/generate",
+      "style": {
+        "navigationBarTitleText": "菜谱推荐",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/recipe/result",
+      "style": {
+        "navigationBarTitleText": "智能菜谱",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/recipe/detail",
+      "style": {
+        "navigationBarTitleText": "菜谱详情",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/profile/index",
+      "style": {
+        "navigationBarTitleText": "我的",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/profile/takeout-records",
+      "style": {
+        "navigationBarTitleText": "取出记录",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/profile/favorites",
+      "style": {
+        "navigationBarTitleText": "收藏菜谱",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/profile/basket",
+      "style": {
+        "navigationBarTitleText": "菜篮子",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/profile/expiry-reminder",
+      "style": {
+        "navigationBarTitleText": "临期提醒",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/profile/profile",
+      "style": {
+        "navigationBarTitleText": "我的资料",
+        "navigationStyle": "custom"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#F7F8FA",
+    "backgroundColor": "#F4F6F8"
+  },
+  "uniIdRouter": {}
+}
+import { getCurrentUserId } from '../utils/current-user'
+
+// NOTE: Real-device debug often changes LAN IP.
+// Read storage-configured base URL first, then fall back to defaults.
+const DEFAULT_BASE_URL_CANDIDATES = [
+	'http://172.20.10.10:3000'
+]
+
+const BASE_URL_STORAGE_KEY = 'FFA_API_BASE_URL'
+
+function canUseUni() {
+	return typeof uni !== 'undefined' && uni && typeof uni.request === 'function'
+}
+
+function normalizeBaseUrl(url) {
+	const text = `${url || ''}`.trim()
+	if (!text) return ''
+	return text.replace(/\/+$/, '')
+}
+
+function readBaseUrlFromStorage() {
+	if (!canUseUni() || typeof uni.getStorageSync !== 'function') return ''
+	try {
+		return normalizeBaseUrl(uni.getStorageSync(BASE_URL_STORAGE_KEY))
+	} catch (e) {
+		return ''
+	}
+}
+
+function writeBaseUrlToStorage(value) {
+	if (!canUseUni() || typeof uni.setStorageSync !== 'function' || value === undefined) return
+	try {
+		uni.setStorageSync(BASE_URL_STORAGE_KEY, value)
+	} catch (e) {
+		// Ignore storage write failures in restricted runtimes.
+	}
+}
+
+function dedupe(list) {
+	const result = []
+	for (let i = 0; i < list.length; i += 1) {
+		const item = list[i]
+		if (!item) continue
+		if (result.indexOf(item) !== -1) continue
+		result.push(item)
+	}
+	return result
+}
+
+function getBaseCandidates() {
+	const savedBase = readBaseUrlFromStorage()
+	const list = savedBase ? [savedBase].concat(DEFAULT_BASE_URL_CANDIDATES) : DEFAULT_BASE_URL_CANDIDATES.slice()
+	return dedupe(list)
+}
+
+let activeBaseUrl = getBaseCandidates()[0] || DEFAULT_BASE_URL_CANDIDATES[0]
+
+export const BASE_URL = activeBaseUrl
+export function getActiveBaseUrl() {
+	return activeBaseUrl
+}
+
+export function setApiBaseUrl(baseUrl) {
+	const normalized = normalizeBaseUrl(baseUrl)
+	if (!normalized) return false
+	activeBaseUrl = normalized
+	writeBaseUrlToStorage(normalized)
+	return true
+}
+
+function requestOnce(baseUrl, { url, method = 'GET', data = {}, header = {}, timeout = 8000 }) {
+	return new Promise((resolve, reject) => {
+		const userId = getCurrentUserId()
+		const headers = {
+			'x-user-id': String(userId),
+			...header
+		}
+		uni.request({
+			url: `${baseUrl}${url}`,
+			method,
+			data,
+			header: headers,
+			timeout,
+			success: (res) => {
+				const payload = res.data || {}
+				if (payload.code === 0 || payload.code === undefined) {
+					resolve(payload)
+					return
+				}
+				reject(payload)
+			},
+			fail: (err) => {
+				reject(err)
+			}
+		})
+	})
+}
+
+export function request({ url, method = 'GET', data = {}, header = {}, timeout = 8000 }) {
+	const bases = getBaseCandidates()
+	const orderedBases = dedupe([activeBaseUrl].concat(bases))
+	const tryNext = (index, lastError) => {
+		if (index >= orderedBases.length) {
+			return Promise.reject(lastError || new Error('all base urls failed'))
+		}
+		const base = orderedBases[index]
+		return requestOnce(base, { url, method, data, header, timeout })
+			.then((payload) => {
+				activeBaseUrl = base
+				writeBaseUrlToStorage(base)
+				return payload
+			})
+			.catch((err) => {
+				// Business error from backend should not trigger base URL fallback.
+				const hasBizCode = err && typeof err === 'object' && Object.prototype.hasOwnProperty.call(err, 'code')
+				if (hasBizCode) return Promise.reject(err)
+				return tryNext(index + 1, err)
+			})
+	}
+	return tryNext(0, null)
+}
