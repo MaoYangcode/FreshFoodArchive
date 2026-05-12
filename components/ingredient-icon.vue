@@ -1,12 +1,13 @@
 <template>
 	<view class="icon-wrap" :style="wrapStyle">
 		<image v-if="iconUrl" class="ingredient-weapp-icon" :src="iconUrl" :style="iconStyle" mode="aspectFit" @error="onIconLoadError"></image>
+		<text v-else-if="isFridgeFallback" class="iconfont-fallback">&#xe90b;</text>
 		<text v-else class="icon-fallback">{{ fallbackText }}</text>
 	</view>
 </template>
 
 <script>
-import { getIngredientWeappColorClass } from '@/utils/ingredient-image'
+import { getIngredientDisplayIconfontClass, getIngredientWeappColorClass } from '@/utils/ingredient-image'
 
 const DEFAULT_ICON_BASE_URL = 'https://nnvicode.com/ingredient-svgs'
 
@@ -43,16 +44,29 @@ export default {
 		weappColorClass() { return getIngredientWeappColorClass(this.name, this.category) },
 		iconUrl() {
 			if (this.iconLoadFailed) return ''
-			const cls = `${this.weappColorClass || ''}`.trim()
 			const rawText = `${this.name || this.category || ''}`.trim()
+			const iconClass = `${getIngredientDisplayIconfontClass(this.name, this.category) || ''}`.trim()
 			const fallbackFile = rawText.includes('冰') ? 'icon-bingxiang' : ''
-			const file = (cls ? cls.replace(/^t-icon-/, '') : fallbackFile).trim()
+			let file = ''
+			if (iconClass === 'icon-bingxiang' || iconClass === 'icon-bingxiang1') {
+				file = iconClass
+			} else if (iconClass) {
+				file = iconClass.replace(/^icon-/, '')
+			} else {
+				const cls = `${this.weappColorClass || ''}`.trim()
+				file = cls ? cls.replace(/^t-icon-/, '') : fallbackFile
+			}
+			file = `${file || ''}`.trim()
 			if (!file) return ''
 			return `${resolveIconBaseUrl()}/${encodeURIComponent(file)}.svg`
 		},
 		fallbackText() {
 			const text = `${this.name || this.category || ''}`.trim()
 			return text ? text.slice(0, 1) : '食'
+		},
+		isFridgeFallback() {
+			const text = `${this.name || this.category || ''}`.trim()
+			return text.includes('冰')
 		},
 		wrapStyle() {
 			const n = Math.max(18, Number(this.size) || 44)
@@ -85,6 +99,14 @@ export default {
 	font-size: 14px;
 	line-height: 1;
 	color: #668070;
+}
+.iconfont-fallback {
+	font-family: "iconfont" !important;
+	font-size: 22px;
+	line-height: 1;
+	color: #668070;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 </style>
 
