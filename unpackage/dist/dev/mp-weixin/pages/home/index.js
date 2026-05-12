@@ -147,7 +147,12 @@ const _sfc_main = {
       return Math.floor((t.getTime() - now.getTime()) / (24 * 3600 * 1e3));
     },
     goFridge() {
-      common_vendor.index.switchTab({ url: "/pages/fridge/list" });
+      common_vendor.index.reLaunch({
+        url: "/pages/fridge/list",
+        fail: () => {
+          common_vendor.index.navigateTo({ url: "/pages/fridge/list" });
+        }
+      });
     }
   }
 };

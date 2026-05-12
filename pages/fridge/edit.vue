@@ -128,8 +128,15 @@ export default {
 	},
 	methods: {
 		goBackToList() {
-			uni.switchTab({
-				url: '/pages/fridge/list'
+			if (getCurrentPages().length > 1) {
+				uni.navigateBack()
+				return
+			}
+			uni.reLaunch({
+				url: '/pages/fridge/list',
+				fail: () => {
+					uni.navigateTo({ url: '/pages/fridge/list' })
+				}
 			})
 		},
 		pickPayload(source) {

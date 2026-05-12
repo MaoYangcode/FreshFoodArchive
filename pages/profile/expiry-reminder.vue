@@ -109,8 +109,15 @@ export default {
 	},
 	methods: {
 		goBack() {
-			uni.switchTab({
-				url: '/pages/profile/index'
+			if (getCurrentPages().length > 1) {
+				uni.navigateBack()
+				return
+			}
+			uni.reLaunch({
+				url: '/pages/profile/index',
+				fail: () => {
+					uni.navigateTo({ url: '/pages/profile/index' })
+				}
 			})
 		},
 		clampDays(value) {

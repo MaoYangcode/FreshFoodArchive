@@ -212,7 +212,12 @@ export default {
 			return Math.floor((t.getTime() - now.getTime()) / (24 * 3600 * 1000))
 		},
 		goFridge() {
-			uni.switchTab({ url: '/pages/fridge/list' })
+			uni.reLaunch({
+				url: '/pages/fridge/list',
+				fail: () => {
+					uni.navigateTo({ url: '/pages/fridge/list' })
+				}
+			})
 		}
 	}
 }

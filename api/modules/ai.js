@@ -1,4 +1,5 @@
 import { getActiveBaseUrl, request } from '../request'
+import { getAuthToken } from '../../utils/current-user'
 
 export function recognizeIngredients(payload) {
 	return request({
@@ -22,13 +23,29 @@ export function recognizeAudioByUpload(filePath) {
 
 function uploadAiFile(apiPath, filePath) {
 	return new Promise((resolve, reject) => {
+		const token = `${getAuthToken() || ''}`.trim()
+		if (!token) {
+			reject({
+				code: 401,
+				message: '请先完成微信登录'
+			})
+			return
+		}
 		uni.uploadFile({
 			url: `${getActiveBaseUrl()}${apiPath}`,
 			filePath,
 			name: 'file',
+			header: {
+				Authorization: `Bearer ${token}`
+			},
 			success: (res) => {
 				try {
+					const statusCode = Number(res?.statusCode || 0)
 					const payload = JSON.parse(res?.data || '{}')
+					if (statusCode < 200 || statusCode >= 300) {
+						reject(payload)
+						return
+					}
 					if (payload.code === 0 || payload.code === undefined) {
 						resolve(payload)
 						return

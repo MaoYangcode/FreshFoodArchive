@@ -47,7 +47,16 @@ const _sfc_main = {
   },
   methods: {
     goBack() {
-      common_vendor.index.switchTab({ url: "/pages/profile/index" });
+      if (getCurrentPages().length > 1) {
+        common_vendor.index.navigateBack();
+        return;
+      }
+      common_vendor.index.reLaunch({
+        url: "/pages/profile/index",
+        fail: () => {
+          common_vendor.index.navigateTo({ url: "/pages/profile/index" });
+        }
+      });
     },
     normalizeArray(value) {
       return Array.isArray(value) ? value.map((x) => `${x || ""}`.trim()).filter(Boolean) : [];
