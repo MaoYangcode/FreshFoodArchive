@@ -1,10 +1,19 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
 const api_modules_ingredients = require("../../api/modules/ingredients.js");
+const api_modules_recipes = require("../../api/modules/recipes.js");
+const utils_currentUser = require("../../utils/current-user.js");
 const BottomNav = () => "../../components/bottom-nav.js";
 const IngredientIcon = () => "../../components/ingredient-icon.js";
 const _sfc_main = {
   components: { BottomNav, IngredientIcon },
+  computed: {
+    relatedButtonText() {
+      if (!this.isRelatedGenerating)
+        return "相关菜谱";
+      return `生成中 ${Math.max(1, Math.min(99, Math.round(this.relatedProgress || 0)))}%`;
+    }
+  },
   data() {
     return {
       ingredientId: "",
@@ -60,7 +69,10 @@ const _sfc_main = {
         purchaseDate: "",
         expireDate: "",
         createdAt: ""
-      }
+      },
+      isRelatedGenerating: false,
+      relatedProgress: 0,
+      relatedProgressTimer: null
     };
   },
   onLoad(options) {
@@ -77,6 +89,177 @@ const _sfc_main = {
     });
   },
   methods: {
+    startRelatedProgress() {
+      this.stopRelatedProgress();
+      this.relatedProgress = 1;
+      this.relatedProgressTimer = setInterval(() => {
+        if (!this.isRelatedGenerating)
+          return;
+        if (this.relatedProgress >= 96)
+          return;
+        if (this.relatedProgress < 20) {
+          this.relatedProgress += 1;
+          return;
+        }
+        if (this.relatedProgress < 45) {
+          this.relatedProgress += 1.6;
+          return;
+        }
+        if (this.relatedProgress < 70) {
+          this.relatedProgress += 2;
+          return;
+        }
+        if (this.relatedProgress < 88) {
+          this.relatedProgress += 1.2;
+          return;
+        }
+        this.relatedProgress += 0.35;
+      }, 700);
+    },
+    finishRelatedProgress() {
+      return new Promise((resolve) => {
+        const from = Math.max(1, Number(this.relatedProgress || 0));
+        const to = 100;
+        const totalMs = 1200;
+        const stepMs = 60;
+        const stepCount = Math.max(1, Math.floor(totalMs / stepMs));
+        let currentStep = 0;
+        const timer = setInterval(() => {
+          currentStep += 1;
+          const ratio = Math.min(1, currentStep / stepCount);
+          this.relatedProgress = from + (to - from) * ratio;
+          if (ratio >= 1) {
+            clearInterval(timer);
+            this.relatedProgress = 100;
+            resolve();
+          }
+        }, stepMs);
+      });
+    },
+    stopRelatedProgress() {
+      if (this.relatedProgressTimer) {
+        clearInterval(this.relatedProgressTimer);
+        this.relatedProgressTimer = null;
+      }
+    },
+    normalizeNameForCompare(text) {
+      return `${text || ""}`.toLowerCase().replace(/[（(].*?[）)]/g, "").replace(/[^a-z0-9\u4e00-\u9fa5]/g, "");
+    },
+    recipeIncludesIngredient(recipe, ingredientName) {
+      const key = this.normalizeNameForCompare(ingredientName);
+      if (!key)
+        return false;
+      const haystack = [
+        `${(recipe == null ? void 0 : recipe.name) || ""}`,
+        ...Array.isArray(recipe == null ? void 0 : recipe.ingredients) ? recipe.ingredients.map((x) => `${(x == null ? void 0 : x.name) || ""}`) : [],
+        ...Array.isArray(recipe == null ? void 0 : recipe.steps) ? recipe.steps.map((x) => `${x || ""}`) : []
+      ].join(" ").toLowerCase();
+      const normalized = this.normalizeNameForCompare(haystack);
+      return normalized.includes(key);
+    },
+    openRecipeResultPage() {
+      const target = "/pages/recipe/result";
+      const openWithRedirect = () => {
+        common_vendor.index.redirectTo({
+          url: target,
+          fail: () => {
+            common_vendor.index.reLaunch({ url: target });
+          }
+        });
+      };
+      const pages = getCurrentPages();
+      if (Array.isArray(pages) && pages.length >= 9) {
+        openWithRedirect();
+        return;
+      }
+      common_vendor.index.navigateTo({
+        url: target,
+        fail: (err) => {
+          const msg = `${(err == null ? void 0 : err.errMsg) || ""}`;
+          if (msg.includes("webview count limit exceed")) {
+            openWithRedirect();
+            return;
+          }
+          common_vendor.index.showToast({ title: "页面跳转失败", icon: "none" });
+        }
+      });
+    },
+    normalizeIngredientItem(item) {
+      return {
+        name: `${(item == null ? void 0 : item.name) || ""}`.trim(),
+        quantity: Number((item == null ? void 0 : item.quantity) || 1),
+        unit: `${(item == null ? void 0 : item.unit) || ""}`.trim(),
+        category: `${(item == null ? void 0 : item.category) || ""}`.trim()
+      };
+    },
+    async generateRelatedRecipes() {
+      var _a, _b, _c;
+      if (this.isRelatedGenerating)
+        return;
+      const focusName = `${this.form.name || ""}`.trim();
+      if (!focusName) {
+        common_vendor.index.showToast({ title: "当前食材名称为空", icon: "none" });
+        return;
+      }
+      this.isRelatedGenerating = true;
+      this.startRelatedProgress();
+      try {
+        const userId = utils_currentUser.getCurrentUserId();
+        const listRes = await api_modules_ingredients.getIngredientList({ userId });
+        const list = Array.isArray(listRes) ? listRes : [];
+        const normalizedList = list.map((x) => this.normalizeIngredientItem(x)).filter((x) => !!x.name);
+        const currentItem = this.normalizeIngredientItem(this.form);
+        const pantryIngredients = normalizedList.length ? normalizedList : [currentItem];
+        const hasFocus = pantryIngredients.some((x) => this.normalizeNameForCompare(x.name) === this.normalizeNameForCompare(focusName));
+        const requestIngredients = hasFocus ? pantryIngredients : [currentItem, ...pantryIngredients];
+        const aiRes = await api_modules_recipes.recommendRecipes({
+          userId,
+          ingredients: requestIngredients,
+          tastePreference: "家常",
+          cookingTime: 30,
+          count: 6
+        });
+        const fullPantryRecipes = (Array.isArray((_a = aiRes == null ? void 0 : aiRes.data) == null ? void 0 : _a.recipes) ? aiRes.data.recipes : []).filter((x) => this.recipeIncludesIngredient(x, focusName));
+        const profileApplied = ((_b = aiRes == null ? void 0 : aiRes.data) == null ? void 0 : _b.profileApplied) || null;
+        const focusedRes = await api_modules_recipes.recommendRecipes({
+          userId,
+          ingredients: [currentItem],
+          tastePreference: "家常",
+          cookingTime: 30,
+          count: 6
+        });
+        const singleFocusedRecipes = (Array.isArray((_c = focusedRes == null ? void 0 : focusedRes.data) == null ? void 0 : _c.recipes) ? focusedRes.data.recipes : []).filter((x) => this.recipeIncludesIngredient(x, focusName));
+        const merged = [...singleFocusedRecipes, ...fullPantryRecipes];
+        const seen = /* @__PURE__ */ new Set();
+        const recipes = merged.filter((item) => {
+          const key = this.normalizeNameForCompare(item == null ? void 0 : item.name);
+          if (!key || seen.has(key))
+            return false;
+          seen.add(key);
+          return true;
+        });
+        if (!recipes.length) {
+          common_vendor.index.showToast({ title: "暂未生成该食材相关菜谱", icon: "none" });
+          return;
+        }
+        await this.finishRelatedProgress();
+        await new Promise((resolve) => setTimeout(resolve, 180));
+        const batchId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        common_vendor.index.setStorageSync("latestGeneratedRecipes", recipes.slice(0, 6));
+        common_vendor.index.setStorageSync("latestGeneratedBatchId", batchId);
+        common_vendor.index.setStorageSync("latestRecipeProfileApplied", profileApplied);
+        common_vendor.index.setStorageSync("latestPantryTags", [focusName]);
+        common_vendor.index.setStorageSync("latestPantryIngredients", requestIngredients);
+        this.openRecipeResultPage();
+      } catch (e) {
+        common_vendor.index.__f__("error", "at pages/fridge/edit.vue:315", "生成相关菜谱失败", e);
+        common_vendor.index.showToast({ title: "生成失败，请稍后重试", icon: "none" });
+      } finally {
+        this.stopRelatedProgress();
+        this.isRelatedGenerating = false;
+        this.relatedProgress = 0;
+      }
+    },
     goBackToList() {
       if (getCurrentPages().length > 1) {
         common_vendor.index.navigateBack();
@@ -163,7 +346,7 @@ const _sfc_main = {
           }
           this.applyDetail(current);
         } catch (fallbackErr) {
-          common_vendor.index.__f__("error", "at pages/fridge/edit.vue:213", "获取食材失败", fallbackErr);
+          common_vendor.index.__f__("error", "at pages/fridge/edit.vue:406", "获取食材失败", fallbackErr);
           common_vendor.index.showToast({
             title: "获取食材失败",
             icon: "none"
@@ -199,7 +382,7 @@ const _sfc_main = {
           common_vendor.index.navigateBack();
         }, 300);
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/edit.vue:255", "更新失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/edit.vue:448", "更新失败", e);
         common_vendor.index.showToast({ title: "保存失败", icon: "none" });
       }
     },
@@ -215,7 +398,7 @@ const _sfc_main = {
           common_vendor.index.navigateBack();
         }, 300);
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/edit.vue:274", "删除失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/edit.vue:467", "删除失败", e);
         common_vendor.index.showToast({ title: "删除失败", icon: "none" });
       }
     }
@@ -236,17 +419,20 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     }),
     c: common_vendor.t($data.form.name || "食材"),
     d: common_vendor.t($data.form.createdAt || "-"),
-    e: $data.form.name,
-    f: common_vendor.o(($event) => $data.form.name = $event.detail.value),
-    g: common_vendor.t($data.form.category || "请选择类型"),
-    h: $data.categories,
-    i: common_vendor.o((...args) => $options.onCategoryChange && $options.onCategoryChange(...args)),
-    j: $data.form.quantity,
-    k: common_vendor.o(($event) => $data.form.quantity = $event.detail.value),
-    l: common_vendor.t($data.form.unit || "选择单位"),
-    m: $data.units,
-    n: common_vendor.o((...args) => $options.onUnitChange && $options.onUnitChange(...args)),
-    o: common_vendor.f($data.locations, (loc, k0, i0) => {
+    e: common_vendor.t($options.relatedButtonText),
+    f: $data.isRelatedGenerating || !$data.form.name,
+    g: common_vendor.o((...args) => $options.generateRelatedRecipes && $options.generateRelatedRecipes(...args)),
+    h: $data.form.name,
+    i: common_vendor.o(($event) => $data.form.name = $event.detail.value),
+    j: common_vendor.t($data.form.category || "请选择类型"),
+    k: $data.categories,
+    l: common_vendor.o((...args) => $options.onCategoryChange && $options.onCategoryChange(...args)),
+    m: $data.form.quantity,
+    n: common_vendor.o(($event) => $data.form.quantity = $event.detail.value),
+    o: common_vendor.t($data.form.unit || "选择单位"),
+    p: $data.units,
+    q: common_vendor.o((...args) => $options.onUnitChange && $options.onUnitChange(...args)),
+    r: common_vendor.f($data.locations, (loc, k0, i0) => {
       return {
         a: common_vendor.t(loc),
         b: loc,
@@ -254,15 +440,15 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         d: common_vendor.o(($event) => $data.form.location = loc, loc)
       };
     }),
-    p: common_vendor.t($data.form.expireDate || "选择过期时间"),
-    q: $data.form.expireDate,
-    r: common_vendor.o((...args) => $options.onDateChange && $options.onDateChange(...args)),
-    s: common_vendor.o((...args) => $options.remove && $options.remove(...args)),
-    t: common_vendor.o((...args) => $options.save && $options.save(...args)),
-    v: common_vendor.p({
+    s: common_vendor.t($data.form.expireDate || "选择过期时间"),
+    t: $data.form.expireDate,
+    v: common_vendor.o((...args) => $options.onDateChange && $options.onDateChange(...args)),
+    w: common_vendor.o((...args) => $options.remove && $options.remove(...args)),
+    x: common_vendor.o((...args) => $options.save && $options.save(...args)),
+    y: common_vendor.p({
       current: "fridge"
     }),
-    w: `${_ctx.safeTop + 14}px`
+    z: `${_ctx.safeTop + 14}px`
   };
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-a679d2d3"]]);

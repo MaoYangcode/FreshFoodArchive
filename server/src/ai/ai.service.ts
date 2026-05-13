@@ -344,6 +344,7 @@ export class AiService {
       '2) 每道菜至少命中 1 种库存食材（库存优先）。',
       '3) 允许补充 1-3 种常见缺失食材来让菜谱成立（如“土豆炖牛肉”可补充牛肉）。',
       '4) 不要为了凑数量输出不符合常理的菜。',
+      '5) 同一批结果要尽量多样：优先覆盖不同库存食材，不要多数菜都围绕同一个主食材。',
       'JSON 结构：',
       '{"recipes":[{"id":"ai_001","name":"菜名","duration":15,"difficulty":"简单","matchScore":95,"coverImage":"","ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["步骤1","步骤2"],"tips":"可选"}]}',
       'difficulty 仅可取：简单、中等、困难。',
@@ -428,6 +429,7 @@ export class AiService {
         '2) 每道菜至少命中 1 种库存食材（库存优先）。',
         '3) 允许补充 1-3 种常见缺失食材来让菜谱成立（如“土豆炖牛肉”可补充牛肉）。',
         '4) 不要为了凑数量输出不符合常理的菜。',
+        '5) 同一批结果要尽量多样：优先覆盖不同库存食材，不要多数菜都围绕同一个主食材。',
         'JSON 结构：',
         '{"recipes":[{"id":"ai_001","name":"菜名","duration":15,"difficulty":"简单","matchScore":95,"coverImage":"","ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["步骤1","步骤2"],"tips":"可选"}]}',
         'difficulty 仅可取：简单、中等、困难。',
@@ -470,6 +472,7 @@ export class AiService {
         if (recipes.length >= count) break
       }
     }
+    recipes = this.diversifyRecipes(recipes, pantryNames, count)
     let finalRecipes = recipes.slice(0, count)
     if (!finalRecipes.length) {
       if (recipesBeforeAnyStrictFilter.length) {
@@ -582,6 +585,102 @@ export class AiService {
       output.push(item)
     }
     return output
+  }
+
+  private diversifyRecipes(recipes: GeneratedRecipe[], pantryNames: string[], count: number) {
+    const list = Array.isArray(recipes) ? recipes.filter((x) => !!x?.name) : []
+    if (!list.length || count <= 1) return list
+    const pantryKeys = this.collectPantryDiversityKeys(pantryNames)
+    if (pantryKeys.length <= 1) return list
+
+    const sorted = list.slice().sort((a, b) => Number(b?.matchScore || 0) - Number(a?.matchScore || 0))
+    const chosen: GeneratedRecipe[] = []
+    const chosenNameSet = new Set<string>()
+    const primaryUsage = new Map<string, number>()
+    const seenPrimaryCovered = new Set<string>()
+    const maxPerPrimary = Math.max(1, Math.ceil(count / Math.min(pantryKeys.length, 3)))
+
+    // Pass 1: try to cover different pantry ingredients first.
+    for (const item of sorted) {
+      if (chosen.length >= count) break
+      const recipeKey = this.normalizeTextForCompare(item.name)
+      if (!recipeKey || chosenNameSet.has(recipeKey)) continue
+      const primary = this.pickPrimaryPantryKey(item, pantryKeys)
+      if (!primary || seenPrimaryCovered.has(primary)) continue
+      chosen.push(item)
+      chosenNameSet.add(recipeKey)
+      seenPrimaryCovered.add(primary)
+      primaryUsage.set(primary, 1)
+    }
+
+    // Pass 2: fill rest while preventing one primary ingredient from dominating.
+    for (const item of sorted) {
+      if (chosen.length >= count) break
+      const recipeKey = this.normalizeTextForCompare(item.name)
+      if (!recipeKey || chosenNameSet.has(recipeKey)) continue
+      const primary = this.pickPrimaryPantryKey(item, pantryKeys)
+      if (primary) {
+        const used = Number(primaryUsage.get(primary) || 0)
+        if (used >= maxPerPrimary) continue
+        primaryUsage.set(primary, used + 1)
+      }
+      chosen.push(item)
+      chosenNameSet.add(recipeKey)
+    }
+
+    // Pass 3: if still not enough, append any remaining candidates.
+    if (chosen.length < count) {
+      for (const item of sorted) {
+        if (chosen.length >= count) break
+        const recipeKey = this.normalizeTextForCompare(item.name)
+        if (!recipeKey || chosenNameSet.has(recipeKey)) continue
+        chosen.push(item)
+        chosenNameSet.add(recipeKey)
+      }
+    }
+
+    return chosen.length ? chosen : sorted
+  }
+
+  private collectPantryDiversityKeys(names: string[]) {
+    const list = Array.isArray(names) ? names : []
+    const keys = new Set<string>()
+    for (const name of list) {
+      const raw = `${name || ''}`.trim()
+      if (!raw) continue
+      const canonical = this.canonicalizeIngredientName(raw)
+      const normalizedRaw = this.normalizeIngredientTextForMatch(raw)
+      const normalizedCanonical = this.normalizeIngredientTextForMatch(canonical)
+      if (normalizedRaw.length >= 2) keys.add(normalizedRaw)
+      if (normalizedCanonical.length >= 2) keys.add(normalizedCanonical)
+    }
+    return Array.from(keys)
+  }
+
+  private pickPrimaryPantryKey(recipe: GeneratedRecipe, pantryKeys: string[]) {
+    const keys = Array.isArray(pantryKeys) ? pantryKeys : []
+    if (!keys.length) return ''
+    const nameText = this.normalizeIngredientTextForMatch(`${recipe?.name || ''}`)
+    for (const key of keys) {
+      if (key && nameText.includes(key)) return key
+    }
+    const ingredientText = this.normalizeIngredientTextForMatch(
+      Array.isArray(recipe?.ingredients) ? recipe.ingredients.map((x) => `${x?.name || ''}`).join(' ') : '',
+    )
+    for (const key of keys) {
+      if (key && ingredientText.includes(key)) return key
+    }
+    const allText = this.normalizeIngredientTextForMatch(
+      [
+        `${recipe?.name || ''}`,
+        ...(Array.isArray(recipe?.ingredients) ? recipe.ingredients.map((x) => `${x?.name || ''}`) : []),
+        ...(Array.isArray(recipe?.steps) ? recipe.steps.map((x) => `${x || ''}`) : []),
+      ].join(' '),
+    )
+    for (const key of keys) {
+      if (key && allText.includes(key)) return key
+    }
+    return ''
   }
 
   private pickRecipeArray(parsed: any): any[] {

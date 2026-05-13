@@ -171,42 +171,61 @@ const _sfc_main = {
         const parsedName = `${((_c = result == null ? void 0 : result.data) == null ? void 0 : _c.name) || ""}`.trim();
         const parsedQuantity = Number((_d = result == null ? void 0 : result.data) == null ? void 0 : _d.quantity);
         const parsedUnit = `${((_e = result == null ? void 0 : result.data) == null ? void 0 : _e.unit) || ""}`.trim();
+        const voiceIntent = this.extractVoiceIntent(text);
         if (!text) {
           common_vendor.index.showToast({ title: "未识别到语音内容", icon: "none" });
           return;
         }
         if (parsedItems.length > 1) {
+          const sharedLocation = this.normalizeVoiceLocation(voiceIntent.location || this.form.location || "冷藏");
+          const sharedExpireDate = voiceIntent.expireDate || this.form.expireDate || "";
           this.batchItems = parsedItems.map(
             (item) => this.normalizeRecognizedItem({
-              name: item == null ? void 0 : item.name,
+              name: this.extractVoiceIntent(item == null ? void 0 : item.name).name || (item == null ? void 0 : item.name),
               category: item == null ? void 0 : item.category,
-              quantity: item == null ? void 0 : item.quantity,
-              unit: item == null ? void 0 : item.unit
-            })
+              quantity: (item == null ? void 0 : item.quantity) || this.extractVoiceIntent(item == null ? void 0 : item.name).quantity,
+              unit: (item == null ? void 0 : item.unit) || this.extractVoiceIntent(item == null ? void 0 : item.name).unit,
+              location: (item == null ? void 0 : item.location) || this.extractVoiceIntent(item == null ? void 0 : item.name).location
+            }, sharedLocation, sharedExpireDate)
           );
           this.batchVisible = true;
           common_vendor.index.showToast({ title: `语音识别到${parsedItems.length}条，请确认`, icon: "none" });
           return;
         }
         const firstItem = parsedItems[0] || {};
-        const nextName = parsedName || text;
-        this.form.name = `${(firstItem == null ? void 0 : firstItem.name) || nextName}`.trim();
+        const firstIntent = this.extractVoiceIntent((firstItem == null ? void 0 : firstItem.name) || "");
+        const parsedIntent = this.extractVoiceIntent(parsedName || "");
+        const nextName = firstIntent.name || parsedIntent.name || voiceIntent.name || parsedName || text;
+        this.form.name = `${nextName}`.trim();
         const finalQuantity = Number(firstItem == null ? void 0 : firstItem.quantity);
         if (Number.isFinite(finalQuantity) && finalQuantity > 0) {
           this.form.quantity = `${finalQuantity}`;
         } else if (Number.isFinite(parsedQuantity) && parsedQuantity > 0) {
           this.form.quantity = `${parsedQuantity}`;
+        } else if (Number.isFinite(voiceIntent.quantity) && voiceIntent.quantity > 0) {
+          this.form.quantity = `${voiceIntent.quantity}`;
+        } else if (Number.isFinite(firstIntent.quantity) && firstIntent.quantity > 0) {
+          this.form.quantity = `${firstIntent.quantity}`;
         }
-        const finalUnit = `${(firstItem == null ? void 0 : firstItem.unit) || parsedUnit || ""}`.trim();
+        const finalUnit = `${(firstItem == null ? void 0 : firstItem.unit) || parsedUnit || firstIntent.unit || voiceIntent.unit || ""}`.trim();
         const normalizedUnit = this.normalizeVoiceUnit(finalUnit, this.form.name, this.form.category);
         if (normalizedUnit)
           this.form.unit = normalizedUnit;
+        const voiceLocation = this.normalizeVoiceLocation((firstItem == null ? void 0 : firstItem.location) || firstIntent.location || voiceIntent.location);
+        if (voiceLocation) {
+          this.form.location = voiceLocation;
+        }
+        if (voiceIntent.expireDate) {
+          this.form.expireDate = voiceIntent.expireDate;
+        }
         const voiceCategory = this.categories.includes(firstItem == null ? void 0 : firstItem.category) ? firstItem.category : "";
         if (voiceCategory) {
           this.form.category = voiceCategory;
-          this.form.expireDate = this.getExpireDateByCategory(voiceCategory);
+          if (!voiceIntent.expireDate) {
+            this.form.expireDate = this.getExpireDateByCategory(voiceCategory);
+          }
         }
-        common_vendor.index.showToast({ title: "已填入名称/数量/单位", icon: "none" });
+        common_vendor.index.showToast({ title: "已填入名称/数量/单位/位置/过期日期", icon: "none" });
       } catch (e) {
         const msg = `${(e == null ? void 0 : e.message) || ""}`.trim() || "语音识别失败，请重试";
         common_vendor.index.showToast({ title: msg, icon: "none" });
@@ -273,26 +292,312 @@ const _sfc_main = {
         this.batchVisible = true;
         common_vendor.index.showToast({ title: `识别到${list.length}条，请确认`, icon: "none" });
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/add.vue:388", "识别失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/add.vue:407", "识别失败", e);
         const msg = `${(e == null ? void 0 : e.message) || ""}`.trim() || "识别失败，请重试";
         common_vendor.index.showToast({ title: msg, icon: "none" });
       } finally {
         common_vendor.index.hideLoading();
       }
     },
-    normalizeRecognizedItem(item) {
+    normalizeRecognizedItem(item, fallbackLocation = "", fallbackExpireDate = "") {
       const category = this.categories.includes(item == null ? void 0 : item.category) ? item.category : "其他";
       const quantity = (item == null ? void 0 : item.quantity) || (item == null ? void 0 : item.quantity) === 0 ? `${item.quantity}` : "1";
-      const name = (item == null ? void 0 : item.name) ? `${item.name}` : "";
+      const intent = this.extractVoiceIntent((item == null ? void 0 : item.name) || "");
+      const name = (item == null ? void 0 : item.name) ? `${intent.name || item.name}` : "";
       const unit = this.normalizeRecognizedUnit(item == null ? void 0 : item.unit, name, category);
+      const location = this.normalizeVoiceLocation((item == null ? void 0 : item.location) || intent.location || fallbackLocation || this.form.location || "冷藏");
+      const expireDate = this.normalizeVoiceExpireDate((item == null ? void 0 : item.expireDate) || intent.expireDate || fallbackExpireDate || this.form.expireDate);
       return {
         name,
         category,
         quantity,
         unit,
-        location: this.form.location || "冷藏",
-        expireDate: this.form.expireDate || this.getExpireDateByCategory(category),
+        location,
+        expireDate: expireDate || this.getExpireDateByCategory(category),
         selected: true
+      };
+    },
+    normalizeVoiceLocation(raw) {
+      const text = `${raw || ""}`.trim();
+      if (!text)
+        return "";
+      if (text.includes("冷冻") || text.includes("冷凍") || text.includes("冻起来") || text.includes("冷冻层") || text.includes("冷冻柜") || text.includes("冷冻室"))
+        return "冷冻";
+      if (text.includes("冷藏") || text.includes("冷藏室") || text.includes("冷藏层") || text.includes("保鲜") || text.includes("保鲜层") || text.includes("放冰箱") || text.includes("冰箱里"))
+        return "冷藏";
+      return "";
+    },
+    normalizeVoiceExpireDate(raw) {
+      const text = `${raw || ""}`.trim();
+      if (!text)
+        return "";
+      const m = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (m) {
+        const y = Number(m[1]);
+        const month = Number(m[2]);
+        const day = Number(m[3]);
+        if (!Number.isFinite(y) || !Number.isFinite(month) || !Number.isFinite(day))
+          return "";
+        const date = new Date(y, month - 1, day);
+        if (!Number.isFinite(date.getTime()))
+          return "";
+        return `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, "0")}-${`${date.getDate()}`.padStart(2, "0")}`;
+      }
+      return "";
+    },
+    formatDateOffset(days) {
+      const n = Number(days);
+      if (!Number.isFinite(n))
+        return "";
+      const date = /* @__PURE__ */ new Date();
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() + Math.max(0, Math.floor(n)));
+      const y = date.getFullYear();
+      const m = `${date.getMonth() + 1}`.padStart(2, "0");
+      const d = `${date.getDate()}`.padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    },
+    formatDateYmd(date) {
+      if (!(date instanceof Date) || !Number.isFinite(date.getTime()))
+        return "";
+      const y = date.getFullYear();
+      const m = `${date.getMonth() + 1}`.padStart(2, "0");
+      const d = `${date.getDate()}`.padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    },
+    getUpcomingWeekdayDate(targetWeekday, weekOffset = 0) {
+      const weekday = Number(targetWeekday);
+      if (!Number.isFinite(weekday) || weekday < 0 || weekday > 6)
+        return "";
+      const offset = Math.max(0, Number(weekOffset) || 0);
+      const today = /* @__PURE__ */ new Date();
+      today.setHours(0, 0, 0, 0);
+      const current = today.getDay();
+      let delta = (weekday - current + 7) % 7;
+      delta += offset * 7;
+      if (offset === 0 && delta === 0)
+        delta = 7;
+      const target = new Date(today);
+      target.setDate(today.getDate() + delta);
+      return this.formatDateYmd(target);
+    },
+    getMonthEndDate(monthOffset = 0) {
+      const offset = Math.max(0, Number(monthOffset) || 0);
+      const now = /* @__PURE__ */ new Date();
+      const date = new Date(now.getFullYear(), now.getMonth() + 1 + offset, 0);
+      date.setHours(0, 0, 0, 0);
+      return this.formatDateYmd(date);
+    },
+    parseVoiceExpireDate(text) {
+      const raw = `${text || ""}`.trim();
+      if (!raw)
+        return "";
+      const compact = raw.replace(/\s+/g, "");
+      if (compact.includes("今天过期") || compact.includes("今日过期"))
+        return this.formatDateOffset(0);
+      if (compact.includes("明天过期"))
+        return this.formatDateOffset(1);
+      if (compact.includes("后天过期"))
+        return this.formatDateOffset(2);
+      const relativeDays = compact.match(/(?:过|再过|还有)?([零一二两三四五六七八九十百千万\d]+)天(?:后)?(?:过期|到期|吃完)?/) || compact.match(/([零一二两三四五六七八九十百千万\d]+)天(?:后)?/);
+      if (relativeDays && relativeDays[1]) {
+        const days = this.parseChineseVoiceNumber(relativeDays[1]);
+        if (Number.isFinite(days) && days >= 0)
+          return this.formatDateOffset(days);
+      }
+      const relativeWeeks = compact.match(/([零一二两三四五六七八九十百千万\d]+)周后(?:过期|到期|吃完)?/);
+      if (relativeWeeks && relativeWeeks[1]) {
+        const weeks = this.parseChineseVoiceNumber(relativeWeeks[1]);
+        if (Number.isFinite(weeks) && weeks >= 0)
+          return this.formatDateOffset(weeks * 7);
+      }
+      if (compact.includes("下下周"))
+        return this.formatDateOffset(14);
+      if (compact.includes("下周"))
+        return this.formatDateOffset(7);
+      const weekdayMap = {
+        周日: 0,
+        周天: 0,
+        星期日: 0,
+        星期天: 0,
+        周一: 1,
+        星期一: 1,
+        周二: 2,
+        星期二: 2,
+        周三: 3,
+        星期三: 3,
+        周四: 4,
+        星期四: 4,
+        周五: 5,
+        星期五: 5,
+        周六: 6,
+        星期六: 6
+      };
+      const weekdayMatch = compact.match(/(下下周|下周)?(周[一二三四五六日天]|星期[一二三四五六日天])(?:过期|到期|吃完)?/);
+      if (weekdayMatch) {
+        const prefix = `${weekdayMatch[1] || ""}`;
+        const weekdayText = `${weekdayMatch[2] || ""}`;
+        const targetWeekday = weekdayMap[weekdayText];
+        const weekOffset = prefix === "下下周" ? 2 : prefix === "下周" ? 1 : 0;
+        const date = this.getUpcomingWeekdayDate(targetWeekday, weekOffset);
+        if (date)
+          return date;
+      }
+      if (compact.includes("月底过期") || compact.includes("月末过期") || compact.includes("月末前吃完") || compact.includes("月底前吃完")) {
+        return this.getMonthEndDate(0);
+      }
+      const isoDate = compact.match(/(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:过期|到期)?/);
+      if (isoDate) {
+        const y = Number(isoDate[1]);
+        const month = Number(isoDate[2]);
+        const day = Number(isoDate[3]);
+        const date = new Date(y, month - 1, day);
+        if (Number.isFinite(date.getTime()))
+          return this.formatDateYmd(date);
+      }
+      const absolute = compact.match(/(\d{4})年(\d{1,2})月(\d{1,2})[日号]?(?:过期|到期)?/);
+      if (absolute) {
+        const y = Number(absolute[1]);
+        const month = Number(absolute[2]);
+        const day = Number(absolute[3]);
+        const date = new Date(y, month - 1, day);
+        if (Number.isFinite(date.getTime()))
+          return this.formatDateYmd(date);
+      }
+      const absoluteZhYear = compact.match(/([零〇一二两三四五六七八九]{4})年([零一二两三四五六七八九十\d]{1,3})月([零一二两三四五六七八九十\d]{1,3})[日号]?(?:过期|到期)?/);
+      if (absoluteZhYear) {
+        const y = this.parseChineseYear(absoluteZhYear[1]);
+        const month = this.parseChineseVoiceNumber(absoluteZhYear[2]);
+        const day = this.parseChineseVoiceNumber(absoluteZhYear[3]);
+        if (Number.isFinite(y) && Number.isFinite(month) && Number.isFinite(day)) {
+          const date = new Date(y, Number(month) - 1, Number(day));
+          if (Number.isFinite(date.getTime()))
+            return this.formatDateYmd(date);
+        }
+      }
+      const shortDate = compact.match(/(\d{1,2})月(\d{1,2})[日号]?(?:过期|到期)?/);
+      if (shortDate) {
+        const month = Number(shortDate[1]);
+        const day = Number(shortDate[2]);
+        if (!Number.isFinite(month) || !Number.isFinite(day))
+          return "";
+        const now = /* @__PURE__ */ new Date();
+        const currentYear = now.getFullYear();
+        let date = new Date(currentYear, month - 1, day);
+        date.setHours(0, 0, 0, 0);
+        const today = /* @__PURE__ */ new Date();
+        today.setHours(0, 0, 0, 0);
+        if (date.getTime() < today.getTime()) {
+          date = new Date(currentYear + 1, month - 1, day);
+          date.setHours(0, 0, 0, 0);
+        }
+        if (Number.isFinite(date.getTime()))
+          return this.formatDateYmd(date);
+      }
+      const shortDateZh = compact.match(/([零一二两三四五六七八九十\d]{1,3})月([零一二两三四五六七八九十\d]{1,3})[日号]?(?:过期|到期)?/);
+      if (shortDateZh) {
+        const month = this.parseChineseVoiceNumber(shortDateZh[1]);
+        const day = this.parseChineseVoiceNumber(shortDateZh[2]);
+        if (!Number.isFinite(month) || !Number.isFinite(day))
+          return "";
+        const now = /* @__PURE__ */ new Date();
+        const currentYear = now.getFullYear();
+        let date = new Date(currentYear, Number(month) - 1, Number(day));
+        date.setHours(0, 0, 0, 0);
+        const today = /* @__PURE__ */ new Date();
+        today.setHours(0, 0, 0, 0);
+        if (date.getTime() < today.getTime()) {
+          date = new Date(currentYear + 1, Number(month) - 1, Number(day));
+          date.setHours(0, 0, 0, 0);
+        }
+        if (Number.isFinite(date.getTime()))
+          return this.formatDateYmd(date);
+      }
+      return "";
+    },
+    parseChineseVoiceNumber(raw) {
+      const text = `${raw || ""}`.trim();
+      if (!text)
+        return void 0;
+      const num = Number(text);
+      if (Number.isFinite(num) && num > 0)
+        return num;
+      const map = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+      if (text.length === 1 && map[text] !== void 0)
+        return map[text];
+      if (text === "十一")
+        return 11;
+      if (text === "十二")
+        return 12;
+      if (text === "十三")
+        return 13;
+      if (text === "十四")
+        return 14;
+      if (text === "十五")
+        return 15;
+      if (text === "十六")
+        return 16;
+      if (text === "十七")
+        return 17;
+      if (text === "十八")
+        return 18;
+      if (text === "十九")
+        return 19;
+      if (text === "二十")
+        return 20;
+      return void 0;
+    },
+    parseChineseYear(raw) {
+      const text = `${raw || ""}`.trim();
+      if (!text)
+        return void 0;
+      const direct = Number(text);
+      if (Number.isFinite(direct) && `${Math.floor(direct)}`.length === 4)
+        return Math.floor(direct);
+      const map = { 零: "0", "〇": "0", 一: "1", 二: "2", 两: "2", 三: "3", 四: "4", 五: "5", 六: "6", 七: "7", 八: "8", 九: "9" };
+      let digits = "";
+      for (const ch of text) {
+        if (!map[ch])
+          return void 0;
+        digits += map[ch];
+      }
+      if (digits.length !== 4)
+        return void 0;
+      const year = Number(digits);
+      return Number.isFinite(year) ? year : void 0;
+    },
+    cleanVoiceSemanticSuffix(text) {
+      return `${text || ""}`.replace(/(放在|放到|放进|放入|存到|存入|放至|存至|冻起来|冻上)\s*(冷藏|冷藏室|冷藏层|冷冻|冷冻室|冷冻层|冷冻柜|保鲜层?|冰箱)/g, " ").replace(/(冷藏|冷藏室|冷藏层|冷冻|冷冻室|冷冻层|冷冻柜|保鲜层?|放冰箱|冰箱里)/g, " ").replace(
+        /(?:过|再过|还有)?\s*[零一二两三四五六七八九十百千万\d]+\s*天(?:后)?(?:过期|到期|吃完)?|[零一二两三四五六七八九十百千万\d]+\s*周后(?:过期|到期|吃完)?|下下周(?:过期|到期|吃完)?|下周(?:过期|到期|吃完)?|(下下周|下周)?\s*(周[一二三四五六日天]|星期[一二三四五六日天])(?:过期|到期|吃完)?|今天过期|今日过期|明天过期|后天过期|月底过期|月末过期|月末前吃完|月底前吃完|\d{4}\s*[-/.]\s*\d{1,2}\s*[-/.]\s*\d{1,2}(?:过期|到期)?|\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*[日号]?(?:过期|到期)?|\d{1,2}\s*月\s*\d{1,2}\s*[日号]?(?:过期|到期)?|[零一二两三四五六七八九十〇]{4}\s*年\s*[零一二三四五六七八九十两\d]{1,3}\s*月\s*[零一二三四五六七八九十两\d]{1,3}\s*[日号]?(?:过期|到期)?|[零一二三四五六七八九十两\d]{1,3}\s*月\s*[零一二三四五六七八九十两\d]{1,3}\s*[日号]?(?:过期|到期)?/g,
+        " "
+      ).replace(/\s*(过期|到期|吃完)\s*$/g, " ").replace(/\s+/g, " ").trim();
+    },
+    extractVoiceIntent(rawText) {
+      const origin = `${rawText || ""}`.trim();
+      if (!origin)
+        return { name: "", quantity: void 0, unit: "", location: "", expireDate: "" };
+      let text = origin.replace(/[，,。；;！!？?]/g, " ").replace(/\s+/g, " ").trim();
+      const location = this.normalizeVoiceLocation(text);
+      const expireDate = this.parseVoiceExpireDate(text);
+      text = this.cleanVoiceSemanticSuffix(text).replace(/^(帮我|请|麻烦|把|将|我要|我想|给我)\s*/g, "").trim();
+      const match = text.match(
+        /^([零一二两三四五六七八九十百千万\d]+(?:\.\d+)?)\s*(个|颗|斤|公斤|千克|克|袋|包|瓶|盒|罐|把|根|条|片|块|份|毫升|升)?\s*(.+)$/
+      );
+      let quantity;
+      let unit = "";
+      let name = text;
+      if (match) {
+        quantity = this.parseChineseVoiceNumber(match[1]);
+        unit = `${match[2] || ""}`.trim();
+        name = `${match[3] || ""}`.trim();
+      }
+      name = `${name || ""}`.replace(/^(一个|一份|一斤|一袋|一包|一盒|一瓶|一罐|一根|一条|一片|一块)\s*/g, "").replace(/(放在|放到|放进|放入|存到|存入|放至|存至)$/g, "").trim();
+      return {
+        name,
+        quantity,
+        unit,
+        location,
+        expireDate
       };
     },
     getExpireDateByCategory(category) {
@@ -474,7 +779,7 @@ const _sfc_main = {
           common_vendor.index.navigateBack({ delta: 1 });
         }, 300);
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/add.vue:578", "批量新增失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/add.vue:870", "批量新增失败", e);
         common_vendor.index.showToast({ title: "批量入库失败，请重试", icon: "none" });
       } finally {
         this.batchSubmitting = false;
@@ -536,7 +841,7 @@ const _sfc_main = {
         common_vendor.index.showToast({ title: "保存成功", icon: "success" });
         this.resetManualForm();
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/add.vue:642", "新增失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/add.vue:934", "新增失败", e);
         common_vendor.index.showToast({
           title: "保存失败",
           icon: "none"

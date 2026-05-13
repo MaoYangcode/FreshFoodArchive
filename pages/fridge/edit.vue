@@ -10,9 +10,19 @@
 			<view class="food-ico">
 				<IngredientIcon :name="form.name" :category="form.category" :size="54" />
 			</view>
-			<view>
+			<view class="top-main">
 				<text class="food-name">{{ form.name || '食材' }}</text>
 				<text class="food-time">{{ form.createdAt || '-' }}</text>
+			</view>
+			<view class="related-wrap">
+				<button
+					class="related-btn"
+					:disabled="isRelatedGenerating || !form.name"
+					@click="generateRelatedRecipes"
+				>
+					<text class="related-btn-icon">✦</text>
+					<text>{{ relatedButtonText }}</text>
+				</button>
 			</view>
 		</view>
 
@@ -20,9 +30,9 @@
 			<view class="form-row">
 				<view class="row-left">
 					<text class="row-icon">◍</text>
-					<text class="row-label">食物名称</text>
+					<text class="row-label">食材名称</text>
 				</view>
-				<input v-model="form.name" class="row-input" placeholder="请输入食物名称" />
+				<input v-model="form.name" class="row-input" placeholder="请输入食材名称" />
 			</view>
 
 			<view class="form-row">
@@ -85,11 +95,19 @@
 
 <script>
 import { deleteIngredient, getIngredientDetail, getIngredientList, updateIngredient } from '@/api/modules/ingredients'
+import { recommendRecipes } from '@/api/modules/recipes'
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
+import { getCurrentUserId } from '@/utils/current-user'
 
 export default {
 	components: { BottomNav, IngredientIcon },
+	computed: {
+		relatedButtonText() {
+			if (!this.isRelatedGenerating) return '相关菜谱'
+			return `生成中 ${Math.max(1, Math.min(99, Math.round(this.relatedProgress || 0)))}%`
+		}
+	},
 	data() {
 		return {
 			ingredientId: '',
@@ -110,7 +128,10 @@ export default {
 				purchaseDate: '',
 				expireDate: '',
 				createdAt: ''
-			}
+			},
+			isRelatedGenerating: false,
+			relatedProgress: 0,
+			relatedProgressTimer: null
 		}
 	},
 	onLoad(options) {
@@ -127,6 +148,178 @@ export default {
 		})
 	},
 	methods: {
+		startRelatedProgress() {
+			this.stopRelatedProgress()
+			this.relatedProgress = 1
+			this.relatedProgressTimer = setInterval(() => {
+				if (!this.isRelatedGenerating) return
+				if (this.relatedProgress >= 96) return
+				if (this.relatedProgress < 20) {
+					this.relatedProgress += 1
+					return
+				}
+				if (this.relatedProgress < 45) {
+					this.relatedProgress += 1.6
+					return
+				}
+				if (this.relatedProgress < 70) {
+					this.relatedProgress += 2
+					return
+				}
+				if (this.relatedProgress < 88) {
+					this.relatedProgress += 1.2
+					return
+				}
+				this.relatedProgress += 0.35
+			}, 700)
+		},
+		finishRelatedProgress() {
+			return new Promise((resolve) => {
+				const from = Math.max(1, Number(this.relatedProgress || 0))
+				const to = 100
+				const totalMs = 1200
+				const stepMs = 60
+				const stepCount = Math.max(1, Math.floor(totalMs / stepMs))
+				let currentStep = 0
+				const timer = setInterval(() => {
+					currentStep += 1
+					const ratio = Math.min(1, currentStep / stepCount)
+					this.relatedProgress = from + (to - from) * ratio
+					if (ratio >= 1) {
+						clearInterval(timer)
+						this.relatedProgress = 100
+						resolve()
+					}
+				}, stepMs)
+			})
+		},
+		stopRelatedProgress() {
+			if (this.relatedProgressTimer) {
+				clearInterval(this.relatedProgressTimer)
+				this.relatedProgressTimer = null
+			}
+		},
+		normalizeNameForCompare(text) {
+			return `${text || ''}`
+				.toLowerCase()
+				.replace(/[（(].*?[）)]/g, '')
+				.replace(/[^a-z0-9\u4e00-\u9fa5]/g, '')
+		},
+		recipeIncludesIngredient(recipe, ingredientName) {
+			const key = this.normalizeNameForCompare(ingredientName)
+			if (!key) return false
+			const haystack = [
+				`${recipe?.name || ''}`,
+				...(Array.isArray(recipe?.ingredients) ? recipe.ingredients.map((x) => `${x?.name || ''}`) : []),
+				...(Array.isArray(recipe?.steps) ? recipe.steps.map((x) => `${x || ''}`) : [])
+			]
+				.join(' ')
+				.toLowerCase()
+			const normalized = this.normalizeNameForCompare(haystack)
+			return normalized.includes(key)
+		},
+		openRecipeResultPage() {
+			const target = '/pages/recipe/result'
+			const openWithRedirect = () => {
+				uni.redirectTo({
+					url: target,
+					fail: () => {
+						uni.reLaunch({ url: target })
+					}
+				})
+			}
+			const pages = getCurrentPages()
+			if (Array.isArray(pages) && pages.length >= 9) {
+				openWithRedirect()
+				return
+			}
+			uni.navigateTo({
+				url: target,
+				fail: (err) => {
+					const msg = `${err?.errMsg || ''}`
+					if (msg.includes('webview count limit exceed')) {
+						openWithRedirect()
+						return
+					}
+					uni.showToast({ title: '页面跳转失败', icon: 'none' })
+				}
+			})
+		},
+		normalizeIngredientItem(item) {
+			return {
+				name: `${item?.name || ''}`.trim(),
+				quantity: Number(item?.quantity || 1),
+				unit: `${item?.unit || ''}`.trim(),
+				category: `${item?.category || ''}`.trim()
+			}
+		},
+		async generateRelatedRecipes() {
+			if (this.isRelatedGenerating) return
+			const focusName = `${this.form.name || ''}`.trim()
+			if (!focusName) {
+				uni.showToast({ title: '当前食材名称为空', icon: 'none' })
+				return
+			}
+			this.isRelatedGenerating = true
+			this.startRelatedProgress()
+			try {
+				const userId = getCurrentUserId()
+				const listRes = await getIngredientList({ userId })
+				const list = Array.isArray(listRes) ? listRes : []
+				const normalizedList = list.map((x) => this.normalizeIngredientItem(x)).filter((x) => !!x.name)
+				const currentItem = this.normalizeIngredientItem(this.form)
+				const pantryIngredients = normalizedList.length ? normalizedList : [currentItem]
+				const hasFocus = pantryIngredients.some((x) => this.normalizeNameForCompare(x.name) === this.normalizeNameForCompare(focusName))
+				const requestIngredients = hasFocus ? pantryIngredients : [currentItem, ...pantryIngredients]
+				const aiRes = await recommendRecipes({
+					userId,
+					ingredients: requestIngredients,
+					tastePreference: '家常',
+					cookingTime: 30,
+					count: 6
+				})
+				const fullPantryRecipes = (Array.isArray(aiRes?.data?.recipes) ? aiRes.data.recipes : [])
+					.filter((x) => this.recipeIncludesIngredient(x, focusName))
+				const profileApplied = aiRes?.data?.profileApplied || null
+				const focusedRes = await recommendRecipes({
+					userId,
+					ingredients: [currentItem],
+					tastePreference: '家常',
+					cookingTime: 30,
+					count: 6
+				})
+				const singleFocusedRecipes = (Array.isArray(focusedRes?.data?.recipes) ? focusedRes.data.recipes : [])
+					.filter((x) => this.recipeIncludesIngredient(x, focusName))
+				const merged = [...singleFocusedRecipes, ...fullPantryRecipes]
+				const seen = new Set()
+				const recipes = merged.filter((item) => {
+					const key = this.normalizeNameForCompare(item?.name)
+					if (!key || seen.has(key)) return false
+					seen.add(key)
+					return true
+				})
+				if (!recipes.length) {
+					uni.showToast({ title: '暂未生成该食材相关菜谱', icon: 'none' })
+					return
+				}
+				await this.finishRelatedProgress()
+				await new Promise((resolve) => setTimeout(resolve, 180))
+				const batchId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+				uni.setStorageSync('latestGeneratedRecipes', recipes.slice(0, 6))
+				uni.setStorageSync('latestGeneratedBatchId', batchId)
+				uni.setStorageSync('latestRecipeProfileApplied', profileApplied)
+				uni.setStorageSync('latestPantryTags', [focusName])
+				uni.setStorageSync('latestPantryIngredients', requestIngredients)
+				this.openRecipeResultPage()
+			} catch (e) {
+				console.error('生成相关菜谱失败', e)
+				uni.showToast({ title: '生成失败，请稍后重试', icon: 'none' })
+			} finally {
+				this.stopRelatedProgress()
+				this.isRelatedGenerating = false
+				this.relatedProgress = 0
+			}
+		},
 		goBackToList() {
 			if (getCurrentPages().length > 1) {
 				uni.navigateBack()
@@ -311,9 +504,13 @@ export default {
 
 .top-card {
 	display: grid;
-	grid-template-columns: 72px 1fr;
-	gap: 20rpx;
+	grid-template-columns: 72px minmax(0, 1fr) auto;
+	gap: 14rpx;
 	align-items: center;
+}
+
+.top-main {
+	min-width: 0;
 }
 
 .food-ico {
@@ -337,6 +534,42 @@ export default {
 	font-size: 12px;
 	color: #738177;
 	margin-top: 6rpx;
+}
+
+.related-wrap {
+	display: flex;
+	align-items: center;
+}
+
+.related-btn {
+	height: 36px;
+	line-height: 36px;
+	padding: 0 18px;
+	border-radius: 999rpx;
+	border: 1rpx solid #cfead4;
+	background: #edf9ef;
+	color: #45a655;
+	font-size: 12px;
+	font-weight: 700;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6rpx;
+	box-shadow: 0 4rpx 10rpx rgba(69, 166, 85, 0.12);
+}
+
+.related-btn-icon {
+	font-size: 13px;
+	line-height: 1;
+	color: #45a655;
+}
+
+.related-btn[disabled] {
+	opacity: 0.7;
+}
+
+.related-btn::after {
+	border: none;
 }
 
 .form-card {
