@@ -11,7 +11,13 @@ const _sfc_main = {
       startDate: "",
       endDate: "",
       quickRange: "all",
-      keyword: ""
+      keyword: "",
+      openSwipeId: "",
+      touchStartX: 0,
+      touchStartY: 0,
+      touchDeltaX: 0,
+      touchDeltaY: 0,
+      touchHorizontalLock: null
     };
   },
   computed: {
@@ -130,6 +136,75 @@ const _sfc_main = {
     },
     onKeywordInput(e) {
       this.keyword = e && e.detail ? `${e.detail.value || ""}` : "";
+    },
+    onTouchStart(e, id) {
+      var _a;
+      if (!((_a = e == null ? void 0 : e.touches) == null ? void 0 : _a.length))
+        return;
+      this.touchStartX = e.touches[0].clientX;
+      this.touchStartY = e.touches[0].clientY;
+      this.touchDeltaX = 0;
+      this.touchDeltaY = 0;
+      this.touchHorizontalLock = null;
+      if (this.openSwipeId && this.openSwipeId !== id) {
+        this.openSwipeId = "";
+      }
+    },
+    onTouchMove(e) {
+      var _a;
+      if (!((_a = e == null ? void 0 : e.touches) == null ? void 0 : _a.length))
+        return;
+      const x = e.touches[0].clientX;
+      const y = e.touches[0].clientY;
+      this.touchDeltaX = x - this.touchStartX;
+      this.touchDeltaY = y - this.touchStartY;
+      if (this.touchHorizontalLock === null) {
+        const absX = Math.abs(this.touchDeltaX);
+        const absY = Math.abs(this.touchDeltaY);
+        if (absX > 8 || absY > 8) {
+          this.touchHorizontalLock = absX > absY + 6;
+        }
+      }
+    },
+    onTouchEnd(e, id) {
+      var _a;
+      if (!((_a = e == null ? void 0 : e.changedTouches) == null ? void 0 : _a.length))
+        return;
+      const endX = e.changedTouches[0].clientX;
+      const deltaX = this.touchDeltaX || endX - this.touchStartX;
+      const horizontalSwipe = this.touchHorizontalLock === true;
+      if (horizontalSwipe && deltaX < -35) {
+        this.openSwipeId = id;
+        this.touchHorizontalLock = null;
+        return;
+      }
+      if (horizontalSwipe && deltaX > 35) {
+        this.openSwipeId = "";
+      }
+      this.touchHorizontalLock = null;
+    },
+    closeSwipe() {
+      this.openSwipeId = "";
+    },
+    onCardTap(item) {
+      if (this.openSwipeId === item.id) {
+        this.openSwipeId = "";
+        return;
+      }
+      this.openDetail(item);
+    },
+    onRemoveFavorite(item) {
+      const name = `${(item == null ? void 0 : item.name) || ""}`.trim();
+      if (!name)
+        return;
+      const ok = store_appStore.removeFavoriteRecipe(name);
+      this.openSwipeId = "";
+      if (!ok) {
+        common_vendor.index.showToast({ title: "取消失败", icon: "none" });
+        return;
+      }
+      this.recipes = store_appStore.getFavoriteRecipes();
+      common_vendor.index.showToast({ title: "已取消收藏", icon: "success" });
     }
   }
 };
@@ -167,28 +242,34 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   } : {}, {
     t: common_vendor.f($options.filteredRecipes, (item, k0, i0) => {
       return common_vendor.e({
-        a: "27b641db-0-" + i0,
-        b: common_vendor.p({
+        a: common_vendor.o(($event) => $options.onRemoveFavorite(item), item.id),
+        b: "27b641db-0-" + i0,
+        c: common_vendor.p({
           name: $options.pickRecipeCoverName(item),
           size: 44
         }),
-        c: common_vendor.t(item.name),
-        d: common_vendor.t(item.duration),
-        e: common_vendor.t(item.difficulty),
-        f: common_vendor.t(Number(item.completedCount || 0) > 0 ? `已完成 ${item.completedCount}次` : "未完成"),
-        g: common_vendor.n(Number(item.completedCount || 0) > 0 ? "done" : "todo"),
-        h: item.lastCompletedAt
+        d: common_vendor.t(item.name),
+        e: common_vendor.t(item.duration),
+        f: common_vendor.t(item.difficulty),
+        g: common_vendor.t(Number(item.completedCount || 0) > 0 ? `已完成 ${item.completedCount}次` : "未完成"),
+        h: common_vendor.n(Number(item.completedCount || 0) > 0 ? "done" : "todo"),
+        i: item.lastCompletedAt
       }, item.lastCompletedAt ? {
-        i: common_vendor.t($options.formatDateTime(item.lastCompletedAt))
+        j: common_vendor.t($options.formatDateTime(item.lastCompletedAt))
       } : {}, {
-        j: item.id,
-        k: common_vendor.o(($event) => $options.openDetail(item), item.id)
+        k: $data.openSwipeId === item.id ? 1 : "",
+        l: common_vendor.o(($event) => $options.onTouchStart($event, item.id), item.id),
+        m: common_vendor.o(($event) => $options.onTouchMove($event), item.id),
+        n: common_vendor.o(($event) => $options.onTouchEnd($event, item.id), item.id),
+        o: common_vendor.o(($event) => $options.onCardTap(item), item.id),
+        p: item.id
       });
     }),
     v: common_vendor.p({
       current: "profile"
     }),
-    w: `${_ctx.safeTop + 14}px`
+    w: `${_ctx.safeTop + 14}px`,
+    x: common_vendor.o((...args) => $options.closeSwipe && $options.closeSwipe(...args))
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-27b641db"]]);

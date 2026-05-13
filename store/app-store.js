@@ -255,6 +255,17 @@ export function getFavoriteRecipes() {
 	return [...state.favoriteRecipes]
 }
 
+export function removeFavoriteRecipe(name) {
+	initStore()
+	const key = `${name || ''}`.trim()
+	if (!key) return false
+	const idx = state.favoriteRecipes.findIndex((item) => `${item?.name || ''}`.trim() === key)
+	if (idx === -1) return false
+	state.favoriteRecipes.splice(idx, 1)
+	saveState()
+	return true
+}
+
 export function getBasketItems() {
 	initStore()
 	return [...state.basketItems]

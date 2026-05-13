@@ -204,6 +204,18 @@ function getFavoriteRecipes() {
   initStore();
   return [...state.favoriteRecipes];
 }
+function removeFavoriteRecipe(name) {
+  initStore();
+  const key = `${name || ""}`.trim();
+  if (!key)
+    return false;
+  const idx = state.favoriteRecipes.findIndex((item) => `${(item == null ? void 0 : item.name) || ""}`.trim() === key);
+  if (idx === -1)
+    return false;
+  state.favoriteRecipes.splice(idx, 1);
+  saveState();
+  return true;
+}
 function upsertBasketItems(items, sourceRecipeName = "") {
   initStore();
   if (!Array.isArray(items) || !items.length)
@@ -267,5 +279,6 @@ exports.addFavoriteRecipe = addFavoriteRecipe;
 exports.getFavoriteRecipeByName = getFavoriteRecipeByName;
 exports.getFavoriteRecipes = getFavoriteRecipes;
 exports.markFavoriteRecipeCompleted = markFavoriteRecipeCompleted;
+exports.removeFavoriteRecipe = removeFavoriteRecipe;
 exports.upsertBasketItems = upsertBasketItems;
 //# sourceMappingURL=../../.sourcemap/mp-weixin/store/app-store.js.map

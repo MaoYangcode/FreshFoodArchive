@@ -124,7 +124,7 @@ const _sfc_main = {
       }
     },
     async generate() {
-      var _a, _b;
+      var _a, _b, _c;
       if (this.isGenerating)
         return;
       this.isGenerating = true;
@@ -170,7 +170,8 @@ const _sfc_main = {
         common_vendor.index.navigateTo({ url: "/pages/recipe/result" });
       } catch (e) {
         common_vendor.index.__f__("error", "at pages/recipe/generate.vue:193", "生成失败", e);
-        common_vendor.index.showToast({ title: "生成失败，请稍后重试", icon: "none" });
+        const msg = `${(e == null ? void 0 : e.message) || (e == null ? void 0 : e.msg) || ((_c = e == null ? void 0 : e.data) == null ? void 0 : _c.message) || ""}`.trim();
+        common_vendor.index.showToast({ title: msg || "生成失败，请稍后重试", icon: "none" });
       } finally {
         this.stopProgress();
         this.isGenerating = false;

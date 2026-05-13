@@ -1,5 +1,5 @@
 <template>
-	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
+	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }" @click.self="closeSwipe">
 		<view class="top">
 			<view class="back-left" @click="goBack">
 				<text class="back-arrow">‹</text>
@@ -37,36 +37,46 @@
 		<view v-if="filteredRecipes.length === 0" class="card">
 			<text class="meta">{{ recipes.length === 0 ? '暂无收藏，去菜谱详情点击“收藏该菜谱”。' : '当前筛选条件下暂无收藏菜谱。' }}</text>
 		</view>
-		<view class="recipe-card" v-for="item in filteredRecipes" :key="item.id" @click="openDetail(item)">
-			<view class="recipe-avatar">
-				<IngredientIcon :name="pickRecipeCoverName(item)" :size="44" />
-			</view>
-			<view class="recipe-main">
-				<view class="title-row">
-					<view class="name-score-row">
-						<text class="name">{{ item.name }}</text>
+		<view class="swipe-item" v-for="item in filteredRecipes" :key="item.id">
+			<view class="swipe-action" @click.stop="onRemoveFavorite(item)">取消收藏</view>
+			<view
+				class="recipe-card swipe-content"
+				:class="{ open: openSwipeId === item.id }"
+				@touchstart.stop="onTouchStart($event, item.id)"
+				@touchmove="onTouchMove($event)"
+				@touchend="onTouchEnd($event, item.id)"
+				@tap.stop="onCardTap(item)"
+			>
+				<view class="recipe-avatar">
+					<IngredientIcon :name="pickRecipeCoverName(item)" :size="44" />
+				</view>
+				<view class="recipe-main">
+					<view class="title-row">
+						<view class="name-score-row">
+							<text class="name">{{ item.name }}</text>
+						</view>
+					</view>
+					<view class="meta-row">
+						<text class="meta-item"><text class="meta-icon recipe-iconfont duration-ico">&#xe621;</text>{{ item.duration }}分钟</text>
+						<text class="meta-dot">·</text>
+						<text class="meta-item"><text class="meta-icon recipe-iconfont">&#xe6a1;</text>{{ item.difficulty }}</text>
+					</view>
+					<view class="status-row">
+						<text class="status-pill" :class="Number(item.completedCount || 0) > 0 ? 'done' : 'todo'">
+							{{ Number(item.completedCount || 0) > 0 ? `已完成 ${item.completedCount}次` : '未完成' }}
+						</text>
+						<text v-if="item.lastCompletedAt" class="status-time">最近：{{ formatDateTime(item.lastCompletedAt) }}</text>
 					</view>
 				</view>
-				<view class="meta-row">
-					<text class="meta-item"><text class="meta-icon recipe-iconfont duration-ico">&#xe621;</text>{{ item.duration }}分钟</text>
-					<text class="meta-dot">·</text>
-					<text class="meta-item"><text class="meta-icon recipe-iconfont">&#xe6a1;</text>{{ item.difficulty }}</text>
-				</view>
-				<view class="status-row">
-					<text class="status-pill" :class="Number(item.completedCount || 0) > 0 ? 'done' : 'todo'">
-						{{ Number(item.completedCount || 0) > 0 ? `已完成 ${item.completedCount}次` : '未完成' }}
-					</text>
-					<text v-if="item.lastCompletedAt" class="status-time">最近：{{ formatDateTime(item.lastCompletedAt) }}</text>
-				</view>
+				<text class="recipe-cta">查看做法</text>
 			</view>
-			<text class="recipe-cta">查看做法</text>
 		</view>
 		<BottomNav current="profile" />
 	</view>
 </template>
 
 <script>
-import { getFavoriteRecipes } from '@/store/app-store'
+import { getFavoriteRecipes, removeFavoriteRecipe } from '@/store/app-store'
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 
@@ -78,7 +88,13 @@ export default {
 			startDate: '',
 			endDate: '',
 			quickRange: 'all',
-			keyword: ''
+			keyword: '',
+			openSwipeId: '',
+			touchStartX: 0,
+			touchStartY: 0,
+			touchDeltaX: 0,
+			touchDeltaY: 0,
+			touchHorizontalLock: null
 		}
 	},
 	computed: {
@@ -185,6 +201,68 @@ export default {
 		},
 		onKeywordInput(e) {
 			this.keyword = e && e.detail ? `${e.detail.value || ''}` : ''
+		},
+		onTouchStart(e, id) {
+			if (!e?.touches?.length) return
+			this.touchStartX = e.touches[0].clientX
+			this.touchStartY = e.touches[0].clientY
+			this.touchDeltaX = 0
+			this.touchDeltaY = 0
+			this.touchHorizontalLock = null
+			if (this.openSwipeId && this.openSwipeId !== id) {
+				this.openSwipeId = ''
+			}
+		},
+		onTouchMove(e) {
+			if (!e?.touches?.length) return
+			const x = e.touches[0].clientX
+			const y = e.touches[0].clientY
+			this.touchDeltaX = x - this.touchStartX
+			this.touchDeltaY = y - this.touchStartY
+			if (this.touchHorizontalLock === null) {
+				const absX = Math.abs(this.touchDeltaX)
+				const absY = Math.abs(this.touchDeltaY)
+				if (absX > 8 || absY > 8) {
+					this.touchHorizontalLock = absX > absY + 6
+				}
+			}
+		},
+		onTouchEnd(e, id) {
+			if (!e?.changedTouches?.length) return
+			const endX = e.changedTouches[0].clientX
+			const deltaX = this.touchDeltaX || endX - this.touchStartX
+			const horizontalSwipe = this.touchHorizontalLock === true
+			if (horizontalSwipe && deltaX < -35) {
+				this.openSwipeId = id
+				this.touchHorizontalLock = null
+				return
+			}
+			if (horizontalSwipe && deltaX > 35) {
+				this.openSwipeId = ''
+			}
+			this.touchHorizontalLock = null
+		},
+		closeSwipe() {
+			this.openSwipeId = ''
+		},
+		onCardTap(item) {
+			if (this.openSwipeId === item.id) {
+				this.openSwipeId = ''
+				return
+			}
+			this.openDetail(item)
+		},
+		onRemoveFavorite(item) {
+			const name = `${item?.name || ''}`.trim()
+			if (!name) return
+			const ok = removeFavoriteRecipe(name)
+			this.openSwipeId = ''
+			if (!ok) {
+				uni.showToast({ title: '取消失败', icon: 'none' })
+				return
+			}
+			this.recipes = getFavoriteRecipes()
+			uni.showToast({ title: '已取消收藏', icon: 'success' })
 		}
 	}
 }
@@ -321,7 +399,42 @@ export default {
 	border-radius: 14px;
 	padding: 10px 12px;
 	background: #fff;
+	margin-bottom: 0;
+}
+
+.swipe-item {
+	position: relative;
+	overflow: hidden;
+	border-radius: 14px;
 	margin-bottom: 10rpx;
+}
+
+.swipe-item:last-of-type {
+	margin-bottom: 0;
+}
+
+.swipe-action {
+	position: absolute;
+	right: 0;
+	top: 0;
+	bottom: 0;
+	width: 108px;
+	background: linear-gradient(135deg, #f26a6a, #de4f4f);
+	color: #fff;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 13px;
+	font-weight: 700;
+}
+
+.swipe-content {
+	position: relative;
+	transition: transform 0.2s ease;
+}
+
+.swipe-content.open {
+	transform: translateX(-108px);
 }
 
 .recipe-avatar {

@@ -351,15 +351,24 @@ export class AiService {
       '如果无法生成，返回 {"recipes":[]}',
     ].join('\n')
 
-    const content = await this.callDashScope(
-      this.textModel,
-      [
-        { role: 'system', content: '你是结构化 JSON 菜谱生成助手。' },
-        { role: 'user', content: prompt },
-      ],
-      true,
-      0.2,
-    )
+    let content = ''
+    try {
+      content = await this.callDashScope(
+        this.textModel,
+        [
+          { role: 'system', content: '你是结构化 JSON 菜谱生成助手。' },
+          { role: 'user', content: prompt },
+        ],
+        true,
+        0.2,
+      )
+    } catch (err) {
+      const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
+      profileApplied.generatedCount = mocked.length
+      profileApplied.removedByAvoidanceCount = Math.max(count - mocked.length, 0)
+      profileApplied.reducedByAvoidance = profileApplied.removedByAvoidanceCount > 0
+      return { recipes: mocked.slice(0, count), profileApplied }
+    }
 
     const parsed = this.parseJson(content)
     const list = Array.isArray(parsed?.recipes) ? parsed.recipes : []
@@ -404,15 +413,20 @@ export class AiService {
         'matchScore 范围 0-100。',
         '如果无法生成，返回 {"recipes":[]}',
       ].join('\n')
-      const retryContent = await this.callDashScope(
-        this.textModel,
-        [
-          { role: 'system', content: '你是结构化 JSON 菜谱生成助手。' },
-          { role: 'user', content: retryPrompt },
-        ],
-        true,
-        excludeNames.length ? 0.55 : 0.2,
-      )
+      let retryContent = ''
+      try {
+        retryContent = await this.callDashScope(
+          this.textModel,
+          [
+            { role: 'system', content: '你是结构化 JSON 菜谱生成助手。' },
+            { role: 'user', content: retryPrompt },
+          ],
+          true,
+          excludeNames.length ? 0.55 : 0.2,
+        )
+      } catch (_) {
+        retryContent = ''
+      }
       const retryParsed = this.parseJson(retryContent)
       const retryList = Array.isArray(retryParsed?.recipes) ? retryParsed.recipes : []
       const retryNormalized = retryList
@@ -434,7 +448,11 @@ export class AiService {
         if (recipes.length >= count) break
       }
     }
-    const finalRecipes = recipes.slice(0, count)
+    let finalRecipes = recipes.slice(0, count)
+    if (!finalRecipes.length) {
+      const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
+      finalRecipes = mocked.slice(0, count)
+    }
     profileApplied.generatedCount = finalRecipes.length
     profileApplied.removedByAvoidanceCount = removedByAvoidanceCount
     profileApplied.reducedByAvoidance = finalRecipes.length < count && removedByAvoidanceCount > 0

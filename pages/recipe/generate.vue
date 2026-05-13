@@ -191,7 +191,8 @@ export default {
 				uni.navigateTo({ url: '/pages/recipe/result' })
 			} catch (e) {
 				console.error('生成失败', e)
-				uni.showToast({ title: '生成失败，请稍后重试', icon: 'none' })
+				const msg = `${e?.message || e?.msg || e?.data?.message || ''}`.trim()
+				uni.showToast({ title: msg || '生成失败，请稍后重试', icon: 'none' })
 			} finally {
 				this.stopProgress()
 				this.isGenerating = false

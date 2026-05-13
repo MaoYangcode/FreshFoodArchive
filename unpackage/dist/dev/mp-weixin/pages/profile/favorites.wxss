@@ -114,7 +114,37 @@
 	border-radius: 14px;
 	padding: 10px 12px;
 	background: #fff;
+	margin-bottom: 0;
+}
+.swipe-item.data-v-27b641db {
+	position: relative;
+	overflow: hidden;
+	border-radius: 14px;
 	margin-bottom: 10rpx;
+}
+.swipe-item.data-v-27b641db:last-of-type {
+	margin-bottom: 0;
+}
+.swipe-action.data-v-27b641db {
+	position: absolute;
+	right: 0;
+	top: 0;
+	bottom: 0;
+	width: 108px;
+	background: linear-gradient(135deg, #f26a6a, #de4f4f);
+	color: #fff;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 13px;
+	font-weight: 700;
+}
+.swipe-content.data-v-27b641db {
+	position: relative;
+	transition: transform 0.2s ease;
+}
+.swipe-content.open.data-v-27b641db {
+	transform: translateX(-108px);
 }
 .recipe-avatar.data-v-27b641db {
 	width: 60px;
