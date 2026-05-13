@@ -8,8 +8,11 @@
 	flex-shrink: 0;
 	display: block;
 }
-.icon-fallback.data-v-a40cf471 {
-	font-size: 14px;
+.iconfont-fallback.data-v-a40cf471 {
+	font-family: "iconfont" !important;
+	font-size: 22px;
 	line-height: 1;
 	color: #668070;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }

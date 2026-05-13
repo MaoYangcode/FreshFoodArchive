@@ -39,17 +39,22 @@ const _sfc_main = {
     iconUrl() {
       if (this.iconLoadFailed)
         return "";
-      const cls = `${this.weappColorClass || ""}`.trim();
-      if (!cls)
-        return "";
-      const file = cls.replace(/^t-icon-/, "");
+      const rawText = `${this.name || this.category || ""}`.trim();
+      const iconClass = `${utils_ingredientImage.getIngredientDisplayIconfontClass(this.name, this.category) || ""}`.trim() || `${utils_ingredientImage.getIngredientDisplayIconfontClass("", this.category || "其他") || ""}`.trim() || `${utils_ingredientImage.getIngredientDisplayIconfontClass("", "其他") || ""}`.trim();
+      const fallbackFile = rawText.includes("冰") ? "icon-bingxiang" : "";
+      let file = "";
+      if (iconClass === "icon-bingxiang" || iconClass === "icon-bingxiang1") {
+        file = iconClass;
+      } else if (iconClass) {
+        file = iconClass.replace(/^icon-/, "");
+      } else {
+        const cls = `${this.weappColorClass || ""}`.trim();
+        file = cls ? cls.replace(/^t-icon-/, "") : fallbackFile;
+      }
+      file = `${file || ""}`.trim();
       if (!file)
         return "";
       return `${resolveIconBaseUrl()}/${encodeURIComponent(file)}.svg`;
-    },
-    fallbackText() {
-      const text = `${this.name || this.category || ""}`.trim();
-      return text ? text.slice(0, 1) : "食";
     },
     wrapStyle() {
       const n = Math.max(18, Number(this.size) || 44);
@@ -73,10 +78,8 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     b: $options.iconUrl,
     c: common_vendor.s($options.iconStyle),
     d: common_vendor.o((...args) => $options.onIconLoadError && $options.onIconLoadError(...args))
-  } : {
-    e: common_vendor.t($options.fallbackText)
-  }, {
-    f: common_vendor.s($options.wrapStyle)
+  } : {}, {
+    e: common_vendor.s($options.wrapStyle)
   });
 }
 const Component = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-a40cf471"]]);

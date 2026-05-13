@@ -8,6 +8,10 @@ const NAME_TO_ICONFONT = {
   熟西兰花: "icon-shuxilanhua",
   菠菜: "icon-bocai",
   生菜: "icon-shengcai",
+  油麦菜: "icon-shengcai",
+  生菜叶: "icon-shengcai",
+  西芹: "icon-qingcai",
+  芹菜: "icon-qingcai",
   卷心菜: "icon-juanxincai",
   白菜: "icon-baicai",
   小白菜: "icon-xiaobaicai",
@@ -72,8 +76,17 @@ const NAME_TO_ICONFONT = {
   蘑菇: "icon-mogu",
   香菇: "icon-mogu",
   金针菇: "icon-jinzhengu",
+  杏鲍菇: "icon-mogu",
+  平菇: "icon-mogu",
+  口蘑: "icon-mogu",
   牛排: "icon-niupai",
+  牛腩: "icon-niurou",
+  肥牛: "icon-niurou",
+  牛里脊: "icon-niurou",
   猪肉: "icon-a-zhuroufeisou",
+  里脊肉: "icon-a-zhuroufeisou",
+  猪里脊: "icon-a-zhuroufeisou",
+  五花肉: "icon-a-zhuroufeisou",
   "猪肉(肥瘦)": "icon-a-zhuroufeisou",
   鸡肉: "icon-jirou",
   鸡胸肉: "icon-jixiongrou",
@@ -86,12 +99,23 @@ const NAME_TO_ICONFONT = {
   炸鸡腿: "icon-zhajitui",
   虾: "icon-xiaren",
   虾仁: "icon-xiaren",
+  基围虾: "icon-jiweixia",
+  明虾: "icon-xiaren",
+  白虾: "icon-xiaren",
+  冻虾仁: "icon-xiaren",
   鸡尾虾: "icon-jiweixia",
   生三文鱼: "icon-shengsanwenyu",
   "鲑鱼(三文鱼)": "icon-a-guiyusanwenyu",
   鲑鱼: "icon-a-guiyusanwenyu",
   三文鱼: "icon-a-guiyusanwenyu",
   面条: "icon-miantiao",
+  挂面: "icon-miantiao",
+  意面: "icon-miantiao",
+  意大利面: "icon-miantiao",
+  拉面: "icon-miantiao",
+  刀削面: "icon-miantiao",
+  乌冬面: "icon-miantiao",
+  荞麦面: "icon-miantiao",
   煮面条: "icon-zhumiantiao",
   方便面: "icon-fangbianmian",
   包子: "icon-shengxian-shushi",
@@ -185,14 +209,32 @@ const KEYWORD_TO_ICONFONT = [
   { keyword: "胡萝卜", icon: "icon-huluobu" },
   { keyword: "萝卜", icon: "icon-luobu" },
   { keyword: "虾", icon: "icon-xiaren" },
+  { keyword: "基围虾", icon: "icon-jiweixia" },
+  { keyword: "明虾", icon: "icon-xiaren" },
   { keyword: "鸡胸", icon: "icon-jixiongrou" },
   { keyword: "鸡肉", icon: "icon-jirou" },
   { keyword: "猪肉", icon: "icon-a-zhuroufeisou" },
+  { keyword: "五花肉", icon: "icon-a-zhuroufeisou" },
+  { keyword: "里脊", icon: "icon-a-zhuroufeisou" },
+  { keyword: "牛腩", icon: "icon-niurou" },
+  { keyword: "肥牛", icon: "icon-niurou" },
   { keyword: "豆腐", icon: "icon-doufu" },
   { keyword: "蘑菇", icon: "icon-mogu" },
   { keyword: "香菇", icon: "icon-mogu" },
+  { keyword: "杏鲍菇", icon: "icon-mogu" },
+  { keyword: "平菇", icon: "icon-mogu" },
+  { keyword: "口蘑", icon: "icon-mogu" },
+  { keyword: "挂面", icon: "icon-miantiao" },
+  { keyword: "意面", icon: "icon-miantiao" },
+  { keyword: "意大利面", icon: "icon-miantiao" },
+  { keyword: "拉面", icon: "icon-miantiao" },
+  { keyword: "乌冬面", icon: "icon-miantiao" },
+  { keyword: "荞麦面", icon: "icon-miantiao" },
   { keyword: "西兰花", icon: "icon-xilanhua" },
   { keyword: "生菜", icon: "icon-shengcai" },
+  { keyword: "油麦菜", icon: "icon-shengcai" },
+  { keyword: "西芹", icon: "icon-qingcai" },
+  { keyword: "芹菜", icon: "icon-qingcai" },
   { keyword: "菠菜", icon: "icon-bocai" },
   { keyword: "白菜", icon: "icon-baicai" },
   { keyword: "青菜", icon: "icon-qingcai" },
@@ -266,6 +308,23 @@ const KEYWORD_TO_ICONFONT = [
   { keyword: "包子", icon: "icon-shengxian-shushi" },
   { keyword: "馒头", icon: "icon-shengxian-shushi" }
 ];
+function normalizeIngredientTextForMatch(text) {
+  return `${text || ""}`.toLowerCase().replace(/[()（）【】\[\]<>]/g, " ").replace(/\d+(\.\d+)?\s*(kg|g|ml|l|斤|两|克|千克|公斤|个|包|袋|盒|瓶|罐|支|根|条|片|块|份|颗)/gi, " ").replace(/(新鲜|鲜切|冷冻|冷藏|散装|精品|特级|有机|即食|去皮|去骨|切片|切丝|切丁|整颗|整只|整条|国产|进口)/g, "").replace(/[\s\-_.，,、:：;；/\\]+/g, "").trim();
+}
+const NORMALIZED_NAME_TO_ICONFONT = Object.keys(NAME_TO_ICONFONT).reduce((acc, key) => {
+  const normalized = normalizeIngredientTextForMatch(key);
+  if (normalized && !acc[normalized])
+    acc[normalized] = NAME_TO_ICONFONT[key];
+  return acc;
+}, {});
+const NORMALIZED_KEYWORD_TO_ICONFONT = KEYWORD_TO_ICONFONT.map((x) => ({
+  keyword: normalizeIngredientTextForMatch(x.keyword),
+  icon: x.icon
+})).filter((x) => !!x.keyword);
+const NAME_MATCH_ITEMS = Object.keys(NAME_TO_ICONFONT).map((key) => ({
+  keyword: normalizeIngredientTextForMatch(key),
+  icon: NAME_TO_ICONFONT[key]
+})).filter((x) => x.keyword.length >= 2).sort((a, b) => b.keyword.length - a.keyword.length);
 function getIngredientIconfontClass(name) {
   const text = `${name || ""}`.trim();
   if (!text)
@@ -273,9 +332,19 @@ function getIngredientIconfontClass(name) {
   const exact = NAME_TO_ICONFONT[text];
   if (exact)
     return exact;
+  const normalized = normalizeIngredientTextForMatch(text);
+  const exactNormalized = NORMALIZED_NAME_TO_ICONFONT[normalized];
+  if (exactNormalized)
+    return exactNormalized;
   const lower = text.toLowerCase();
   const hit = KEYWORD_TO_ICONFONT.find((x) => lower.includes(`${x.keyword}`.toLowerCase()));
-  return hit ? hit.icon : "";
+  if (hit)
+    return hit.icon;
+  const normalizedHit = NORMALIZED_KEYWORD_TO_ICONFONT.find((x) => normalized.includes(x.keyword));
+  if (normalizedHit)
+    return normalizedHit.icon;
+  const nameHit = NAME_MATCH_ITEMS.find((x) => normalized.includes(x.keyword));
+  return nameHit ? nameHit.icon : "";
 }
 function getCategoryFallbackIconfontClass(category) {
   const cat = `${category || ""}`.trim();
@@ -306,5 +375,6 @@ function getIngredientWeappColorClass(name, category = "") {
     return "";
   return `t-icon-${cls.replace(/^icon-/, "")}`;
 }
+exports.getIngredientDisplayIconfontClass = getIngredientDisplayIconfontClass;
 exports.getIngredientWeappColorClass = getIngredientWeappColorClass;
 //# sourceMappingURL=../../.sourcemap/mp-weixin/utils/ingredient-image.js.map

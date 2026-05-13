@@ -65,7 +65,7 @@ const _sfc_main = {
         name: "",
         category: "",
         quantity: "",
-        unit: "",
+        unit: "份",
         location: "",
         expireDate: ""
       },
@@ -503,6 +503,16 @@ const _sfc_main = {
       }
       this.form.expireDate = value;
     },
+    resetManualForm() {
+      this.form = {
+        name: "",
+        category: "",
+        quantity: "",
+        unit: "份",
+        location: "",
+        expireDate: ""
+      };
+    },
     async submit() {
       if (!this.form.name || !this.form.category || !this.form.quantity || !this.form.unit || !this.form.location || !this.form.expireDate) {
         common_vendor.index.showToast({ title: "请先填写完整信息", icon: "none" });
@@ -524,13 +534,9 @@ const _sfc_main = {
           userId: this.userId
         });
         common_vendor.index.showToast({ title: "保存成功", icon: "success" });
-        setTimeout(() => {
-          common_vendor.index.navigateBack({
-            delta: 1
-          });
-        }, 300);
+        this.resetManualForm();
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/add.vue:637", "新增失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/add.vue:642", "新增失败", e);
         common_vendor.index.showToast({
           title: "保存失败",
           icon: "none"

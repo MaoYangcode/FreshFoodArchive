@@ -1,8 +1,7 @@
 <template>
 	<view class="icon-wrap" :style="wrapStyle">
 		<image v-if="iconUrl" class="ingredient-weapp-icon" :src="iconUrl" :style="iconStyle" mode="aspectFit" @error="onIconLoadError"></image>
-		<text v-else-if="isFridgeFallback" class="iconfont-fallback">&#xe90b;</text>
-		<text v-else class="icon-fallback">{{ fallbackText }}</text>
+		<text v-else class="iconfont-fallback">&#xe90b;</text>
 	</view>
 </template>
 
@@ -45,7 +44,9 @@ export default {
 		iconUrl() {
 			if (this.iconLoadFailed) return ''
 			const rawText = `${this.name || this.category || ''}`.trim()
-			const iconClass = `${getIngredientDisplayIconfontClass(this.name, this.category) || ''}`.trim()
+			const iconClass = `${getIngredientDisplayIconfontClass(this.name, this.category) || ''}`.trim() ||
+				`${getIngredientDisplayIconfontClass('', this.category || '其他') || ''}`.trim() ||
+				`${getIngredientDisplayIconfontClass('', '其他') || ''}`.trim()
 			const fallbackFile = rawText.includes('冰') ? 'icon-bingxiang' : ''
 			let file = ''
 			if (iconClass === 'icon-bingxiang' || iconClass === 'icon-bingxiang1') {
@@ -59,14 +60,6 @@ export default {
 			file = `${file || ''}`.trim()
 			if (!file) return ''
 			return `${resolveIconBaseUrl()}/${encodeURIComponent(file)}.svg`
-		},
-		fallbackText() {
-			const text = `${this.name || this.category || ''}`.trim()
-			return text ? text.slice(0, 1) : '食'
-		},
-		isFridgeFallback() {
-			const text = `${this.name || this.category || ''}`.trim()
-			return text.includes('冰')
 		},
 		wrapStyle() {
 			const n = Math.max(18, Number(this.size) || 44)
@@ -94,11 +87,6 @@ export default {
 .ingredient-weapp-icon {
 	flex-shrink: 0;
 	display: block;
-}
-.icon-fallback {
-	font-size: 14px;
-	line-height: 1;
-	color: #668070;
 }
 .iconfont-fallback {
 	font-family: "iconfont" !important;

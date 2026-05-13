@@ -20,6 +20,7 @@
     "navigationBarBackgroundColor": "#F7F8FA",
     "backgroundColor": "#F4F6F8"
   },
+  "lazyCodeLoading": "requiredComponents",
   "permission": {},
   "usingComponents": {}
 }

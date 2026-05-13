@@ -213,8 +213,14 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
 
   private normalizeRemindTime(value: unknown) {
     const text = `${value || ''}`.trim()
-    if (/^\d{2}:\d{2}$/.test(text)) return text
-    return DEFAULT_SETTINGS.remindTime
+    const m = text.match(/^(\d{1,2}):(\d{1,2})$/)
+    if (!m) return DEFAULT_SETTINGS.remindTime
+    let hour = Number(m[1])
+    let minute = Number(m[2])
+    if (!Number.isFinite(hour) || !Number.isFinite(minute)) return DEFAULT_SETTINGS.remindTime
+    hour = Math.min(Math.max(Math.floor(hour), 0), 23)
+    minute = minute >= 30 ? 30 : 0
+    return `${`${hour}`.padStart(2, '0')}:${minute === 30 ? '30' : '00'}`
   }
 
   private normalizeSettingsRow(row: {

@@ -184,7 +184,7 @@ export default {
 				name: '',
 				category: '',
 				quantity: '',
-				unit: '',
+				unit: '份',
 				location: '',
 				expireDate: ''
 			},
@@ -603,6 +603,16 @@ export default {
 			}
 			this.form.expireDate = value
 		},
+		resetManualForm() {
+			this.form = {
+				name: '',
+				category: '',
+				quantity: '',
+				unit: '份',
+				location: '',
+				expireDate: ''
+			}
+		},
 		async submit() {
 			if (!this.form.name || !this.form.category || !this.form.quantity || !this.form.unit || !this.form.location || !this.form.expireDate) {
 				uni.showToast({ title: '请先填写完整信息', icon: 'none' })
@@ -627,12 +637,7 @@ export default {
 				})
 		
 				uni.showToast({ title: '保存成功', icon: 'success' })
-		
-				setTimeout(() => {
-					uni.navigateBack({
-						delta: 1
-					})
-				}, 300)
+				this.resetManualForm()
 			} catch (e) {
 				console.error('新增失败', e)
 				uni.showToast({

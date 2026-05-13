@@ -21,7 +21,7 @@
 					<text class="label">提醒时间</text>
 				</view>
 				<view class="row-half right">
-					<picker mode="time" :value="settings.remindTime" @change="onTimeChange">
+					<picker mode="multiSelector" :range="[hourOptions, minuteOptions]" :value="timePickerValue" @change="onTimeChange">
 						<view class="time-pill right-control">{{ settings.remindTime }}</view>
 					</picker>
 				</view>
@@ -100,7 +100,19 @@ export default {
 			userId: getCurrentUserId(),
 			categories: CATEGORIES,
 			settings: cloneDefaults(),
-			dayOptions: Array.from({ length: 31 }, (_, i) => i)
+			dayOptions: Array.from({ length: 31 }, (_, i) => i),
+			hourOptions: Array.from({ length: 24 }, (_, i) => `${i}`.padStart(2, '0')),
+			minuteOptions: ['00', '30']
+		}
+	},
+	computed: {
+		timePickerValue() {
+			const [hourRaw = '09', minuteRaw = '00'] = `${this.settings?.remindTime || '09:00'}`.split(':')
+			const hour = `${hourRaw}`.padStart(2, '0')
+			const minute = minuteRaw === '30' ? '30' : '00'
+			const hourIdx = Math.max(0, this.hourOptions.indexOf(hour))
+			const minuteIdx = Math.max(0, this.minuteOptions.indexOf(minute))
+			return [hourIdx, minuteIdx]
 		}
 	},
 	onLoad() {
@@ -108,6 +120,17 @@ export default {
 		this.loadSettings()
 	},
 	methods: {
+		normalizeHalfHourTime(value) {
+			const text = `${value || ''}`.trim()
+			const m = text.match(/^(\d{1,2}):(\d{1,2})$/)
+			if (!m) return '09:00'
+			let hour = Number(m[1])
+			let minute = Number(m[2])
+			if (!Number.isFinite(hour) || !Number.isFinite(minute)) return '09:00'
+			hour = Math.min(Math.max(Math.floor(hour), 0), 23)
+			minute = minute >= 30 ? 30 : 0
+			return `${`${hour}`.padStart(2, '0')}:${minute === 30 ? '30' : '00'}`
+		},
 		goBack() {
 			if (getCurrentPages().length > 1) {
 				uni.navigateBack()
@@ -191,7 +214,7 @@ export default {
 				}
 				const merged = cloneDefaults()
 				merged.enabled = !!raw.enabled
-				merged.remindTime = `${raw.remindTime || merged.remindTime}`
+				merged.remindTime = this.normalizeHalfHourTime(`${raw.remindTime || merged.remindTime}`)
 				merged.defaultDays = this.clampDays(raw.defaultDays)
 				merged.rules = { ...merged.rules }
 				merged.subscribe = this.normalizeSubscribe(raw?.subscribe)
@@ -208,8 +231,14 @@ export default {
 			}
 		},
 		onTimeChange(e) {
-			const value = `${e?.detail?.value || ''}`
-			this.settings.remindTime = value || '09:00'
+			const value = e?.detail?.value
+			if (Array.isArray(value)) {
+				const hour = this.hourOptions[Number(value[0]) || 0] || '09'
+				const minute = this.minuteOptions[Number(value[1]) || 0] || '00'
+				this.settings.remindTime = `${hour}:${minute}`
+				return
+			}
+			this.settings.remindTime = this.normalizeHalfHourTime(`${value || ''}`)
 		},
 		onRulePick(category, e) {
 			const idx = Number(e?.detail?.value)

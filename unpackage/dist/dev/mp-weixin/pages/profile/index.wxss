@@ -80,6 +80,15 @@
 	border-bottom: 1rpx solid #eff3f1;
 	font-size: 15px;
 }
+.contact-item.data-v-201c0da5 {
+	width: 100%;
+	background: #fff;
+	color: #1f2a22;
+	text-align: left;
+}
+.contact-item.data-v-201c0da5::after {
+	border: none;
+}
 .menu-item.data-v-201c0da5:last-child {
 	border-bottom: none;
 }

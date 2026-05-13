@@ -68,6 +68,33 @@ export class AiService {
   private readonly allowMockFallback =
     `${process.env.AI_RECOGNIZE_FALLBACK_TO_MOCK || ''}`.trim() === '1'
   private readonly validCategories = new Set(['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'])
+  private readonly ingredientAliasMap: Record<string, string> = {
+    西红柿: '番茄',
+    圣女果: '小番茄',
+    马铃薯: '土豆',
+    洋芋: '土豆',
+    生菜叶: '生菜',
+    油麦菜: '生菜',
+    西芹: '芹菜',
+    挂面: '面条',
+    意面: '面条',
+    意大利面: '面条',
+    乌冬面: '面条',
+    里脊肉: '猪肉',
+    猪里脊: '猪肉',
+    五花肉: '猪肉',
+    牛里脊: '牛肉',
+    牛腩: '牛肉',
+    肥牛: '牛肉',
+    基围虾: '虾',
+    明虾: '虾',
+    白虾: '虾',
+    冻虾仁: '虾仁',
+    杏鲍菇: '蘑菇',
+    平菇: '蘑菇',
+    口蘑: '蘑菇',
+    鸡胸: '鸡胸肉',
+  }
 
   async recognizeIngredientFromImage(file: any): Promise<RecognizedIngredient[]> {
     if (!this.apiKey) {
@@ -90,18 +117,44 @@ export class AiService {
 
     const dataUrl = `data:${mimeType};base64,${imageBase64}`
     try {
-      const content = await this.callDashScope(this.visionModel, [
-        { role: 'system', content: '你是食材识别助手。' },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: dataUrl } },
-          ],
-        },
-      ])
+      const content = await this.callDashScope(
+        this.visionModel,
+        [
+          { role: 'system', content: '你是食材识别助手。' },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+        false,
+        0.35,
+        1600,
+      )
 
-      return this.extractIngredientsFromResponse(content)
+      const primary = this.extractIngredientsFromResponse(content)
+      if (primary.length >= 10) return primary
+
+      const enhanced = await this.runIngredientEnhancePass(dataUrl)
+      const merged = this.mergeRecognizedIngredients(primary, enhanced)
+      if (merged.length >= 10) return merged
+
+      const loose = await this.runIngredientLoosePass(dataUrl)
+      let result = this.mergeRecognizedIngredients(merged, loose)
+      if (result.length >= 10) return result
+
+      for (let round = 0; round < 5 && result.length < 16; round += 1) {
+        const extra = await this.runIngredientContinuePass(
+          dataUrl,
+          result.map((x) => x.name).filter(Boolean),
+        )
+        const next = this.mergeRecognizedIngredients(result, extra)
+        if (next.length <= result.length) break
+        result = next
+      }
+      return result
     } catch (error: any) {
       if (this.allowMockFallback) return this.mockRecognize()
       throw new Error(error?.message || '食材识别服务调用失败')
@@ -130,18 +183,44 @@ export class AiService {
 
     const dataUrl = `data:${mimeType};base64,${imageBase64}`
     try {
-      const content = await this.callDashScope(this.visionModel, [
-        { role: 'system', content: '你是结构化小票 OCR 助手。' },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: dataUrl } },
-          ],
-        },
-      ])
+      const content = await this.callDashScope(
+        this.visionModel,
+        [
+          { role: 'system', content: '你是结构化小票 OCR 助手。' },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+        false,
+        0.35,
+        1800,
+      )
 
-      return this.extractIngredientsFromResponse(content)
+      const primary = this.extractIngredientsFromResponse(content)
+      if (primary.length >= 12) return primary
+
+      const enhanced = await this.runReceiptEnhancePass(dataUrl)
+      const merged = this.mergeRecognizedIngredients(primary, enhanced)
+      if (merged.length >= 12) return merged
+
+      const loose = await this.runReceiptLoosePass(dataUrl)
+      let result = this.mergeRecognizedIngredients(merged, loose)
+      if (result.length >= 12) return result
+
+      for (let round = 0; round < 5 && result.length < 26; round += 1) {
+        const extra = await this.runReceiptContinuePass(
+          dataUrl,
+          result.map((x) => x.name).filter(Boolean),
+        )
+        const next = this.mergeRecognizedIngredients(result, extra)
+        if (next.length <= result.length) break
+        result = next
+      }
+      return result
     } catch (error: any) {
       if (this.allowMockFallback) return this.mockRecognize()
       throw new Error(error?.message || '小票识别服务调用失败')
@@ -242,6 +321,9 @@ export class AiService {
       })
       .filter(Boolean)
       .join('、')
+    const pantryNames = ingredients
+      .map((x: any) => `${x?.name || ''}`.trim())
+      .filter(Boolean)
 
     const prompt = [
       '你是家庭烹饪助手。仅返回 JSON，不要附带解释文本。',
@@ -256,6 +338,11 @@ export class AiService {
       `已展示菜谱名（禁止重复）：${excludeNames.length ? excludeNames.join('、') : '无'}`,
       `本次生成随机标识：${requestNonce || 'none'}`,
       `食材：${ingredientText}`,
+      '菜谱合理性要求（必须遵守）：',
+      '1) 菜名必须是常见家常菜，不要生造菜名，不要出现明显违和组合（如“苹果炒土豆”）。',
+      '2) 每道菜至少命中 1 种库存食材（库存优先）。',
+      '3) 允许补充 1-3 种常见缺失食材来让菜谱成立（如“土豆炖牛肉”可补充牛肉）。',
+      '4) 不要为了凑数量输出不符合常理的菜。',
       'JSON 结构：',
       '{"recipes":[{"id":"ai_001","name":"菜名","duration":15,"difficulty":"简单","matchScore":95,"coverImage":"","ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["步骤1","步骤2"],"tips":"可选"}]}',
       'difficulty 仅可取：简单、中等、困难。',
@@ -284,6 +371,7 @@ export class AiService {
       const blocked = new Set(excludeNames.map((x) => this.normalizeTextForCompare(x)))
       recipes = recipes.filter((x) => !blocked.has(this.normalizeTextForCompare(x.name)))
     }
+    recipes = recipes.filter((x) => this.recipeUsesPantryIngredients(x, pantryNames))
     const beforeFilterCount = recipes.length
     recipes = this.filterRecipesByAvoidances(recipes, avoidances)
     let removedByAvoidanceCount = Math.max(beforeFilterCount - recipes.length, 0)
@@ -305,6 +393,11 @@ export class AiService {
         `期望总烹饪时长（分钟）：${cookingTime}`,
         `食材：${ingredientText}`,
         `本次生成随机标识：${requestNonce || Date.now()}`,
+        '菜谱合理性要求（必须遵守）：',
+        '1) 菜名必须是常见家常菜，不要生造菜名，不要出现明显违和组合（如“苹果炒土豆”）。',
+        '2) 每道菜至少命中 1 种库存食材（库存优先）。',
+        '3) 允许补充 1-3 种常见缺失食材来让菜谱成立（如“土豆炖牛肉”可补充牛肉）。',
+        '4) 不要为了凑数量输出不符合常理的菜。',
         'JSON 结构：',
         '{"recipes":[{"id":"ai_001","name":"菜名","duration":15,"difficulty":"简单","matchScore":95,"coverImage":"","ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["步骤1","步骤2"],"tips":"可选"}]}',
         'difficulty 仅可取：简单、中等、困难。',
@@ -335,6 +428,7 @@ export class AiService {
       for (const item of retryRecipes) {
         const key = this.normalizeTextForCompare(item.name)
         if (!key || seen.has(key)) continue
+        if (!this.recipeUsesPantryIngredients(item, pantryNames)) continue
         recipes.push(item)
         seen.add(key)
         if (recipes.length >= count) break
@@ -438,7 +532,30 @@ export class AiService {
     return output
   }
 
-  private async callDashScope(model: string, messages: any[], forceJson = false, temperature = 0.2): Promise<string> {
+  private recipeUsesPantryIngredients(recipe: GeneratedRecipe, pantryNames: string[]) {
+    const names = Array.isArray(pantryNames) ? pantryNames : []
+    if (!names.length) return true
+    const haystack = [
+      `${recipe?.name || ''}`,
+      ...(Array.isArray(recipe?.ingredients) ? recipe.ingredients.map((x) => `${x?.name || ''}`) : []),
+      ...(Array.isArray(recipe?.steps) ? recipe.steps.map((x) => `${x || ''}`) : []),
+    ]
+      .join(' ')
+      .replace(/\s+/g, '')
+      .toLowerCase()
+    return names.some((x) => {
+      const key = this.normalizeTextForCompare(x)
+      return key && haystack.includes(key)
+    })
+  }
+
+  private async callDashScope(
+    model: string,
+    messages: any[],
+    forceJson = false,
+    temperature = 0.2,
+    maxTokens = 800,
+  ): Promise<string> {
     const modelName = `${model || ''}`.toLowerCase()
     const isAsrModel = modelName.includes('asr')
     if (isAsrModel) {
@@ -452,6 +569,7 @@ export class AiService {
       model,
       messages,
       temperature: Math.max(0, Math.min(1.2, Number(temperature || 0.2))),
+      max_tokens: Math.max(256, Math.min(4096, Number(maxTokens || 800))),
     }
     if (forceJson) {
       body.response_format = { type: 'json_object' }
@@ -714,13 +832,11 @@ export class AiService {
 
   private extractIngredientsFromResponse(content: string): RecognizedIngredient[] {
     const parsed = this.parseJson(content)
-    let list = this.pickIngredientArray(parsed)
+    const structuredList = this.pickIngredientArray(parsed)
+    const fallbackList = this.parseIngredientsFallback(content)
+    const mergedList = [...(Array.isArray(structuredList) ? structuredList : []), ...(Array.isArray(fallbackList) ? fallbackList : [])]
 
-    if (!list.length) {
-      list = this.parseIngredientsFallback(content)
-    }
-
-    const normalized = list
+    const normalized = mergedList
       .map((item: any) => this.normalizeRecognizedIngredient(item))
       .filter((x: RecognizedIngredient) => !!x.name && !this.isNoiseIngredientName(x.name))
 
@@ -731,6 +847,218 @@ export class AiService {
       seen.add(key)
       return true
     })
+  }
+
+  private async runIngredientEnhancePass(dataUrl: string): Promise<RecognizedIngredient[]> {
+    try {
+      const prompt = [
+        '请对同一张食材图片进行第二轮补充识别，只返回 JSON。',
+        '目标：尽可能识别完整，尤其补充第一眼容易漏掉的小食材、边缘食材和包装内食材。',
+        '如果不确定，也可以低置信度返回，不要只给4条左右结果。',
+        'JSON 结构：{"ingredients":[{"name":"食材名","category":"类别","confidence":0.75}]}',
+        'category 仅可取：水果、蔬菜、肉类、蛋奶、海鲜、饮料、调味品、其他。',
+        '若确实无法识别，返回 {"ingredients":[]}',
+      ].join('\n')
+      const content = await this.callDashScope(
+        this.visionModel,
+        [
+          { role: 'system', content: '你是食材识别补充助手。' },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+        false,
+        0.45,
+        1600,
+      )
+      return this.extractIngredientsFromResponse(content)
+    } catch (_) {
+      return []
+    }
+  }
+
+  private async runReceiptEnhancePass(dataUrl: string): Promise<RecognizedIngredient[]> {
+    try {
+      const prompt = [
+        '请对同一张购物小票进行第二轮补充识别，只返回 JSON。',
+        '目标：尽量补全更多可入库食材条目，不要只返回4条左右。',
+        '优先识别商品名为食材/食品的行，忽略金额、时间、门店、合计等信息。',
+        'JSON 结构：{"ingredients":[{"name":"食材名","category":"类别","quantity":2,"unit":"个","confidence":0.75}]}',
+        'category 仅可取：水果、蔬菜、肉类、蛋奶、海鲜、饮料、调味品、其他。',
+        '若确实无法识别，返回 {"ingredients":[]}',
+      ].join('\n')
+      const content = await this.callDashScope(
+        this.visionModel,
+        [
+          { role: 'system', content: '你是小票 OCR 补充助手。' },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+        false,
+        0.45,
+        1800,
+      )
+      return this.extractIngredientsFromResponse(content)
+    } catch (_) {
+      return []
+    }
+  }
+
+  private async runIngredientLoosePass(dataUrl: string): Promise<RecognizedIngredient[]> {
+    try {
+      const prompt = [
+        '识别这张食材图片中所有你能看到的食材名称。',
+        '不要返回 JSON，只返回纯文本，一行一个食材名。',
+        '尽量完整，不要只返回 4 条左右；可包含低置信度候选。',
+        '只输出食材名称，不要解释。',
+      ].join('\n')
+      const content = await this.callDashScope(
+        this.visionModel,
+        [
+          { role: 'system', content: '你是食材识别补充助手。' },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+        false,
+        0.6,
+        2000,
+      )
+      return this.extractIngredientsFromResponse(content)
+    } catch (_) {
+      return []
+    }
+  }
+
+  private async runReceiptLoosePass(dataUrl: string): Promise<RecognizedIngredient[]> {
+    try {
+      const prompt = [
+        '识别这张购物小票里与食材相关的商品名称。',
+        '不要返回 JSON，只返回纯文本，一行一个食材名。',
+        '尽量完整，不要只返回 4 条左右；忽略金额、门店、时间、合计。',
+        '只输出食材名称，不要解释。',
+      ].join('\n')
+      const content = await this.callDashScope(
+        this.visionModel,
+        [
+          { role: 'system', content: '你是小票 OCR 补充助手。' },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+        false,
+        0.6,
+        2200,
+      )
+      return this.extractIngredientsFromResponse(content)
+    } catch (_) {
+      return []
+    }
+  }
+
+  private async runIngredientContinuePass(
+    dataUrl: string,
+    existedNames: string[],
+  ): Promise<RecognizedIngredient[]> {
+    try {
+      const existed = Array.isArray(existedNames) ? existedNames.filter(Boolean) : []
+      const prompt = [
+        '你正在做食材补全识别。',
+        `已识别食材（禁止重复）：${existed.join('、') || '无'}`,
+        '请只补充尚未出现的新食材；不要返回已有食材。',
+        '只返回 JSON：{"ingredients":[{"name":"食材名","category":"类别","confidence":0.7}]}',
+        '如果没有可补充的新食材，返回 {"ingredients":[]}',
+      ].join('\n')
+      const content = await this.callDashScope(
+        this.visionModel,
+        [
+          { role: 'system', content: '你是食材识别补全助手。' },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+        false,
+        0.75,
+        1800,
+      )
+      return this.extractIngredientsFromResponse(content)
+    } catch (_) {
+      return []
+    }
+  }
+
+  private async runReceiptContinuePass(
+    dataUrl: string,
+    existedNames: string[],
+  ): Promise<RecognizedIngredient[]> {
+    try {
+      const existed = Array.isArray(existedNames) ? existedNames.filter(Boolean) : []
+      const prompt = [
+        '你正在做购物小票食材条目补全。',
+        `已识别条目（禁止重复）：${existed.join('、') || '无'}`,
+        '请只补充新的食材/食品名称，不要返回已识别条目。',
+        '忽略金额、门店、时间、优惠、合计等非食材字段。',
+        '只返回 JSON：{"ingredients":[{"name":"食材名","category":"类别","quantity":1,"unit":"个","confidence":0.7}]}',
+        '如果没有新条目，返回 {"ingredients":[]}',
+      ].join('\n')
+      const content = await this.callDashScope(
+        this.visionModel,
+        [
+          { role: 'system', content: '你是小票 OCR 补全助手。' },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          },
+        ],
+        false,
+        0.75,
+        2200,
+      )
+      return this.extractIngredientsFromResponse(content)
+    } catch (_) {
+      return []
+    }
+  }
+
+  private mergeRecognizedIngredients(
+    base: RecognizedIngredient[],
+    extra: RecognizedIngredient[],
+  ): RecognizedIngredient[] {
+    const merged = [...(Array.isArray(base) ? base : []), ...(Array.isArray(extra) ? extra : [])]
+    const seen = new Set<string>()
+    const output: RecognizedIngredient[] = []
+    for (const item of merged) {
+      const key = `${item?.name || ''}`.trim().toLowerCase()
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      output.push(item)
+      if (output.length >= 20) break
+    }
+    return output
   }
 
   private pickIngredientArray(parsed: any): any[] {
@@ -784,7 +1112,7 @@ export class AiService {
 
     const tokens = rawTokens.filter((t) => {
       const lower = t.toLowerCase()
-      if (!t || t.length > 20) return false
+      if (!t || t.length > 40) return false
       if (/[:{}[\]"]/g.test(t)) return false
       if (/^\d+(\.\d+)?$/.test(t)) return false
       if (blacklist.has(lower)) return false
@@ -803,8 +1131,19 @@ export class AiService {
   }
 
   private normalizeRecognizedIngredient(item: any): RecognizedIngredient {
-    const rawName = `${item?.name || item?.ingredient || item?.food || item?.title || item?.名称 || item?.食材 || item?.品名 || ''}`.trim()
-    const name = this.cleanIngredientName(rawName)
+    const rawName = `${
+      item?.name ||
+      item?.ingredient ||
+      item?.food ||
+      item?.title ||
+      item?.名称 ||
+      item?.食材 ||
+      item?.食材名称 ||
+      item?.品名 ||
+      item?.商品名 ||
+      ''
+    }`.trim()
+    const name = this.canonicalizeIngredientName(this.cleanIngredientName(rawName))
     const rawCategory = `${item?.category || item?.type || item?.分类 || item?.类别 || ''}`.trim()
     const category =
       (this.validCategories.has(rawCategory) ? rawCategory : this.inferCategoryByName(name)) || '其他'
@@ -830,12 +1169,15 @@ export class AiService {
     let text = `${raw}`.trim()
     text = text
       .replace(/[()（）【】\[\]<>]/g, ' ')
+      .replace(/^[\d\s._-]*[、.)）]?\s*/g, ' ')
       .replace(/\b(x|X)\d+\b/g, ' ')
       .replace(/\d+(\.\d+)?(元|块|kg|g|ml|l|L|斤|两|个|盒|包|袋|瓶|罐|支|根)?/g, ' ')
+      .replace(/(净含量|净重|规格|约|共)\s*/g, ' ')
       .replace(/[￥¥$]/g, ' ')
       .replace(/[：:;；，,。]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
+    text = text.replace(/^(有机|精品|优选|新鲜|鲜切|冷冻|冷藏|散装|国产|进口)\s*/g, '').trim()
 
     const noiseFragments = [
       '合计', '小计', '实收', '应收', '找零', '优惠', '折扣', '会员', '积分', '扫码', '支付',
@@ -846,6 +1188,32 @@ export class AiService {
       if (text.includes(n)) return ''
     }
     return text
+  }
+
+  private canonicalizeIngredientName(name: string): string {
+    const text = `${name || ''}`.trim()
+    if (!text) return ''
+    if (this.ingredientAliasMap[text]) return this.ingredientAliasMap[text]
+    const normalized = this.normalizeIngredientTextForMatch(text)
+    for (const key of Object.keys(this.ingredientAliasMap)) {
+      const normalizedKey = this.normalizeIngredientTextForMatch(key)
+      if (normalizedKey && normalized === normalizedKey) return this.ingredientAliasMap[key]
+    }
+    for (const key of Object.keys(this.ingredientAliasMap)) {
+      const normalizedKey = this.normalizeIngredientTextForMatch(key)
+      if (normalizedKey && normalized.includes(normalizedKey)) return this.ingredientAliasMap[key]
+    }
+    return text
+  }
+
+  private normalizeIngredientTextForMatch(text: string): string {
+    return `${text || ''}`
+      .toLowerCase()
+      .replace(/[()（）【】\[\]<>]/g, ' ')
+      .replace(/\d+(\.\d+)?\s*(kg|g|ml|l|斤|两|克|千克|公斤|个|包|袋|盒|瓶|罐|支|根|条|片|块|份|颗)/gi, ' ')
+      .replace(/(新鲜|鲜切|冷冻|冷藏|散装|精品|特级|有机|即食|去皮|去骨|切片|切丝|切丁|整颗|整只|整条|国产|进口)/g, '')
+      .replace(/[\s\-_.，,、:：;；/\\]+/g, '')
+      .trim()
   }
 
   private isNoiseIngredientName(name: string): boolean {

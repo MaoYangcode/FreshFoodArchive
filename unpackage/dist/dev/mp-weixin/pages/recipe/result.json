@@ -1,5 +1,5 @@
 {
-  "navigationBarTitleText": "智能菜谱",
+  "navigationBarTitleText": "菜谱推荐",
   "navigationStyle": "custom",
   "usingComponents": {
     "bottom-nav": "../../components/bottom-nav",

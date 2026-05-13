@@ -47,11 +47,11 @@
 				<text>我的资料</text>
 				<text class="arrow">›</text>
 			</view>
-			<view class="menu-item">
+			<button class="menu-item contact-item" open-type="contact">
 				<text class="micon">&#xe631;</text>
 				<text>问题反馈</text>
 				<text class="arrow">›</text>
-			</view>
+			</button>
 		</view>
 		<BottomNav current="profile" />
 	</view>
@@ -228,6 +228,17 @@ export default {
 	padding: 20rpx 12rpx 20rpx 17px;
 	border-bottom: 1rpx solid #eff3f1;
 	font-size: 15px;
+}
+
+.contact-item {
+	width: 100%;
+	background: #fff;
+	color: #1f2a22;
+	text-align: left;
+}
+
+.contact-item::after {
+	border: none;
 }
 
 .menu-item:last-child {
