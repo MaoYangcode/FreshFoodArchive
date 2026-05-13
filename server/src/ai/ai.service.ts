@@ -375,7 +375,7 @@ export class AiService {
     }
 
     const parsed = this.parseJson(content)
-    const list = Array.isArray(parsed?.recipes) ? parsed.recipes : []
+    const list = this.pickRecipeArray(parsed)
     let recipes = list
       .map((item: any, idx: number) => this.normalizeRecipe(item, idx))
       .filter((x: GeneratedRecipe) => !!x.name && Array.isArray(x.steps) && x.steps.length > 0)
@@ -463,8 +463,9 @@ export class AiService {
     }
     let finalRecipes = recipes.slice(0, count)
     if (!finalRecipes.length) {
+      const snippet = `${content || ''}`.replace(/\s+/g, ' ').slice(0, 180)
       this.logger.warn(
-        `DashScope returned empty recipes after filtering, fallback to mock recipes. pantry=[${pantryNames.join(',')}]`,
+        `DashScope returned empty recipes after filtering, fallback to mock recipes. pantry=[${pantryNames.join(',')}], contentSnippet=${snippet}`,
       )
       const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
       finalRecipes = mocked.slice(0, count)
@@ -564,6 +565,50 @@ export class AiService {
       output.push(item)
     }
     return output
+  }
+
+  private pickRecipeArray(parsed: any): any[] {
+    if (!parsed) return []
+    if (Array.isArray(parsed)) return parsed
+
+    const directKeys = [
+      'recipes',
+      'list',
+      'items',
+      'data',
+      'result',
+      'output',
+      'dishes',
+      '菜谱',
+      '菜谱列表',
+    ]
+    for (const key of directKeys) {
+      if (Array.isArray(parsed?.[key])) return parsed[key]
+      if (parsed?.[key] && Array.isArray(parsed[key]?.recipes)) return parsed[key].recipes
+    }
+
+    const deep = this.findRecipeArrayDeep(parsed, 0)
+    return Array.isArray(deep) ? deep : []
+  }
+
+  private findRecipeArrayDeep(node: any, depth: number): any[] {
+    if (!node || depth > 4) return []
+    if (Array.isArray(node)) {
+      const valid = node.some((item) => {
+        const name = `${item?.name || item?.title || item?.菜名 || ''}`.trim()
+        const steps = Array.isArray(item?.steps) ? item.steps : item?.步骤
+        return !!name || Array.isArray(steps)
+      })
+      return valid ? node : []
+    }
+    if (typeof node !== 'object') return []
+    const keys = Object.keys(node)
+    for (const key of keys) {
+      const child = node[key]
+      const found = this.findRecipeArrayDeep(child, depth + 1)
+      if (found.length) return found
+    }
+    return []
   }
 
   private recipeUsesPantryIngredients(recipe: GeneratedRecipe, pantryNames: string[]) {
