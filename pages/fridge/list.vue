@@ -73,8 +73,7 @@
 					<view
 						class="row swipe-content"
 						:class="{ open: openSwipeId === item.id }"
-						@touchstart.stop="onTouchStart($event, item.id)"
-						@touchmove="onTouchMove($event)"
+						@touchstart="onTouchStart($event, item.id)"
 						@touchend="onTouchEnd($event, item.id)"
 						@mousedown.stop="onMouseDown($event, item.id)"
 						@wheel.stop="onWheel($event, item.id)"
@@ -457,41 +456,24 @@ export default {
 			this.lastTouchAt = Date.now()
 			this.touchStartX = e.touches[0].clientX
 			this.touchStartY = e.touches[0].clientY
-			this.touchDeltaX = 0
-			this.touchDeltaY = 0
-			this.touchHorizontalLock = null
 			if (this.openSwipeId && this.openSwipeId !== id) {
 				this.openSwipeId = ''
-			}
-		},
-		onTouchMove(e) {
-			if (!e || !e.touches || !e.touches.length) return
-			const x = e.touches[0].clientX
-			const y = e.touches[0].clientY
-			this.touchDeltaX = x - this.touchStartX
-			this.touchDeltaY = y - this.touchStartY
-			if (this.touchHorizontalLock === null) {
-				const absX = Math.abs(this.touchDeltaX)
-				const absY = Math.abs(this.touchDeltaY)
-				if (absX > 8 || absY > 8) {
-					this.touchHorizontalLock = absX > absY + 6
-				}
 			}
 		},
 		onTouchEnd(e, id) {
 			if (!e || !e.changedTouches || !e.changedTouches.length) return
 			const endX = e.changedTouches[0].clientX
-			const deltaX = this.touchDeltaX || endX - this.touchStartX
-			const horizontalSwipe = this.touchHorizontalLock === true
+			const endY = e.changedTouches[0].clientY
+			const deltaX = endX - this.touchStartX
+			const deltaY = endY - this.touchStartY
+			const horizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY) + 6
 			if (horizontalSwipe && deltaX < -35) {
 				this.openSwipeId = id
-				this.touchHorizontalLock = null
 				return
 			}
 			if (horizontalSwipe && deltaX > 35) {
 				this.openSwipeId = ''
 			}
-			this.touchHorizontalLock = null
 		},
 		onMouseDown(e, id) {
 			if (e.button !== 0) return

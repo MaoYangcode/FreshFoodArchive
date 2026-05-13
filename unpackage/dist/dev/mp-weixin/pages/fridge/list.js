@@ -291,7 +291,7 @@ const _sfc_main = {
         this.list = list;
         this.persistListCache(list);
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/list.vue:374", "获取失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/list.vue:373", "获取失败", e);
         if (!this.list.length) {
           common_vendor.index.showToast({
             title: "加载失败",
@@ -384,43 +384,25 @@ const _sfc_main = {
       this.lastTouchAt = Date.now();
       this.touchStartX = e.touches[0].clientX;
       this.touchStartY = e.touches[0].clientY;
-      this.touchDeltaX = 0;
-      this.touchDeltaY = 0;
-      this.touchHorizontalLock = null;
       if (this.openSwipeId && this.openSwipeId !== id) {
         this.openSwipeId = "";
-      }
-    },
-    onTouchMove(e) {
-      if (!e || !e.touches || !e.touches.length)
-        return;
-      const x = e.touches[0].clientX;
-      const y = e.touches[0].clientY;
-      this.touchDeltaX = x - this.touchStartX;
-      this.touchDeltaY = y - this.touchStartY;
-      if (this.touchHorizontalLock === null) {
-        const absX = Math.abs(this.touchDeltaX);
-        const absY = Math.abs(this.touchDeltaY);
-        if (absX > 8 || absY > 8) {
-          this.touchHorizontalLock = absX > absY + 6;
-        }
       }
     },
     onTouchEnd(e, id) {
       if (!e || !e.changedTouches || !e.changedTouches.length)
         return;
       const endX = e.changedTouches[0].clientX;
-      const deltaX = this.touchDeltaX || endX - this.touchStartX;
-      const horizontalSwipe = this.touchHorizontalLock === true;
+      const endY = e.changedTouches[0].clientY;
+      const deltaX = endX - this.touchStartX;
+      const deltaY = endY - this.touchStartY;
+      const horizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY) + 6;
       if (horizontalSwipe && deltaX < -35) {
         this.openSwipeId = id;
-        this.touchHorizontalLock = null;
         return;
       }
       if (horizontalSwipe && deltaX > 35) {
         this.openSwipeId = "";
       }
-      this.touchHorizontalLock = null;
     },
     onMouseDown(e, id) {
       if (e.button !== 0)
@@ -615,7 +597,7 @@ const _sfc_main = {
         });
         this.refreshList();
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/list.vue:685", "取出失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/list.vue:667", "取出失败", e);
         common_vendor.index.showToast({
           title: "取出失败",
           icon: "none"
@@ -712,16 +694,15 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         l: common_vendor.n($options.getTagClass(item.expireDate)),
         m: $data.openSwipeId === item.id ? 1 : "",
         n: common_vendor.o(($event) => $options.onTouchStart($event, item.id), item.id),
-        o: common_vendor.o(($event) => $options.onTouchMove($event), item.id),
-        p: common_vendor.o(($event) => $options.onTouchEnd($event, item.id), item.id),
-        q: common_vendor.o(($event) => $options.onMouseDown($event, item.id), item.id),
-        r: common_vendor.o(($event) => $options.onWheel($event, item.id), item.id),
-        s: common_vendor.o(($event) => $options.onDoubleClick(item.id), item.id),
+        o: common_vendor.o(($event) => $options.onTouchEnd($event, item.id), item.id),
+        p: common_vendor.o(($event) => $options.onMouseDown($event, item.id), item.id),
+        q: common_vendor.o(($event) => $options.onWheel($event, item.id), item.id),
+        r: common_vendor.o(($event) => $options.onDoubleClick(item.id), item.id),
+        s: common_vendor.o(($event) => $options.onLongPress(item.id), item.id),
         t: common_vendor.o(($event) => $options.onLongPress(item.id), item.id),
-        v: common_vendor.o(($event) => $options.onLongPress(item.id), item.id),
-        w: common_vendor.o(($event) => $options.onContextMenu(item.id), item.id),
-        x: common_vendor.o(($event) => $options.onRowClick(item), item.id),
-        y: item.id
+        v: common_vendor.o(($event) => $options.onContextMenu(item.id), item.id),
+        w: common_vendor.o(($event) => $options.onRowClick(item), item.id),
+        x: item.id
       };
     })
   } : {
