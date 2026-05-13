@@ -455,7 +455,9 @@ export class AiService {
     }
     let finalRecipes = recipes.slice(0, count)
     if (!finalRecipes.length) {
-      this.logger.warn('DashScope returned empty recipes after filtering, fallback to mock recipes')
+      this.logger.warn(
+        `DashScope returned empty recipes after filtering, fallback to mock recipes. pantry=[${pantryNames.join(',')}]`,
+      )
       const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
       finalRecipes = mocked.slice(0, count)
     }
@@ -559,18 +561,38 @@ export class AiService {
   private recipeUsesPantryIngredients(recipe: GeneratedRecipe, pantryNames: string[]) {
     const names = Array.isArray(pantryNames) ? pantryNames : []
     if (!names.length) return true
-    const haystack = [
+    const haystackRaw = [
       `${recipe?.name || ''}`,
       ...(Array.isArray(recipe?.ingredients) ? recipe.ingredients.map((x) => `${x?.name || ''}`) : []),
       ...(Array.isArray(recipe?.steps) ? recipe.steps.map((x) => `${x || ''}`) : []),
-    ]
-      .join(' ')
-      .replace(/\s+/g, '')
-      .toLowerCase()
-    return names.some((x) => {
-      const key = this.normalizeTextForCompare(x)
-      return key && haystack.includes(key)
-    })
+    ].join(' ')
+    const haystack = this.normalizeIngredientTextForMatch(haystackRaw)
+    const pantryKeys = this.collectIngredientMatchKeys(names)
+    return pantryKeys.some((key) => key && haystack.includes(key))
+  }
+
+  private collectIngredientMatchKeys(names: string[]) {
+    const list = Array.isArray(names) ? names : []
+    const reverseAliasMap = Object.keys(this.ingredientAliasMap).reduce((acc, key) => {
+      const value = `${this.ingredientAliasMap[key] || ''}`.trim()
+      if (!value) return acc
+      if (!acc[value]) acc[value] = []
+      acc[value].push(key)
+      return acc
+    }, {} as Record<string, string[]>)
+    const keys = new Set<string>()
+    for (const name of list) {
+      const raw = `${name || ''}`.trim()
+      if (!raw) continue
+      const directAlias = `${this.ingredientAliasMap[raw] || ''}`.trim()
+      const reverseAlias = Array.isArray(reverseAliasMap[raw]) ? reverseAliasMap[raw] : []
+      const candidates = [raw, directAlias, ...reverseAlias].filter(Boolean)
+      for (const candidate of candidates) {
+        const normalized = this.normalizeIngredientTextForMatch(candidate)
+        if (normalized.length >= 2) keys.add(normalized)
+      }
+    }
+    return Array.from(keys)
   }
 
   private async callDashScope(
