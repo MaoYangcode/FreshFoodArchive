@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 
 type RecognizedIngredient = {
@@ -55,6 +55,7 @@ type VoiceRecognizeResult = {
 @Injectable()
 export class AiService {
   constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(AiService.name)
 
   private readonly apiKey = process.env.DASHSCOPE_API_KEY || ''
   private readonly endpoint = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
@@ -363,6 +364,9 @@ export class AiService {
         0.2,
       )
     } catch (err) {
+      this.logger.warn(
+        `DashScope generate-recipe failed, fallback to mock: ${err?.message || err || 'unknown error'}`,
+      )
       const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
       profileApplied.generatedCount = mocked.length
       profileApplied.removedByAvoidanceCount = Math.max(count - mocked.length, 0)
@@ -425,6 +429,7 @@ export class AiService {
           excludeNames.length ? 0.55 : 0.2,
         )
       } catch (_) {
+        this.logger.warn('DashScope retry generate-recipe failed, keep current generated recipes')
         retryContent = ''
       }
       const retryParsed = this.parseJson(retryContent)
@@ -450,6 +455,7 @@ export class AiService {
     }
     let finalRecipes = recipes.slice(0, count)
     if (!finalRecipes.length) {
+      this.logger.warn('DashScope returned empty recipes after filtering, fallback to mock recipes')
       const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
       finalRecipes = mocked.slice(0, count)
     }
