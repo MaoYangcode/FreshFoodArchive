@@ -377,7 +377,9 @@ export class AiService {
 
     const parsed = this.parseJson(content)
     const list = this.pickRecipeArray(parsed)
-    let recipes = list
+    const fallbackRecipes = !list.length ? this.parseRecipeArrayFallback(content) : []
+    const recipeSource = list.length ? list : fallbackRecipes
+    let recipes = recipeSource
       .map((item: any, idx: number) => this.normalizeRecipe(item, idx))
       .filter((x: GeneratedRecipe) => !!x.name && Array.isArray(x.steps) && x.steps.length > 0)
     recipes = this.dedupeRecipesByName(recipes)
@@ -400,7 +402,7 @@ export class AiService {
     const beforeFilterCount = recipes.length
     recipes = this.filterRecipesByAvoidances(recipes, avoidances)
     this.logger.log(
-      `recipe-filter-stats parsed=${list.length}, normalized=${recipesBeforeExclude.length}, afterExclude=${recipesBeforeAnyStrictFilter.length}, afterPantry=${beforeFilterCount}, afterAvoidance=${recipes.length}`,
+      `recipe-filter-stats parsed=${list.length}, fallbackParsed=${fallbackRecipes.length}, normalized=${recipesBeforeExclude.length}, afterExclude=${recipesBeforeAnyStrictFilter.length}, afterPantry=${beforeFilterCount}, afterAvoidance=${recipes.length}`,
     )
     let removedByAvoidanceCount = Math.max(beforeFilterCount - recipes.length, 0)
 
@@ -791,21 +793,114 @@ export class AiService {
 
   private parseJson(raw: string): any {
     if (!raw) return {}
+    const direct = this.tryParseJson(raw)
+    if (direct && (Array.isArray(direct) || typeof direct === 'object')) return direct
+
+    const block =
+      raw.match(/```json\s*([\s\S]*?)```/i)?.[1] ||
+      raw.match(/```[\s\S]*?```/i)?.[0]?.replace(/^```[a-zA-Z]*\s*/, '').replace(/```$/, '').trim() ||
+      raw.match(/\{[\s\S]*\}/)?.[0] ||
+      raw.match(/\[[\s\S]*\]/)?.[0]
+    if (!block) return {}
+
+    const parsedBlock = this.tryParseJson(block)
+    if (parsedBlock && (Array.isArray(parsedBlock) || typeof parsedBlock === 'object')) return parsedBlock
+
+    const repaired = this.tryRepairJson(block)
+    const parsedRepaired = this.tryParseJson(repaired)
+    if (parsedRepaired && (Array.isArray(parsedRepaired) || typeof parsedRepaired === 'object')) return parsedRepaired
+    return {}
+  }
+
+  private tryParseJson(text: string): any {
     try {
-      return JSON.parse(raw)
+      return JSON.parse(`${text || ''}`.trim())
     } catch (_) {
-      const block =
-        raw.match(/```json\s*([\s\S]*?)```/i)?.[1] ||
-        raw.match(/```[\s\S]*?```/i)?.[0]?.replace(/^```[a-zA-Z]*\s*/, '').replace(/```$/, '').trim() ||
-        raw.match(/\{[\s\S]*\}/)?.[0] ||
-        raw.match(/\[[\s\S]*\]/)?.[0]
-      if (!block) return {}
-      try {
-        return JSON.parse(block)
-      } catch (_) {
-        return {}
-      }
+      return null
     }
+  }
+
+  private tryRepairJson(text: string): string {
+    const src = `${text || ''}`.trim()
+    if (!src) return ''
+    let body = src
+      .replace(/,\s*([}\]])/g, '$1')
+      .replace(/[\u0000-\u001f]/g, ' ')
+      .trim()
+    const firstBrace = body.indexOf('{')
+    const firstBracket = body.indexOf('[')
+    let start = -1
+    if (firstBrace >= 0 && firstBracket >= 0) start = Math.min(firstBrace, firstBracket)
+    else start = Math.max(firstBrace, firstBracket)
+    if (start > 0) body = body.slice(start)
+    const stack: string[] = []
+    let inString = false
+    let escaped = false
+    for (let i = 0; i < body.length; i += 1) {
+      const ch = body[i]
+      if (escaped) {
+        escaped = false
+        continue
+      }
+      if (ch === '\\') {
+        escaped = true
+        continue
+      }
+      if (ch === '"') {
+        inString = !inString
+        continue
+      }
+      if (inString) continue
+      if (ch === '{') stack.push('}')
+      else if (ch === '[') stack.push(']')
+      else if ((ch === '}' || ch === ']') && stack.length && stack[stack.length - 1] === ch) stack.pop()
+    }
+    while (stack.length) body += stack.pop()
+    return body
+  }
+
+  private parseRecipeArrayFallback(content: string): any[] {
+    const text = `${content || ''}`.trim()
+    if (!text) return []
+    const recipesKey = text.search(/"recipes"\s*:/)
+    if (recipesKey < 0) return []
+    const bracketStart = text.indexOf('[', recipesKey)
+    if (bracketStart < 0) return []
+    const arrText = this.pickBalancedArrayText(text, bracketStart)
+    if (!arrText) return []
+    const repairedArray = this.tryRepairJson(arrText)
+    const parsedArray = this.tryParseJson(repairedArray)
+    if (Array.isArray(parsedArray)) return parsedArray
+    const wrapped = this.tryParseJson(`{"recipes":${repairedArray}}`)
+    return Array.isArray(wrapped?.recipes) ? wrapped.recipes : []
+  }
+
+  private pickBalancedArrayText(text: string, from: number): string {
+    const src = `${text || ''}`
+    if (!src || from < 0 || src[from] !== '[') return ''
+    let depth = 0
+    let inString = false
+    let escaped = false
+    for (let i = from; i < src.length; i += 1) {
+      const ch = src[i]
+      if (escaped) {
+        escaped = false
+        continue
+      }
+      if (ch === '\\') {
+        escaped = true
+        continue
+      }
+      if (ch === '"') {
+        inString = !inString
+        continue
+      }
+      if (inString) continue
+      if (ch === '[') depth += 1
+      if (ch === ']') depth -= 1
+      if (depth === 0) return src.slice(from, i + 1)
+    }
+    return src.slice(from)
   }
 
   private inferAudioFormat(mimeType: unknown, fileName: unknown) {
