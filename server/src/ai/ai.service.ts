@@ -380,10 +380,12 @@ export class AiService {
       .map((item: any, idx: number) => this.normalizeRecipe(item, idx))
       .filter((x: GeneratedRecipe) => !!x.name && Array.isArray(x.steps) && x.steps.length > 0)
     recipes = this.dedupeRecipesByName(recipes)
+    const recipesBeforeExclude = recipes.slice()
     if (excludeNames.length) {
       const blocked = new Set(excludeNames.map((x) => this.normalizeTextForCompare(x)))
       recipes = recipes.filter((x) => !blocked.has(this.normalizeTextForCompare(x.name)))
     }
+    const recipesBeforeAnyStrictFilter = recipes.slice()
     const recipesBeforePantryFilter = recipes.slice()
     const pantryFiltered = recipes.filter((x) => this.recipeUsesPantryIngredients(x, pantryNames))
     if (!pantryFiltered.length && recipesBeforePantryFilter.length) {
@@ -396,6 +398,9 @@ export class AiService {
     }
     const beforeFilterCount = recipes.length
     recipes = this.filterRecipesByAvoidances(recipes, avoidances)
+    this.logger.log(
+      `recipe-filter-stats parsed=${list.length}, normalized=${recipesBeforeExclude.length}, afterExclude=${recipesBeforeAnyStrictFilter.length}, afterPantry=${beforeFilterCount}, afterAvoidance=${recipes.length}`,
+    )
     let removedByAvoidanceCount = Math.max(beforeFilterCount - recipes.length, 0)
 
     const shouldRetry = (this.recipeRetryEnabled || excludeNames.length > 0) && recipes.length < count
@@ -442,7 +447,7 @@ export class AiService {
         retryContent = ''
       }
       const retryParsed = this.parseJson(retryContent)
-      const retryList = Array.isArray(retryParsed?.recipes) ? retryParsed.recipes : []
+      const retryList = this.pickRecipeArray(retryParsed)
       const retryNormalized = retryList
         .map((item: any, idx: number) => this.normalizeRecipe(item, recipes.length + idx))
         .filter((x: GeneratedRecipe) => !!x.name && Array.isArray(x.steps) && x.steps.length > 0)
@@ -462,6 +467,14 @@ export class AiService {
       }
     }
     let finalRecipes = recipes.slice(0, count)
+    if (!finalRecipes.length) {
+      if (recipesBeforeAnyStrictFilter.length) {
+        this.logger.warn(
+          `Strict filters removed all AI recipes, fallback to unfiltered AI candidates. pantry=[${pantryNames.join(',')}]`,
+        )
+        finalRecipes = recipesBeforeAnyStrictFilter.slice(0, count)
+      }
+    }
     if (!finalRecipes.length) {
       const snippet = `${content || ''}`.replace(/\s+/g, ' ').slice(0, 180)
       this.logger.warn(
