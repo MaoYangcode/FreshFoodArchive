@@ -362,6 +362,7 @@ export class AiService {
         ],
         true,
         0.2,
+        2200,
       )
     } catch (err) {
       this.logger.warn(
@@ -441,6 +442,7 @@ export class AiService {
           ],
           true,
           excludeNames.length ? 0.55 : 0.2,
+          2200,
         )
       } catch (_) {
         this.logger.warn('DashScope retry generate-recipe failed, keep current generated recipes')
