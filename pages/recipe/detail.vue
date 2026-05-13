@@ -29,7 +29,7 @@
 				</view>
 				<view class="step-list">
 					<view v-for="(step, idx) in recipe.steps" :key="idx" class="step-item">
-						<text class="step-no"></text>
+						<text class="step-no">{{ idx + 1 }}</text>
 						<text class="step-line">{{ formatStepText(step) }}</text>
 					</view>
 				</view>
@@ -303,7 +303,20 @@ export default {
 .step-line { flex: 1; color: #6f7d73; line-height: 1.8; font-size: 12px; }
 .step-item { display: flex; align-items: flex-start; gap: 10rpx; margin-bottom: 10rpx; }
 .step-item:last-child { margin-bottom: 0; }
-.step-no { width: 14rpx; height: 14rpx; border-radius: 50%; background: #4f9d5c; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 12rpx; }
+.step-no {
+	width: 28rpx;
+	height: 28rpx;
+	border-radius: 50%;
+	background: #e7f5ea;
+	color: #4f9d5c;
+	font-size: 10px;
+	font-weight: 700;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	margin-top: 4rpx;
+}
 .btn { width: 100%; border: none; border-radius: 16rpx; padding: 14rpx 12rpx; color: #fff; font-size: 14px; font-weight: 700; box-shadow: 0 8rpx 16rpx rgba(58,116,66,.22); }
 .btn::after { border: none; }
 .primary { background: linear-gradient(135deg,#70c977,#4cae57); }

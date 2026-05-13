@@ -125,6 +125,34 @@ export default {
 		this.loadGeneratedRecipes()
 	},
 	methods: {
+		safeNavigate(url) {
+			const target = `${url || ''}`.trim()
+			if (!target) return
+			const openWithRedirect = () => {
+				uni.redirectTo({
+					url: target,
+					fail: () => {
+						uni.reLaunch({ url: target })
+					}
+				})
+			}
+			const pages = getCurrentPages()
+			if (Array.isArray(pages) && pages.length >= 9) {
+				openWithRedirect()
+				return
+			}
+			uni.navigateTo({
+				url: target,
+				fail: (err) => {
+					const msg = `${err?.errMsg || ''}`
+					if (msg.includes('webview count limit exceed')) {
+						openWithRedirect()
+						return
+					}
+					uni.showToast({ title: '页面打开失败', icon: 'none' })
+				}
+			})
+		},
 		normalizeName(text) {
 			return `${text || ''}`
 				.trim()
@@ -211,7 +239,7 @@ export default {
 			if (item && item.raw) {
 				uni.setStorageSync('latestRecipeDetail', item.raw)
 			}
-			uni.navigateTo({ url: `/pages/recipe/detail?name=${encodeURIComponent(item.name)}` })
+			this.safeNavigate(`/pages/recipe/detail?name=${encodeURIComponent(item.name)}`)
 		}
 	}
 }

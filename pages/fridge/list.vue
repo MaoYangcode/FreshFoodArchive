@@ -288,6 +288,34 @@ export default {
 		}
 	},
 	methods: {
+		safeNavigate(url) {
+			const target = `${url || ''}`.trim()
+			if (!target) return
+			const openWithRedirect = () => {
+				uni.redirectTo({
+					url: target,
+					fail: () => {
+						uni.reLaunch({ url: target })
+					}
+				})
+			}
+			const pages = getCurrentPages()
+			if (Array.isArray(pages) && pages.length >= 9) {
+				openWithRedirect()
+				return
+			}
+			uni.navigateTo({
+				url: target,
+				fail: (err) => {
+					const msg = `${err?.errMsg || ''}`
+					if (msg.includes('webview count limit exceed')) {
+						openWithRedirect()
+						return
+					}
+					uni.showToast({ title: '页面打开失败', icon: 'none' })
+				}
+			})
+		},
 		matchKeyword(item, compactKeyword, tokens) {
 			if (!compactKeyword && (!tokens || !tokens.length)) return true
 			const haystack = `${item?.name || ''} ${item?.category || ''} ${item?.location || ''}`.toLowerCase()
@@ -551,9 +579,7 @@ export default {
 				return
 			}
 			this.lastNavigateAt = now
-			uni.navigateTo({
-				url: `/pages/fridge/edit?id=${id}`
-			})
+			this.safeNavigate(`/pages/fridge/edit?id=${id}`)
 		},
 
 		openConsumeDialog(item) {

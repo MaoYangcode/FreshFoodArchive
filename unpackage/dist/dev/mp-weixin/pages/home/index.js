@@ -185,7 +185,7 @@ const _sfc_main = {
       common_vendor.index.redirectTo({
         url: "/pages/fridge/list",
         fail: () => {
-          common_vendor.index.navigateTo({ url: "/pages/fridge/list" });
+          common_vendor.index.reLaunch({ url: "/pages/fridge/list" });
         }
       });
     }

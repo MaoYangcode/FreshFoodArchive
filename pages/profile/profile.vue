@@ -141,12 +141,7 @@ export default {
 			uni.redirectTo({
 				url: '/pages/profile/index',
 				fail: () => {
-					uni.navigateTo({
-						url: '/pages/profile/index',
-						fail: () => {
-							uni.reLaunch({ url: '/pages/profile/index' })
-						}
-					})
+					uni.reLaunch({ url: '/pages/profile/index' })
 				}
 			})
 		},

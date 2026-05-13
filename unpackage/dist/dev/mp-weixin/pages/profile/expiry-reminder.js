@@ -79,12 +79,7 @@ const _sfc_main = {
       common_vendor.index.redirectTo({
         url: "/pages/profile/index",
         fail: () => {
-          common_vendor.index.navigateTo({
-            url: "/pages/profile/index",
-            fail: () => {
-              common_vendor.index.reLaunch({ url: "/pages/profile/index" });
-            }
-          });
+          common_vendor.index.reLaunch({ url: "/pages/profile/index" });
         }
       });
     },

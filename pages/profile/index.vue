@@ -82,6 +82,34 @@ export default {
 		this.loadProfileHeader()
 	},
 	methods: {
+		safeNavigate(url) {
+			const target = `${url || ''}`.trim()
+			if (!target) return
+			const openWithRedirect = () => {
+				uni.redirectTo({
+					url: target,
+					fail: () => {
+						uni.reLaunch({ url: target })
+					}
+				})
+			}
+			const pages = getCurrentPages()
+			if (Array.isArray(pages) && pages.length >= 9) {
+				openWithRedirect()
+				return
+			}
+			uni.navigateTo({
+				url: target,
+				fail: (err) => {
+					const msg = `${err?.errMsg || ''}`
+					if (msg.includes('webview count limit exceed')) {
+						openWithRedirect()
+						return
+					}
+					uni.showToast({ title: '页面打开失败', icon: 'none' })
+				}
+			})
+		},
 		hydrateProfileHeader() {
 			try {
 				const cached = uni.getStorageSync(PROFILE_HEADER_CACHE_KEY)
@@ -111,24 +139,22 @@ export default {
 			}
 		},
 		goFridge() {
-			uni.navigateTo({
-				url: '/pages/fridge/shelf-life'
-			})
+			this.safeNavigate('/pages/fridge/shelf-life')
 		},
 		goFavorites() {
-			uni.navigateTo({ url: '/pages/profile/favorites' })
+			this.safeNavigate('/pages/profile/favorites')
 		},
 		goTakeout() {
-			uni.navigateTo({ url: '/pages/profile/takeout-records' })
+			this.safeNavigate('/pages/profile/takeout-records')
 		},
 		goBasket() {
-			uni.navigateTo({ url: '/pages/profile/basket' })
+			this.safeNavigate('/pages/profile/basket')
 		},
 		goExpiryReminder() {
-			uni.navigateTo({ url: '/pages/profile/expiry-reminder' })
+			this.safeNavigate('/pages/profile/expiry-reminder')
 		},
 		goProfile() {
-			uni.navigateTo({ url: '/pages/profile/profile' })
+			this.safeNavigate('/pages/profile/profile')
 		}
 	}
 }

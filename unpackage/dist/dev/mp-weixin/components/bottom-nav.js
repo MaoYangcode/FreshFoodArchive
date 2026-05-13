@@ -24,14 +24,8 @@ const _sfc_main = {
       common_vendor.index.redirectTo({
         url,
         fail: () => {
-          common_vendor.index.navigateTo({
+          common_vendor.index.reLaunch({
             url,
-            fail: () => {
-              common_vendor.index.reLaunch({
-                url,
-                complete: releaseLock
-              });
-            },
             complete: releaseLock
           });
         },

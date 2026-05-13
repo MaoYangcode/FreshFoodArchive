@@ -51,14 +51,8 @@ export default {
 			uni.redirectTo({
 				url,
 				fail: () => {
-					uni.navigateTo({
+					uni.reLaunch({
 						url,
-						fail: () => {
-							uni.reLaunch({
-								url,
-								complete: releaseLock
-							})
-						},
 						complete: releaseLock
 					})
 				},

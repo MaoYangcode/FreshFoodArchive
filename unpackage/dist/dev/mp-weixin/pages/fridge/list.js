@@ -214,6 +214,35 @@ const _sfc_main = {
     }
   },
   methods: {
+    safeNavigate(url) {
+      const target = `${url || ""}`.trim();
+      if (!target)
+        return;
+      const openWithRedirect = () => {
+        common_vendor.index.redirectTo({
+          url: target,
+          fail: () => {
+            common_vendor.index.reLaunch({ url: target });
+          }
+        });
+      };
+      const pages = getCurrentPages();
+      if (Array.isArray(pages) && pages.length >= 9) {
+        openWithRedirect();
+        return;
+      }
+      common_vendor.index.navigateTo({
+        url: target,
+        fail: (err) => {
+          const msg = `${(err == null ? void 0 : err.errMsg) || ""}`;
+          if (msg.includes("webview count limit exceed")) {
+            openWithRedirect();
+            return;
+          }
+          common_vendor.index.showToast({ title: "页面打开失败", icon: "none" });
+        }
+      });
+    },
     matchKeyword(item, compactKeyword, tokens) {
       if (!compactKeyword && (!tokens || !tokens.length))
         return true;
@@ -262,7 +291,7 @@ const _sfc_main = {
         this.list = list;
         this.persistListCache(list);
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/list.vue:346", "获取失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/list.vue:374", "获取失败", e);
         if (!this.list.length) {
           common_vendor.index.showToast({
             title: "加载失败",
@@ -483,9 +512,7 @@ const _sfc_main = {
         return;
       }
       this.lastNavigateAt = now;
-      common_vendor.index.navigateTo({
-        url: `/pages/fridge/edit?id=${id}`
-      });
+      this.safeNavigate(`/pages/fridge/edit?id=${id}`);
     },
     openConsumeDialog(item) {
       this.pendingConsumeItem = item;
@@ -588,7 +615,7 @@ const _sfc_main = {
         });
         this.refreshList();
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/list.vue:659", "取出失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/list.vue:685", "取出失败", e);
         common_vendor.index.showToast({
           title: "取出失败",
           icon: "none"

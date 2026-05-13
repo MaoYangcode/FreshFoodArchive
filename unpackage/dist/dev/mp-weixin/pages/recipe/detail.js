@@ -258,8 +258,9 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     h: common_vendor.t($data.recipe.steps.length),
     i: common_vendor.f($data.recipe.steps, (step, idx, i0) => {
       return {
-        a: common_vendor.t($options.formatStepText(step)),
-        b: idx
+        a: common_vendor.t(idx + 1),
+        b: common_vendor.t($options.formatStepText(step)),
+        c: idx
       };
     }),
     j: !$data.fromFavorite

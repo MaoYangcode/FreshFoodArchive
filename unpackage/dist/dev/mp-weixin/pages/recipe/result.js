@@ -71,6 +71,35 @@ const _sfc_main = {
     this.loadGeneratedRecipes();
   },
   methods: {
+    safeNavigate(url) {
+      const target = `${url || ""}`.trim();
+      if (!target)
+        return;
+      const openWithRedirect = () => {
+        common_vendor.index.redirectTo({
+          url: target,
+          fail: () => {
+            common_vendor.index.reLaunch({ url: target });
+          }
+        });
+      };
+      const pages = getCurrentPages();
+      if (Array.isArray(pages) && pages.length >= 9) {
+        openWithRedirect();
+        return;
+      }
+      common_vendor.index.navigateTo({
+        url: target,
+        fail: (err) => {
+          const msg = `${(err == null ? void 0 : err.errMsg) || ""}`;
+          if (msg.includes("webview count limit exceed")) {
+            openWithRedirect();
+            return;
+          }
+          common_vendor.index.showToast({ title: "页面打开失败", icon: "none" });
+        }
+      });
+    },
     normalizeName(text) {
       return `${text || ""}`.trim().toLowerCase().replace(/[（(].*?[）)]/g, "").replace(/[^a-z0-9\u4e00-\u9fa5]/g, "");
     },
@@ -178,7 +207,7 @@ const _sfc_main = {
       if (item && item.raw) {
         common_vendor.index.setStorageSync("latestRecipeDetail", item.raw);
       }
-      common_vendor.index.navigateTo({ url: `/pages/recipe/detail?name=${encodeURIComponent(item.name)}` });
+      this.safeNavigate(`/pages/recipe/detail?name=${encodeURIComponent(item.name)}`);
     }
   }
 };
