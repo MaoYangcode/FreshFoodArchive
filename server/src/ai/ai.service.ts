@@ -384,7 +384,16 @@ export class AiService {
       const blocked = new Set(excludeNames.map((x) => this.normalizeTextForCompare(x)))
       recipes = recipes.filter((x) => !blocked.has(this.normalizeTextForCompare(x.name)))
     }
-    recipes = recipes.filter((x) => this.recipeUsesPantryIngredients(x, pantryNames))
+    const recipesBeforePantryFilter = recipes.slice()
+    const pantryFiltered = recipes.filter((x) => this.recipeUsesPantryIngredients(x, pantryNames))
+    if (!pantryFiltered.length && recipesBeforePantryFilter.length) {
+      this.logger.warn(
+        `Pantry filter removed all AI recipes, fallback to unfiltered AI candidates. pantry=[${pantryNames.join(',')}]`,
+      )
+      recipes = recipesBeforePantryFilter
+    } else {
+      recipes = pantryFiltered
+    }
     const beforeFilterCount = recipes.length
     recipes = this.filterRecipesByAvoidances(recipes, avoidances)
     let removedByAvoidanceCount = Math.max(beforeFilterCount - recipes.length, 0)
@@ -447,7 +456,6 @@ export class AiService {
       for (const item of retryRecipes) {
         const key = this.normalizeTextForCompare(item.name)
         if (!key || seen.has(key)) continue
-        if (!this.recipeUsesPantryIngredients(item, pantryNames)) continue
         recipes.push(item)
         seen.add(key)
         if (recipes.length >= count) break
