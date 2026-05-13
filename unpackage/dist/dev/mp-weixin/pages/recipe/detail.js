@@ -184,11 +184,37 @@ const _sfc_main = {
       common_vendor.index.showToast({ title: `已加入菜篮子（${result.added + result.merged}项）`, icon: "success" });
     },
     backToResult() {
+      const pages = getCurrentPages();
+      const openWithRedirect = (url) => {
+        common_vendor.index.redirectTo({
+          url,
+          fail: () => {
+            common_vendor.index.reLaunch({ url });
+          }
+        });
+      };
+      const safeOpen = (url) => {
+        if (Array.isArray(pages) && pages.length >= 9) {
+          openWithRedirect(url);
+          return;
+        }
+        common_vendor.index.navigateTo({
+          url,
+          fail: (err) => {
+            const msg = `${(err == null ? void 0 : err.errMsg) || ""}`;
+            if (msg.includes("webview count limit exceed")) {
+              openWithRedirect(url);
+              return;
+            }
+            common_vendor.index.showToast({ title: "页面跳转失败", icon: "none" });
+          }
+        });
+      };
       if (this.fromFavorite) {
-        common_vendor.index.navigateTo({ url: "/pages/profile/favorites" });
+        safeOpen("/pages/profile/favorites");
         return;
       }
-      common_vendor.index.navigateTo({ url: "/pages/recipe/result" });
+      safeOpen("/pages/recipe/result");
     },
     pickRecipeCoverName(item) {
       var _a, _b;

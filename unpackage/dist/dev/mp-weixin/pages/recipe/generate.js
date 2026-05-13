@@ -123,6 +123,32 @@ const _sfc_main = {
         this.progressTimer = null;
       }
     },
+    openRecipeResultPage() {
+      const pages = getCurrentPages();
+      const openWithRedirect = () => {
+        common_vendor.index.redirectTo({
+          url: "/pages/recipe/result",
+          fail: () => {
+            common_vendor.index.reLaunch({ url: "/pages/recipe/result" });
+          }
+        });
+      };
+      if (Array.isArray(pages) && pages.length >= 9) {
+        openWithRedirect();
+        return;
+      }
+      common_vendor.index.navigateTo({
+        url: "/pages/recipe/result",
+        fail: (err) => {
+          const msg = `${(err == null ? void 0 : err.errMsg) || ""}`;
+          if (msg.includes("webview count limit exceed")) {
+            openWithRedirect();
+            return;
+          }
+          common_vendor.index.showToast({ title: "页面跳转失败", icon: "none" });
+        }
+      });
+    },
     async generate() {
       var _a, _b, _c;
       if (this.isGenerating)
@@ -167,9 +193,9 @@ const _sfc_main = {
         );
         common_vendor.index.setStorageSync("latestPantryIngredients", ingredients);
         await this.finishProgress();
-        common_vendor.index.navigateTo({ url: "/pages/recipe/result" });
+        this.openRecipeResultPage();
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/recipe/generate.vue:193", "生成失败", e);
+        common_vendor.index.__f__("error", "at pages/recipe/generate.vue:219", "生成失败", e);
         const msg = `${(e == null ? void 0 : e.message) || (e == null ? void 0 : e.msg) || ((_c = e == null ? void 0 : e.data) == null ? void 0 : _c.message) || ""}`.trim();
         common_vendor.index.showToast({ title: msg || "生成失败，请稍后重试", icon: "none" });
       } finally {

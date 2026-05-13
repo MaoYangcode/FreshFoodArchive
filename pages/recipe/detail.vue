@@ -228,11 +228,37 @@ export default {
 			uni.showToast({ title: `已加入菜篮子（${result.added + result.merged}项）`, icon: 'success' })
 		},
 		backToResult() {
+			const pages = getCurrentPages()
+			const openWithRedirect = (url) => {
+				uni.redirectTo({
+					url,
+					fail: () => {
+						uni.reLaunch({ url })
+					}
+				})
+			}
+			const safeOpen = (url) => {
+				if (Array.isArray(pages) && pages.length >= 9) {
+					openWithRedirect(url)
+					return
+				}
+				uni.navigateTo({
+					url,
+					fail: (err) => {
+						const msg = `${err?.errMsg || ''}`
+						if (msg.includes('webview count limit exceed')) {
+							openWithRedirect(url)
+							return
+						}
+						uni.showToast({ title: '页面跳转失败', icon: 'none' })
+					}
+				})
+			}
 			if (this.fromFavorite) {
-				uni.navigateTo({ url: '/pages/profile/favorites' })
+				safeOpen('/pages/profile/favorites')
 				return
 			}
-			uni.navigateTo({ url: '/pages/recipe/result' })
+			safeOpen('/pages/recipe/result')
 		},
 		pickRecipeCoverName(item) {
 			const first = Array.isArray(item?.raw?.ingredients) ? item.raw.ingredients.find((x) => x?.name)?.name : ''

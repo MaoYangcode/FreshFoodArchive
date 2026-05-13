@@ -143,6 +143,32 @@ export default {
 				this.progressTimer = null
 			}
 		},
+		openRecipeResultPage() {
+			const pages = getCurrentPages()
+			const openWithRedirect = () => {
+				uni.redirectTo({
+					url: '/pages/recipe/result',
+					fail: () => {
+						uni.reLaunch({ url: '/pages/recipe/result' })
+					}
+				})
+			}
+			if (Array.isArray(pages) && pages.length >= 9) {
+				openWithRedirect()
+				return
+			}
+			uni.navigateTo({
+				url: '/pages/recipe/result',
+				fail: (err) => {
+					const msg = `${err?.errMsg || ''}`
+					if (msg.includes('webview count limit exceed')) {
+						openWithRedirect()
+						return
+					}
+					uni.showToast({ title: '页面跳转失败', icon: 'none' })
+				}
+			})
+		},
 		async generate() {
 			if (this.isGenerating) return
 			this.isGenerating = true
@@ -188,7 +214,7 @@ export default {
 				)
 				uni.setStorageSync('latestPantryIngredients', ingredients)
 				await this.finishProgress()
-				uni.navigateTo({ url: '/pages/recipe/result' })
+				this.openRecipeResultPage()
 			} catch (e) {
 				console.error('生成失败', e)
 				const msg = `${e?.message || e?.msg || e?.data?.message || ''}`.trim()
