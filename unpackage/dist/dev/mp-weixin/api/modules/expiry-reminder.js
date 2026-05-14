@@ -14,6 +14,14 @@ function updateExpiryReminderSettings(payload = {}) {
     data: payload
   });
 }
+function updateExpiryReminderSubscribe(payload = {}) {
+  return api_request.request({
+    url: "/expiry-reminder/subscribe",
+    method: "POST",
+    data: payload
+  });
+}
 exports.getExpiryReminderSettings = getExpiryReminderSettings;
 exports.updateExpiryReminderSettings = updateExpiryReminderSettings;
+exports.updateExpiryReminderSubscribe = updateExpiryReminderSubscribe;
 //# sourceMappingURL=../../../.sourcemap/mp-weixin/api/modules/expiry-reminder.js.map

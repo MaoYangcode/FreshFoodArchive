@@ -24,6 +24,7 @@ const _sfc_main = {
     };
   },
   onLoad() {
+    this.ensureShareMenu();
     try {
       const info = common_vendor.index.getSystemInfoSync();
       const top = Number((info == null ? void 0 : info.statusBarHeight) || 0);
@@ -34,9 +35,35 @@ const _sfc_main = {
     this.hydrateFromCache();
   },
   onShow() {
+    this.ensureShareMenu();
     this.refreshData();
   },
+  onShareAppMessage() {
+    var _a, _b;
+    const total = Number(((_a = this.stats) == null ? void 0 : _a.total) || 0);
+    const expiring = Number(((_b = this.stats) == null ? void 0 : _b.expiring) || 0);
+    const title = total > 0 ? `我的冰箱有 ${total} 项食材${expiring > 0 ? `，其中 ${expiring} 项临期` : ""}，一起管理更省心` : "我在鲜食档案管理冰箱食材，推荐你也试试";
+    return {
+      title,
+      path: "/pages/home/index"
+    };
+  },
+  onShareTimeline() {
+    return {
+      title: "鲜食档案 | 冰箱食材管理与临期提醒"
+    };
+  },
   methods: {
+    ensureShareMenu() {
+      if (typeof common_vendor.index === "undefined" || typeof common_vendor.index.showShareMenu !== "function")
+        return;
+      try {
+        common_vendor.index.showShareMenu({
+          menus: ["shareAppMessage", "shareTimeline"]
+        });
+      } catch (_) {
+      }
+    },
     hydrateFromCache() {
       try {
         const cached = common_vendor.index.getStorageSync(HOME_INGREDIENT_CACHE_KEY);
@@ -251,5 +278,6 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-4978fed5"]]);
+_sfc_main.__runtimeHooks = 6;
 wx.createPage(MiniProgramPage);
 //# sourceMappingURL=../../../.sourcemap/mp-weixin/pages/home/index.js.map

@@ -223,6 +223,7 @@ export default {
 		}
 	},
 	onLoad() {
+		this.ensureShareMenu()
 		try {
 			const platform = uni.getSystemInfoSync().platform || ''
 			this.isDesktop = platform === 'windows' || platform === 'mac'
@@ -241,7 +242,20 @@ export default {
 		this.unbindWindowEvents()
 	},
 	onShow() {
+		this.ensureShareMenu()
 		this.refreshList()
+	},
+	onShareAppMessage() {
+		const total = Number(Array.isArray(this.list) ? this.list.length : 0)
+		return {
+			title: total > 0 ? `我的冰箱里有 ${total} 项食材，帮我看看怎么更省心管理` : '我在鲜食档案管理冰箱食材，推荐你也试试',
+			path: '/pages/fridge/list'
+		}
+	},
+	onShareTimeline() {
+		return {
+			title: '鲜食档案 | 我的冰箱食材管理'
+		}
 	},
 	computed: {
 		categoryCounts() {
@@ -287,6 +301,14 @@ export default {
 		}
 	},
 	methods: {
+		ensureShareMenu() {
+			if (typeof uni === 'undefined' || typeof uni.showShareMenu !== 'function') return
+			try {
+				uni.showShareMenu({
+					menus: ['shareAppMessage', 'shareTimeline']
+				})
+			} catch (_) {}
+		},
 		safeNavigate(url) {
 			const target = `${url || ''}`.trim()
 			if (!target) return

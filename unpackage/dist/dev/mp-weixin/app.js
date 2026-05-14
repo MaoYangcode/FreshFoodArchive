@@ -37,11 +37,15 @@ function getLoginErrorMessage(err) {
 }
 const _sfc_main = {
   onLaunch: function() {
-    this.bootstrapUserId();
+    this.bootstrapUserId(0);
     common_vendor.index.__f__("log", "at App.vue:26", "FreshFoodArchive Launch");
   },
   methods: {
-    bootstrapUserId() {
+    bootstrapUserId(retryCount = 0) {
+      const localToken = `${utils_currentUser.getAuthToken() || ""}`.trim();
+      const localUserId = toUserId(utils_currentUser.getCurrentUserId());
+      if (localToken && localUserId > 0)
+        return;
       if (typeof common_vendor.index === "undefined" || typeof common_vendor.index.login !== "function") {
         this.retryForceLogin("当前环境不支持微信登录，请在微信内打开小程序");
         return;
@@ -51,7 +55,7 @@ const _sfc_main = {
         success: ({ code }) => {
           const safeCode = `${code || ""}`.trim();
           if (!safeCode) {
-            this.retryForceLogin("未获取到微信登录凭证，请重试");
+            this.handleLoginFailure("未获取到微信登录凭证，请重试", retryCount);
             return;
           }
           api_modules_auth.loginWithWeChatCode(safeCode).then((res) => {
@@ -63,13 +67,21 @@ const _sfc_main = {
             utils_currentUser.setCurrentUserId(userId);
             utils_currentUser.setAuthToken(token);
           }).catch((err) => {
-            this.retryForceLogin(getLoginErrorMessage(err));
+            this.handleLoginFailure(getLoginErrorMessage(err), retryCount);
           });
         },
         fail: () => {
-          this.retryForceLogin("微信登录失败，请检查网络后重试");
+          this.handleLoginFailure("微信登录失败，请检查网络后重试", retryCount);
         }
       });
+    },
+    handleLoginFailure(message, retryCount = 0) {
+      const nextRetry = Number(retryCount || 0) + 1;
+      if (nextRetry <= 2) {
+        setTimeout(() => this.bootstrapUserId(nextRetry), 500 * nextRetry);
+        return;
+      }
+      this.retryForceLogin(message);
     },
     retryForceLogin(message) {
       utils_currentUser.clearCurrentUserId();
@@ -80,16 +92,16 @@ const _sfc_main = {
         showCancel: false,
         confirmText: "重试",
         success: () => {
-          setTimeout(() => this.bootstrapUserId(), 250);
+          setTimeout(() => this.bootstrapUserId(0), 250);
         }
       });
     }
   },
   onShow: function() {
-    common_vendor.index.__f__("log", "at App.vue:76", "FreshFoodArchive Show");
+    common_vendor.index.__f__("log", "at App.vue:87", "FreshFoodArchive Show");
   },
   onHide: function() {
-    common_vendor.index.__f__("log", "at App.vue:79", "FreshFoodArchive Hide");
+    common_vendor.index.__f__("log", "at App.vue:90", "FreshFoodArchive Hide");
   }
 };
 function createApp() {

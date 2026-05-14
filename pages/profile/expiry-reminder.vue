@@ -16,17 +16,25 @@
 					<button class="sub-btn compact right-control" @click="requestSubscribe">微信授权</button>
 				</view>
 			</view>
+			<view class="top-divider"></view>
 			<view class="row">
 				<view class="row-half">
 					<text class="label">提醒时间</text>
 				</view>
 				<view class="row-half right">
-					<picker mode="multiSelector" :range="[hourOptions, minuteOptions]" :value="timePickerValue" @change="onTimeChange">
+					<picker
+						v-if="isSubscribeAuthorized()"
+						mode="multiSelector"
+						:range="[hourOptions, minuteOptions]"
+						:value="timePickerValue"
+						@change="onTimeChange"
+					>
 						<view class="time-pill right-control">{{ settings.remindTime }}</view>
 					</picker>
+					<view v-else class="time-pill right-control" @click="onUnauthorizedTimeClick">{{ settings.remindTime }}</view>
 				</view>
 			</view>
-			<text class="hint">授权后将在设定时间提醒临期食材</text>
+			<text class="row-hint">授权后将在设定时间提醒临期食材</text>
 		</view>
 
 		<view class="card">
@@ -61,7 +69,8 @@ import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import {
 	getExpiryReminderSettings,
-	updateExpiryReminderSettings
+	updateExpiryReminderSettings,
+	updateExpiryReminderSubscribe
 } from '@/api/modules/expiry-reminder'
 import { getCurrentUserId } from '@/utils/current-user'
 
@@ -120,6 +129,39 @@ export default {
 		this.loadSettings()
 	},
 	methods: {
+		isSubscribeAuthorized() {
+			const last = `${this.settings?.subscribe?.lastAuthStatus || ''}`.trim()
+			if (last === 'accept') return true
+			const auth = this.settings?.subscribe?.authResult || {}
+			const values = Object.values(auth).map((x) => `${x || ''}`.trim())
+			return values.includes('accept')
+		},
+		getSubscribeStatus(authResult) {
+			const values = Object.values(authResult || {}).map((x) => `${x || ''}`.trim())
+			if (values.includes('accept')) return 'accept'
+			if (values.includes('reject')) return 'reject'
+			return 'unknown'
+		},
+		getWxLoginCode() {
+			return new Promise((resolve, reject) => {
+				if (typeof uni === 'undefined' || typeof uni.login !== 'function') {
+					reject(new Error('当前环境不支持微信登录'))
+					return
+				}
+				uni.login({
+					provider: 'weixin',
+					success: ({ code }) => {
+						const safeCode = `${code || ''}`.trim()
+						if (!safeCode) {
+							reject(new Error('未获取到微信登录凭证'))
+							return
+						}
+						resolve(safeCode)
+					},
+					fail: () => reject(new Error('微信登录失败'))
+				})
+			})
+		},
 		normalizeHalfHourTime(value) {
 			const text = `${value || ''}`.trim()
 			const m = text.match(/^(\d{1,2}):(\d{1,2})$/)
@@ -184,6 +226,15 @@ export default {
 				.filter((id) => !!id && !id.includes('替换') && !id.includes('YOUR_'))
 		},
 		requestSubscribe() {
+			if (this.isSubscribeAuthorized()) {
+				uni.showModal({
+					title: '已授权',
+					content: '可设定临期提醒时间',
+					showCancel: false,
+					confirmText: '知道了'
+				})
+				return
+			}
 			const templateIds = this.resolveTemplateIds()
 			if (!templateIds.length) {
 				uni.showToast({ title: '请先配置订阅模板ID', icon: 'none' })
@@ -195,10 +246,49 @@ export default {
 			}
 			uni.requestSubscribeMessage({
 				tmplIds: templateIds,
+				success: async (res) => {
+					const authResult = {}
+					templateIds.forEach((id) => {
+						authResult[id] = `${res?.[id] || ''}`.trim()
+					})
+					const lastAuthStatus = this.getSubscribeStatus(authResult)
+					let code = ''
+					try {
+						code = await this.getWxLoginCode()
+					} catch (_) {
+						code = ''
+					}
+					try {
+						const saved = await updateExpiryReminderSubscribe({
+							userId: this.userId,
+							templateIds,
+							authResult,
+							lastAuthAt: new Date().toISOString(),
+							lastAuthStatus,
+							code
+						})
+						if (saved && typeof saved === 'object') {
+							this.settings = {
+								...this.settings,
+								subscribe: this.normalizeSubscribe(saved?.subscribe || this.settings.subscribe)
+							}
+						}
+						if (lastAuthStatus === 'accept') {
+							uni.showToast({ title: '授权成功', icon: 'success' })
+							return
+						}
+						uni.showToast({ title: '未允许订阅，提醒将无法推送', icon: 'none' })
+					} catch (_) {
+						uni.showToast({ title: '授权结果保存失败，请重试', icon: 'none' })
+					}
+				},
 				fail: () => {
 					uni.showToast({ title: '授权取消或失败，请重试', icon: 'none' })
 				}
 			})
+		},
+		onUnauthorizedTimeClick() {
+			uni.showToast({ title: '未授权：请先点击“微信授权”', icon: 'none' })
 		},
 		async loadSettings() {
 			try {
@@ -231,9 +321,25 @@ export default {
 				const hour = this.hourOptions[Number(value[0]) || 0] || '09'
 				const minute = this.minuteOptions[Number(value[1]) || 0] || '00'
 				this.settings.remindTime = `${hour}:${minute}`
+				if (this.isSubscribeAuthorized()) {
+					uni.showToast({
+						title: `当前将于每日 ${this.settings.remindTime} 推送（修改时间后请点保存）`,
+						icon: 'none'
+					})
+				} else {
+					uni.showToast({ title: '未授权：请点击“微信授权”并选择允许，否则无法推送', icon: 'none' })
+				}
 				return
 			}
 			this.settings.remindTime = this.normalizeHalfHourTime(`${value || ''}`)
+			if (this.isSubscribeAuthorized()) {
+				uni.showToast({
+					title: `当前将于每日 ${this.settings.remindTime} 推送（修改时间后请点保存）`,
+					icon: 'none'
+				})
+				return
+			}
+			uni.showToast({ title: '未授权：请点击“微信授权”并选择允许，否则无法推送', icon: 'none' })
 		},
 		onRulePick(category, e) {
 			const idx = Number(e?.detail?.value)
@@ -290,13 +396,12 @@ export default {
 
 .card { background: #fff; border: 1rpx solid #edf2ef; border-radius: 16px; padding: 12px; margin-bottom: 10rpx; box-shadow: 0 8rpx 18rpx rgba(30, 50, 34, 0.07); }
 .top-setting-card { margin-top: 20rpx; }
-.row { display: flex; align-items: center; justify-content: space-between; min-height: 64rpx; border-bottom: 1rpx solid #eef3f1; }
-.top-setting-card .row:first-of-type { padding-bottom: 8rpx; }
-.row:last-of-type { border-bottom: none; }
+.row { display: flex; align-items: center; justify-content: space-between; min-height: 64rpx; }
 .row + .row { margin-top: 8rpx; }
 .row-half { flex: 1; display: flex; align-items: center; min-width: 0; }
 .row-half.right { justify-content: flex-end; }
 .right-control { margin-left: auto; }
+.top-divider { height: 1rpx; background: #eef3f1; margin: 8rpx 0; }
 .label { font-size: 14px; font-weight: 700; color: #26352d; }
 .time-pill { min-width: 106rpx; text-align: center; background: #edf5ef; color: #408a4d; border-radius: 999rpx; padding: 6rpx 12rpx; font-size: 12px; font-weight: 700; }
 .sub-btn { border-radius: 999rpx; font-size: 12px; font-weight: 700; height: 34px; line-height: 34px; padding: 0 16rpx; background: #eef5ff; color: #4a73d9; border: 1rpx solid #d5e4ff; }
@@ -314,6 +419,7 @@ export default {
 .day-box { min-width: 50rpx; height: 46rpx; border-radius: 10px; border: 1rpx solid #dcebe1; background: #f6fcf8; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #6ebf85; padding: 0 8rpx; box-sizing: border-box; }
 
 .hint { display: block; margin-top: 4rpx; font-size: 11px; color: #8d9c93; line-height: 1.5; }
+.row-hint { display: block; margin: 4rpx 0 6rpx; font-size: 11px; color: #7f8f85; line-height: 1.5; }
 
 .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12rpx; margin-top: 8rpx; }
 .btn { width: 100%; border-radius: 999rpx; font-size: 13px; font-weight: 700; height: 42px; line-height: 42px; }

@@ -121,10 +121,36 @@ export default {
 			return filtered.sort((a, b) => this.compareRecipes(a, b))
 		}
 	},
+	onLoad() {
+		this.ensureShareMenu()
+	},
 	onShow() {
+		this.ensureShareMenu()
 		this.loadGeneratedRecipes()
 	},
+	onShareAppMessage() {
+		const tags = (Array.isArray(this.pantryTags) ? this.pantryTags : []).filter(Boolean).slice(0, 3).join('、')
+		return {
+			title: tags ? `我用 ${tags} 生成了实用菜谱，快来试试` : '我在鲜食档案生成了实用菜谱，快来试试',
+			path: '/pages/recipe/generate'
+		}
+	},
+	onShareTimeline() {
+		const tags = (Array.isArray(this.pantryTags) ? this.pantryTags : []).filter(Boolean).slice(0, 3).join('、')
+		return {
+			title: tags ? `鲜食档案菜谱推荐：${tags}` : '鲜食档案菜谱推荐'
+		}
+	},
 	methods: {
+		ensureShareMenu() {
+			// Some clients require explicit menu registration for share entries.
+			if (typeof uni === 'undefined' || typeof uni.showShareMenu !== 'function') return
+			try {
+				uni.showShareMenu({
+					menus: ['shareAppMessage', 'shareTimeline']
+				})
+			} catch (_) {}
+		},
 		safeNavigate(url) {
 			const target = `${url || ''}`.trim()
 			if (!target) return

@@ -14,14 +14,38 @@ const _sfc_main = {
     };
   },
   onLoad() {
+    this.ensureShareMenu();
     this.hydrateProfileHeader();
   },
   onShow() {
+    this.ensureShareMenu();
     this.userId = utils_currentUser.getCurrentUserId();
     this.hydrateProfileHeader();
     this.loadProfileHeader();
   },
+  onShareAppMessage() {
+    const nickname = `${this.profileName || ""}`.trim() || "微信用户";
+    return {
+      title: `${nickname} 正在使用鲜食档案管理厨房库存`,
+      path: "/pages/profile/index"
+    };
+  },
+  onShareTimeline() {
+    return {
+      title: "鲜食档案 | 我的厨房食材管理助手"
+    };
+  },
   methods: {
+    ensureShareMenu() {
+      if (typeof common_vendor.index === "undefined" || typeof common_vendor.index.showShareMenu !== "function")
+        return;
+      try {
+        common_vendor.index.showShareMenu({
+          menus: ["shareAppMessage", "shareTimeline"]
+        });
+      } catch (_) {
+      }
+    },
     safeNavigate(url) {
       const target = `${url || ""}`.trim();
       if (!target)
@@ -128,5 +152,6 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-201c0da5"]]);
+_sfc_main.__runtimeHooks = 6;
 wx.createPage(MiniProgramPage);
 //# sourceMappingURL=../../../.sourcemap/mp-weixin/pages/profile/index.js.map

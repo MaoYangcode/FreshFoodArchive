@@ -102,6 +102,7 @@ export default {
 		}
 	},
 	onLoad() {
+		this.ensureShareMenu()
 		try {
 			const info = uni.getSystemInfoSync()
 			const top = Number(info?.statusBarHeight || 0)
@@ -110,9 +111,34 @@ export default {
 		this.hydrateFromCache()
 	},
 	onShow() {
+		this.ensureShareMenu()
 		this.refreshData()
 	},
+	onShareAppMessage() {
+		const total = Number(this.stats?.total || 0)
+		const expiring = Number(this.stats?.expiring || 0)
+		const title = total > 0
+			? `我的冰箱有 ${total} 项食材${expiring > 0 ? `，其中 ${expiring} 项临期` : ''}，一起管理更省心`
+			: '我在鲜食档案管理冰箱食材，推荐你也试试'
+		return {
+			title,
+			path: '/pages/home/index'
+		}
+	},
+	onShareTimeline() {
+		return {
+			title: '鲜食档案 | 冰箱食材管理与临期提醒'
+		}
+	},
 	methods: {
+		ensureShareMenu() {
+			if (typeof uni === 'undefined' || typeof uni.showShareMenu !== 'function') return
+			try {
+				uni.showShareMenu({
+					menus: ['shareAppMessage', 'shareTimeline']
+				})
+			} catch (_) {}
+		},
 		hydrateFromCache() {
 			try {
 				const cached = uni.getStorageSync(HOME_INGREDIENT_CACHE_KEY)

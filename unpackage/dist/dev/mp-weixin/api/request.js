@@ -55,7 +55,7 @@ function getActiveBaseUrl() {
 function requestOnce(baseUrl, { url, method = "GET", data = {}, header = {}, timeout = 8e3 }) {
   return new Promise((resolve, reject) => {
     const safeUrl = `${url || ""}`.trim();
-    const isAuthLogin = safeUrl === "/auth/wechat-login";
+    const isAuthLogin = safeUrl === "/auth/wechat-login" || safeUrl.includes("/auth/wechat-login?");
     const pickToken = () => `${utils_currentUser.getAuthToken() || ""}`.trim();
     const waitForToken = (maxWaitMs = 5e3) => new Promise((resolveToken) => {
       const start = Date.now();
@@ -83,8 +83,8 @@ function requestOnce(baseUrl, { url, method = "GET", data = {}, header = {}, tim
         return;
       }
       const headers = {
-        Authorization: token ? `Bearer ${token}` : "",
-        "x-user-id": userId > 0 ? String(userId) : "",
+        ...token ? { Authorization: `Bearer ${token}` } : {},
+        ...!isAuthLogin && userId > 0 ? { "x-user-id": String(userId) } : {},
         ...header
       };
       common_vendor.index.request({

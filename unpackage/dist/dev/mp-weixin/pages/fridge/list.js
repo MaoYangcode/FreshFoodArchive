@@ -150,6 +150,7 @@ const _sfc_main = {
     };
   },
   onLoad() {
+    this.ensureShareMenu();
     try {
       const platform = common_vendor.index.getSystemInfoSync().platform || "";
       this.isDesktop = platform === "windows" || platform === "mac";
@@ -168,7 +169,20 @@ const _sfc_main = {
     this.unbindWindowEvents();
   },
   onShow() {
+    this.ensureShareMenu();
     this.refreshList();
+  },
+  onShareAppMessage() {
+    const total = Number(Array.isArray(this.list) ? this.list.length : 0);
+    return {
+      title: total > 0 ? `我的冰箱里有 ${total} 项食材，帮我看看怎么更省心管理` : "我在鲜食档案管理冰箱食材，推荐你也试试",
+      path: "/pages/fridge/list"
+    };
+  },
+  onShareTimeline() {
+    return {
+      title: "鲜食档案 | 我的冰箱食材管理"
+    };
   },
   computed: {
     categoryCounts() {
@@ -214,6 +228,16 @@ const _sfc_main = {
     }
   },
   methods: {
+    ensureShareMenu() {
+      if (typeof common_vendor.index === "undefined" || typeof common_vendor.index.showShareMenu !== "function")
+        return;
+      try {
+        common_vendor.index.showShareMenu({
+          menus: ["shareAppMessage", "shareTimeline"]
+        });
+      } catch (_) {
+      }
+    },
     safeNavigate(url) {
       const target = `${url || ""}`.trim();
       if (!target)
@@ -291,7 +315,7 @@ const _sfc_main = {
         this.list = list;
         this.persistListCache(list);
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/list.vue:373", "获取失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/list.vue:395", "获取失败", e);
         if (!this.list.length) {
           common_vendor.index.showToast({
             title: "加载失败",
@@ -597,7 +621,7 @@ const _sfc_main = {
         });
         this.refreshList();
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/list.vue:667", "取出失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/list.vue:689", "取出失败", e);
         common_vendor.index.showToast({
           title: "取出失败",
           icon: "none"
@@ -755,5 +779,6 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-e946cee4"]]);
+_sfc_main.__runtimeHooks = 6;
 wx.createPage(MiniProgramPage);
 //# sourceMappingURL=../../../.sourcemap/mp-weixin/pages/fridge/list.js.map

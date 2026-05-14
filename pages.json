@@ -4,21 +4,27 @@
       "path": "pages/home/index",
       "style": {
         "navigationBarTitleText": "鲜食档案",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "enableShareAppMessage": true,
+        "enableShareTimeline": true
       }
     },
     {
       "path": "pages/fridge/list",
       "style": {
         "navigationBarTitleText": "我的冰箱",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "enableShareAppMessage": true,
+        "enableShareTimeline": true
       }
     },
     {
       "path": "pages/fridge/add",
       "style": {
         "navigationBarTitleText": "添加食材",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "enableShareAppMessage": true,
+        "enableShareTimeline": true
       }
     },
     {
@@ -39,28 +45,36 @@
       "path": "pages/recipe/generate",
       "style": {
         "navigationBarTitleText": "菜谱推荐",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "enableShareAppMessage": true,
+        "enableShareTimeline": true
       }
     },
     {
       "path": "pages/recipe/result",
       "style": {
         "navigationBarTitleText": "菜谱推荐",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "enableShareAppMessage": true,
+        "enableShareTimeline": true
       }
     },
     {
       "path": "pages/recipe/detail",
       "style": {
         "navigationBarTitleText": "菜谱详情",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "enableShareAppMessage": true,
+        "enableShareTimeline": true
       }
     },
     {
       "path": "pages/profile/index",
       "style": {
         "navigationBarTitleText": "我的",
-        "navigationStyle": "custom"
+        "navigationStyle": "custom",
+        "enableShareAppMessage": true,
+        "enableShareTimeline": true
       }
     },
     {

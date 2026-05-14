@@ -13,11 +13,7 @@
 }
 .top-setting-card.data-v-39acdab0 { margin-top: 20rpx;
 }
-.row.data-v-39acdab0 { display: flex; align-items: center; justify-content: space-between; min-height: 64rpx; border-bottom: 1rpx solid #eef3f1;
-}
-.top-setting-card .row.data-v-39acdab0:first-of-type { padding-bottom: 8rpx;
-}
-.row.data-v-39acdab0:last-of-type { border-bottom: none;
+.row.data-v-39acdab0 { display: flex; align-items: center; justify-content: space-between; min-height: 64rpx;
 }
 .row + .row.data-v-39acdab0 { margin-top: 8rpx;
 }
@@ -26,6 +22,8 @@
 .row-half.right.data-v-39acdab0 { justify-content: flex-end;
 }
 .right-control.data-v-39acdab0 { margin-left: auto;
+}
+.top-divider.data-v-39acdab0 { height: 1rpx; background: #eef3f1; margin: 8rpx 0;
 }
 .label.data-v-39acdab0 { font-size: 14px; font-weight: 700; color: #26352d;
 }
@@ -56,6 +54,8 @@
 .day-box.data-v-39acdab0 { min-width: 50rpx; height: 46rpx; border-radius: 10px; border: 1rpx solid #dcebe1; background: #f6fcf8; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #6ebf85; padding: 0 8rpx; box-sizing: border-box;
 }
 .hint.data-v-39acdab0 { display: block; margin-top: 4rpx; font-size: 11px; color: #8d9c93; line-height: 1.5;
+}
+.row-hint.data-v-39acdab0 { display: block; margin: 4rpx 0 6rpx; font-size: 11px; color: #7f8f85; line-height: 1.5;
 }
 .action-row.data-v-39acdab0 { display: grid; grid-template-columns: 1fr 1fr; gap: 12rpx; margin-top: 8rpx;
 }

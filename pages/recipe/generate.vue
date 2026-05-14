@@ -54,16 +54,42 @@ export default {
 		}
 	},
 	onLoad() {
+		this.ensureShareMenu()
 		this.hydratePantryCache()
 	},
 	onShow() {
+		this.ensureShareMenu()
 		this.hydratePantryCache()
 		this.prefetchPantryIngredients()
 	},
 	onUnload() {
 		this.stopProgress()
 	},
+	onShareAppMessage() {
+		const names = (Array.isArray(this.pantryIngredients) ? this.pantryIngredients : [])
+			.map((x) => `${x?.name || ''}`.trim())
+			.filter(Boolean)
+			.slice(0, 3)
+			.join('、')
+		return {
+			title: names ? `我用 ${names} 一键生成了菜谱推荐` : '我在鲜食档案一键生成了菜谱推荐',
+			path: '/pages/recipe/generate'
+		}
+	},
+	onShareTimeline() {
+		return {
+			title: '鲜食档案 | 一键生成菜谱推荐'
+		}
+	},
 	methods: {
+		ensureShareMenu() {
+			if (typeof uni === 'undefined' || typeof uni.showShareMenu !== 'function') return
+			try {
+				uni.showShareMenu({
+					menus: ['shareAppMessage', 'shareTimeline']
+				})
+			} catch (_) {}
+		},
 		hydratePantryCache() {
 			try {
 				const cached = uni.getStorageSync(RECIPE_PANTRY_CACHE_KEY)

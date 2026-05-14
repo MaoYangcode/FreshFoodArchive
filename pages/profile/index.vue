@@ -74,14 +74,36 @@ export default {
 		}
 	},
 	onLoad() {
+		this.ensureShareMenu()
 		this.hydrateProfileHeader()
 	},
 	onShow() {
+		this.ensureShareMenu()
 		this.userId = getCurrentUserId()
 		this.hydrateProfileHeader()
 		this.loadProfileHeader()
 	},
+	onShareAppMessage() {
+		const nickname = `${this.profileName || ''}`.trim() || '微信用户'
+		return {
+			title: `${nickname} 正在使用鲜食档案管理厨房库存`,
+			path: '/pages/profile/index'
+		}
+	},
+	onShareTimeline() {
+		return {
+			title: '鲜食档案 | 我的厨房食材管理助手'
+		}
+	},
 	methods: {
+		ensureShareMenu() {
+			if (typeof uni === 'undefined' || typeof uni.showShareMenu !== 'function') return
+			try {
+				uni.showShareMenu({
+					menus: ['shareAppMessage', 'shareTimeline']
+				})
+			} catch (_) {}
+		},
 		safeNavigate(url) {
 			const target = `${url || ''}`.trim()
 			if (!target) return

@@ -80,13 +80,38 @@ export default {
 		}
 	},
 	onLoad(query) {
+		this.ensureShareMenu()
 		this.fromFavorite = !!(query && query.fromFavorite === '1')
 		const cached = uni.getStorageSync('latestRecipeDetail')
 		if (cached && typeof cached === 'object') this.applyRecipeFromRaw(cached)
 		if (query && query.name) this.recipe.name = decodeURIComponent(query.name)
 		this.syncFavoriteState(this.fromFavorite)
 	},
+	onShow() {
+		this.ensureShareMenu()
+	},
+	onShareAppMessage() {
+		const name = `${this.recipe?.name || ''}`.trim() || '家常菜'
+		return {
+			title: `这道 ${name} 看起来不错，分享给你`,
+			path: `/pages/recipe/detail?name=${encodeURIComponent(name)}`
+		}
+	},
+	onShareTimeline() {
+		const name = `${this.recipe?.name || ''}`.trim() || '家常菜'
+		return {
+			title: `鲜食档案菜谱：${name}`
+		}
+	},
 	methods: {
+		ensureShareMenu() {
+			if (typeof uni === 'undefined' || typeof uni.showShareMenu !== 'function') return
+			try {
+				uni.showShareMenu({
+					menus: ['shareAppMessage', 'shareTimeline']
+				})
+			} catch (_) {}
+		},
 		applyRecipeFromRaw(raw) {
 			const ingredientText = Array.isArray(raw?.ingredients)
 				? raw.ingredients.map((x) => `${x?.name || ''}${x?.quantity ?? ''}${x?.unit || ''}`.trim()).filter(Boolean).join('、')

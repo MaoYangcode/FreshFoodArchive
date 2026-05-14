@@ -78,10 +78,12 @@ const _sfc_main = {
     }
   },
   async onShow() {
+    this.ensureShareMenu();
     this.userId = utils_currentUser.getCurrentUserId();
     await this.loadShelfLifeSettings();
   },
   onLoad() {
+    this.ensureShareMenu();
     if (typeof common_vendor.index.getRecorderManager !== "function")
       return;
     const manager = common_vendor.index.getRecorderManager();
@@ -103,7 +105,28 @@ const _sfc_main = {
       this.recorderManager.stop();
     }
   },
+  onShareAppMessage() {
+    return {
+      title: "我在鲜食档案快速添加食材，库存管理更轻松",
+      path: "/pages/fridge/add"
+    };
+  },
+  onShareTimeline() {
+    return {
+      title: "鲜食档案 | 拍照/语音快速添加食材"
+    };
+  },
   methods: {
+    ensureShareMenu() {
+      if (typeof common_vendor.index === "undefined" || typeof common_vendor.index.showShareMenu !== "function")
+        return;
+      try {
+        common_vendor.index.showShareMenu({
+          menus: ["shareAppMessage", "shareTimeline"]
+        });
+      } catch (_) {
+      }
+    },
     async loadShelfLifeSettings() {
       var _a;
       try {
@@ -292,7 +315,7 @@ const _sfc_main = {
         this.batchVisible = true;
         common_vendor.index.showToast({ title: `识别到${list.length}条，请确认`, icon: "none" });
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/add.vue:407", "识别失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/add.vue:428", "识别失败", e);
         const msg = `${(e == null ? void 0 : e.message) || ""}`.trim() || "识别失败，请重试";
         common_vendor.index.showToast({ title: msg, icon: "none" });
       } finally {
@@ -779,7 +802,7 @@ const _sfc_main = {
           common_vendor.index.navigateBack({ delta: 1 });
         }, 300);
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/add.vue:870", "批量新增失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/add.vue:891", "批量新增失败", e);
         common_vendor.index.showToast({ title: "批量入库失败，请重试", icon: "none" });
       } finally {
         this.batchSubmitting = false;
@@ -841,7 +864,7 @@ const _sfc_main = {
         common_vendor.index.showToast({ title: "保存成功", icon: "success" });
         this.resetManualForm();
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/fridge/add.vue:934", "新增失败", e);
+        common_vendor.index.__f__("error", "at pages/fridge/add.vue:955", "新增失败", e);
         common_vendor.index.showToast({
           title: "保存失败",
           icon: "none"
@@ -938,5 +961,6 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-256b9a2d"]]);
+_sfc_main.__runtimeHooks = 6;
 wx.createPage(MiniProgramPage);
 //# sourceMappingURL=../../../.sourcemap/mp-weixin/pages/fridge/add.js.map

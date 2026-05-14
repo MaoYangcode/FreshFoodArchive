@@ -197,10 +197,12 @@ export default {
 		}
 	},
 	async onShow() {
+		this.ensureShareMenu()
 		this.userId = getCurrentUserId()
 		await this.loadShelfLifeSettings()
 	},
 	onLoad() {
+		this.ensureShareMenu()
 		if (typeof uni.getRecorderManager !== 'function') return
 		const manager = uni.getRecorderManager()
 		if (!manager || typeof manager.onStop !== 'function' || typeof manager.start !== 'function') return
@@ -220,7 +222,26 @@ export default {
 			this.recorderManager.stop()
 		}
 	},
+	onShareAppMessage() {
+		return {
+			title: '我在鲜食档案快速添加食材，库存管理更轻松',
+			path: '/pages/fridge/add'
+		}
+	},
+	onShareTimeline() {
+		return {
+			title: '鲜食档案 | 拍照/语音快速添加食材'
+		}
+	},
 	methods: {
+		ensureShareMenu() {
+			if (typeof uni === 'undefined' || typeof uni.showShareMenu !== 'function') return
+			try {
+				uni.showShareMenu({
+					menus: ['shareAppMessage', 'shareTimeline']
+				})
+			} catch (_) {}
+		},
 		async loadShelfLifeSettings() {
 			try {
 				const res = await getShelfLifeSettings(this.userId)

@@ -31,6 +31,7 @@ const _sfc_main = {
     }
   },
   onLoad(query) {
+    this.ensureShareMenu();
     this.fromFavorite = !!(query && query.fromFavorite === "1");
     const cached = common_vendor.index.getStorageSync("latestRecipeDetail");
     if (cached && typeof cached === "object")
@@ -39,7 +40,35 @@ const _sfc_main = {
       this.recipe.name = decodeURIComponent(query.name);
     this.syncFavoriteState(this.fromFavorite);
   },
+  onShow() {
+    this.ensureShareMenu();
+  },
+  onShareAppMessage() {
+    var _a;
+    const name = `${((_a = this.recipe) == null ? void 0 : _a.name) || ""}`.trim() || "家常菜";
+    return {
+      title: `这道 ${name} 看起来不错，分享给你`,
+      path: `/pages/recipe/detail?name=${encodeURIComponent(name)}`
+    };
+  },
+  onShareTimeline() {
+    var _a;
+    const name = `${((_a = this.recipe) == null ? void 0 : _a.name) || ""}`.trim() || "家常菜";
+    return {
+      title: `鲜食档案菜谱：${name}`
+    };
+  },
   methods: {
+    ensureShareMenu() {
+      if (typeof common_vendor.index === "undefined" || typeof common_vendor.index.showShareMenu !== "function")
+        return;
+      try {
+        common_vendor.index.showShareMenu({
+          menus: ["shareAppMessage", "shareTimeline"]
+        });
+      } catch (_) {
+      }
+    },
     applyRecipeFromRaw(raw) {
       const ingredientText = Array.isArray(raw == null ? void 0 : raw.ingredients) ? raw.ingredients.map((x) => `${(x == null ? void 0 : x.name) || ""}${(x == null ? void 0 : x.quantity) ?? ""}${(x == null ? void 0 : x.unit) || ""}`.trim()).filter(Boolean).join("、") : "";
       const stepList = Array.isArray(raw == null ? void 0 : raw.steps) ? raw.steps.map((x) => `${x || ""}`.trim()).filter(Boolean) : [];
@@ -286,5 +315,6 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-32e4a4a3"]]);
+_sfc_main.__runtimeHooks = 6;
 wx.createPage(MiniProgramPage);
 //# sourceMappingURL=../../../.sourcemap/mp-weixin/pages/recipe/detail.js.map

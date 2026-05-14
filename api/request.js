@@ -71,7 +71,7 @@ export function setApiBaseUrl(baseUrl) {
 function requestOnce(baseUrl, { url, method = 'GET', data = {}, header = {}, timeout = 8000 }) {
 	return new Promise((resolve, reject) => {
 		const safeUrl = `${url || ''}`.trim()
-		const isAuthLogin = safeUrl === '/auth/wechat-login'
+		const isAuthLogin = safeUrl === '/auth/wechat-login' || safeUrl.includes('/auth/wechat-login?')
 		const pickToken = () => `${getAuthToken() || ''}`.trim()
 		const waitForToken = (maxWaitMs = 5000) => new Promise((resolveToken) => {
 			const start = Date.now()
@@ -100,8 +100,8 @@ function requestOnce(baseUrl, { url, method = 'GET', data = {}, header = {}, tim
 					return
 				}
 				const headers = {
-					Authorization: token ? `Bearer ${token}` : '',
-					'x-user-id': userId > 0 ? String(userId) : '',
+					...(token ? { Authorization: `Bearer ${token}` } : {}),
+					...(!isAuthLogin && userId > 0 ? { 'x-user-id': String(userId) } : {}),
 					...header
 				}
 				uni.request({

@@ -67,10 +67,37 @@ const _sfc_main = {
       return filtered.sort((a, b) => this.compareRecipes(a, b));
     }
   },
+  onLoad() {
+    this.ensureShareMenu();
+  },
   onShow() {
+    this.ensureShareMenu();
     this.loadGeneratedRecipes();
   },
+  onShareAppMessage() {
+    const tags = (Array.isArray(this.pantryTags) ? this.pantryTags : []).filter(Boolean).slice(0, 3).join("、");
+    return {
+      title: tags ? `我用 ${tags} 生成了实用菜谱，快来试试` : "我在鲜食档案生成了实用菜谱，快来试试",
+      path: "/pages/recipe/generate"
+    };
+  },
+  onShareTimeline() {
+    const tags = (Array.isArray(this.pantryTags) ? this.pantryTags : []).filter(Boolean).slice(0, 3).join("、");
+    return {
+      title: tags ? `鲜食档案菜谱推荐：${tags}` : "鲜食档案菜谱推荐"
+    };
+  },
   methods: {
+    ensureShareMenu() {
+      if (typeof common_vendor.index === "undefined" || typeof common_vendor.index.showShareMenu !== "function")
+        return;
+      try {
+        common_vendor.index.showShareMenu({
+          menus: ["shareAppMessage", "shareTimeline"]
+        });
+      } catch (_) {
+      }
+    },
     safeNavigate(url) {
       const target = `${url || ""}`.trim();
       if (!target)
@@ -264,5 +291,6 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-39dbef3f"]]);
+_sfc_main.__runtimeHooks = 6;
 wx.createPage(MiniProgramPage);
 //# sourceMappingURL=../../../.sourcemap/mp-weixin/pages/recipe/result.js.map

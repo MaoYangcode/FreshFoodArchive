@@ -32,16 +32,40 @@ const _sfc_main = {
     }
   },
   onLoad() {
+    this.ensureShareMenu();
     this.hydratePantryCache();
   },
   onShow() {
+    this.ensureShareMenu();
     this.hydratePantryCache();
     this.prefetchPantryIngredients();
   },
   onUnload() {
     this.stopProgress();
   },
+  onShareAppMessage() {
+    const names = (Array.isArray(this.pantryIngredients) ? this.pantryIngredients : []).map((x) => `${(x == null ? void 0 : x.name) || ""}`.trim()).filter(Boolean).slice(0, 3).join("、");
+    return {
+      title: names ? `我用 ${names} 一键生成了菜谱推荐` : "我在鲜食档案一键生成了菜谱推荐",
+      path: "/pages/recipe/generate"
+    };
+  },
+  onShareTimeline() {
+    return {
+      title: "鲜食档案 | 一键生成菜谱推荐"
+    };
+  },
   methods: {
+    ensureShareMenu() {
+      if (typeof common_vendor.index === "undefined" || typeof common_vendor.index.showShareMenu !== "function")
+        return;
+      try {
+        common_vendor.index.showShareMenu({
+          menus: ["shareAppMessage", "shareTimeline"]
+        });
+      } catch (_) {
+      }
+    },
     hydratePantryCache() {
       try {
         const cached = common_vendor.index.getStorageSync(RECIPE_PANTRY_CACHE_KEY);
@@ -195,7 +219,7 @@ const _sfc_main = {
         await this.finishProgress();
         this.openRecipeResultPage();
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/recipe/generate.vue:219", "生成失败", e);
+        common_vendor.index.__f__("error", "at pages/recipe/generate.vue:245", "生成失败", e);
         const msg = `${(e == null ? void 0 : e.message) || (e == null ? void 0 : e.msg) || ((_c = e == null ? void 0 : e.data) == null ? void 0 : _c.message) || ""}`.trim();
         common_vendor.index.showToast({ title: msg || "生成失败，请稍后重试", icon: "none" });
       } finally {
@@ -224,5 +248,6 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   };
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-3fc7d593"]]);
+_sfc_main.__runtimeHooks = 6;
 wx.createPage(MiniProgramPage);
 //# sourceMappingURL=../../../.sourcemap/mp-weixin/pages/recipe/generate.js.map

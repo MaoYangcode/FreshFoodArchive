@@ -58,6 +58,43 @@ const _sfc_main = {
     this.loadSettings();
   },
   methods: {
+    isSubscribeAuthorized() {
+      var _a, _b, _c, _d;
+      const last = `${((_b = (_a = this.settings) == null ? void 0 : _a.subscribe) == null ? void 0 : _b.lastAuthStatus) || ""}`.trim();
+      if (last === "accept")
+        return true;
+      const auth = ((_d = (_c = this.settings) == null ? void 0 : _c.subscribe) == null ? void 0 : _d.authResult) || {};
+      const values = Object.values(auth).map((x) => `${x || ""}`.trim());
+      return values.includes("accept");
+    },
+    getSubscribeStatus(authResult) {
+      const values = Object.values(authResult || {}).map((x) => `${x || ""}`.trim());
+      if (values.includes("accept"))
+        return "accept";
+      if (values.includes("reject"))
+        return "reject";
+      return "unknown";
+    },
+    getWxLoginCode() {
+      return new Promise((resolve, reject) => {
+        if (typeof common_vendor.index === "undefined" || typeof common_vendor.index.login !== "function") {
+          reject(new Error("当前环境不支持微信登录"));
+          return;
+        }
+        common_vendor.index.login({
+          provider: "weixin",
+          success: ({ code }) => {
+            const safeCode = `${code || ""}`.trim();
+            if (!safeCode) {
+              reject(new Error("未获取到微信登录凭证"));
+              return;
+            }
+            resolve(safeCode);
+          },
+          fail: () => reject(new Error("微信登录失败"))
+        });
+      });
+    },
     normalizeHalfHourTime(value) {
       const text = `${value || ""}`.trim();
       const m = text.match(/^(\d{1,2}):(\d{1,2})$/);
@@ -125,6 +162,15 @@ const _sfc_main = {
       return DEV_SUBSCRIBE_TEMPLATE_IDS.map((x) => `${x || ""}`.trim()).filter((id) => !!id && !id.includes("替换") && !id.includes("YOUR_"));
     },
     requestSubscribe() {
+      if (this.isSubscribeAuthorized()) {
+        common_vendor.index.showModal({
+          title: "已授权",
+          content: "可设定临期提醒时间",
+          showCancel: false,
+          confirmText: "知道了"
+        });
+        return;
+      }
       const templateIds = this.resolveTemplateIds();
       if (!templateIds.length) {
         common_vendor.index.showToast({ title: "请先配置订阅模板ID", icon: "none" });
@@ -136,10 +182,49 @@ const _sfc_main = {
       }
       common_vendor.index.requestSubscribeMessage({
         tmplIds: templateIds,
+        success: async (res) => {
+          const authResult = {};
+          templateIds.forEach((id) => {
+            authResult[id] = `${(res == null ? void 0 : res[id]) || ""}`.trim();
+          });
+          const lastAuthStatus = this.getSubscribeStatus(authResult);
+          let code = "";
+          try {
+            code = await this.getWxLoginCode();
+          } catch (_) {
+            code = "";
+          }
+          try {
+            const saved = await api_modules_expiryReminder.updateExpiryReminderSubscribe({
+              userId: this.userId,
+              templateIds,
+              authResult,
+              lastAuthAt: (/* @__PURE__ */ new Date()).toISOString(),
+              lastAuthStatus,
+              code
+            });
+            if (saved && typeof saved === "object") {
+              this.settings = {
+                ...this.settings,
+                subscribe: this.normalizeSubscribe((saved == null ? void 0 : saved.subscribe) || this.settings.subscribe)
+              };
+            }
+            if (lastAuthStatus === "accept") {
+              common_vendor.index.showToast({ title: "授权成功", icon: "success" });
+              return;
+            }
+            common_vendor.index.showToast({ title: "未允许订阅，提醒将无法推送", icon: "none" });
+          } catch (_) {
+            common_vendor.index.showToast({ title: "授权结果保存失败，请重试", icon: "none" });
+          }
+        },
         fail: () => {
           common_vendor.index.showToast({ title: "授权取消或失败，请重试", icon: "none" });
         }
       });
+    },
+    onUnauthorizedTimeClick() {
+      common_vendor.index.showToast({ title: "未授权：请先点击“微信授权”", icon: "none" });
     },
     async loadSettings() {
       try {
@@ -174,9 +259,25 @@ const _sfc_main = {
         const hour = this.hourOptions[Number(value[0]) || 0] || "09";
         const minute = this.minuteOptions[Number(value[1]) || 0] || "00";
         this.settings.remindTime = `${hour}:${minute}`;
+        if (this.isSubscribeAuthorized()) {
+          common_vendor.index.showToast({
+            title: `当前将于每日 ${this.settings.remindTime} 推送（修改时间后请点保存）`,
+            icon: "none"
+          });
+        } else {
+          common_vendor.index.showToast({ title: "未授权：请点击“微信授权”并选择允许，否则无法推送", icon: "none" });
+        }
         return;
       }
       this.settings.remindTime = this.normalizeHalfHourTime(`${value || ""}`);
+      if (this.isSubscribeAuthorized()) {
+        common_vendor.index.showToast({
+          title: `当前将于每日 ${this.settings.remindTime} 推送（修改时间后请点保存）`,
+          icon: "none"
+        });
+        return;
+      }
+      common_vendor.index.showToast({ title: "未授权：请点击“微信授权”并选择允许，否则无法推送", icon: "none" });
     },
     onRulePick(category, e) {
       var _a;
@@ -227,14 +328,20 @@ if (!Array) {
   (_component_IngredientIcon + _component_BottomNav)();
 }
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
-  return {
+  return common_vendor.e({
     a: common_vendor.o((...args) => $options.goBack && $options.goBack(...args)),
     b: common_vendor.o((...args) => $options.requestSubscribe && $options.requestSubscribe(...args)),
-    c: common_vendor.t($data.settings.remindTime),
-    d: [$data.hourOptions, $data.minuteOptions],
-    e: $options.timePickerValue,
-    f: common_vendor.o((...args) => $options.onTimeChange && $options.onTimeChange(...args)),
-    g: common_vendor.f($data.categories, (cat, k0, i0) => {
+    c: $options.isSubscribeAuthorized()
+  }, $options.isSubscribeAuthorized() ? {
+    d: common_vendor.t($data.settings.remindTime),
+    e: [$data.hourOptions, $data.minuteOptions],
+    f: $options.timePickerValue,
+    g: common_vendor.o((...args) => $options.onTimeChange && $options.onTimeChange(...args))
+  } : {
+    h: common_vendor.t($data.settings.remindTime),
+    i: common_vendor.o((...args) => $options.onUnauthorizedTimeClick && $options.onUnauthorizedTimeClick(...args))
+  }, {
+    j: common_vendor.f($data.categories, (cat, k0, i0) => {
       return {
         a: "39acdab0-0-" + i0,
         b: common_vendor.p({
@@ -249,14 +356,14 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         g: cat
       };
     }),
-    h: $data.dayOptions,
-    i: common_vendor.o((...args) => $options.resetDefaults && $options.resetDefaults(...args)),
-    j: common_vendor.o((...args) => $options.saveSettings && $options.saveSettings(...args)),
-    k: common_vendor.p({
+    k: $data.dayOptions,
+    l: common_vendor.o((...args) => $options.resetDefaults && $options.resetDefaults(...args)),
+    m: common_vendor.o((...args) => $options.saveSettings && $options.saveSettings(...args)),
+    n: common_vendor.p({
       current: "profile"
     }),
-    l: `${_ctx.safeTop + 14}px`
-  };
+    o: `${_ctx.safeTop + 14}px`
+  });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-39acdab0"]]);
 wx.createPage(MiniProgramPage);
