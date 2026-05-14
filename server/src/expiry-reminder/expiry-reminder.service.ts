@@ -167,13 +167,15 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
   }
 
   private buildSubscribeMessageDataCandidates(
-    items: Array<{ name: string; daysLeft: number }>,
+    items: Array<{ name: string; daysLeft: number; category?: string; location?: string | null }>,
     subscribe: ReturnType<ExpiryReminderService['normalizeSubscribe']>,
   ) {
     const fromConfig = subscribe.templateData || {}
     const first = items[0]
     const name = first ? `${first.name}` : '食材'
     const days = first ? `${first.daysLeft}` : '0'
+    const category = first ? `${first.category || ''}`.trim() || '食材' : '食材'
+    const location = this.normalizeStorageLocation(first?.location)
     const now = new Date()
     const t = `${now.getFullYear()}-${`${now.getMonth() + 1}`.padStart(2, '0')}-${`${now.getDate()}`.padStart(2, '0')} ${`${now.getHours()}`.padStart(2, '0')}:${`${now.getMinutes()}`.padStart(2, '0')}`
     // Default mapping for "保质期到期提醒" style template:
@@ -190,14 +192,14 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
       {
         thing1: { value: `${name}`.slice(0, 20) },
         date2: { value: expireDateText },
-        thing3: { value: '食材' },
-        thing4: { value: '冰箱' },
+        thing3: { value: `${category}`.slice(0, 20) },
+        thing4: { value: `${location}`.slice(0, 20) },
         number5: { value: `${days}` },
       },
       // Compatibility fallback for templates using phrase/date keyword names.
       {
         thing1: { value: `${name}`.slice(0, 20) },
-        phrase2: { value: '食材'.slice(0, 5) },
+        phrase2: { value: `${category}`.slice(0, 5) },
         phrase3: { value: '尽快食用'.slice(0, 5) },
         date4: { value: expireDateText },
       },
@@ -210,7 +212,7 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
     if (Object.keys(fromConfig).length) {
       const mapped: Record<string, { value: string }> = {}
       Object.keys(fromConfig).forEach((k) => {
-        mapped[k] = { value: this.normalizeSubscribeKeywordValue(k, fromConfig[k], { name, days, expireDateText }) }
+        mapped[k] = { value: this.normalizeSubscribeKeywordValue(k, fromConfig[k], { name, days, expireDateText, category, location }) }
       })
       return [mapped, ...builtinCandidates]
     }
@@ -220,7 +222,7 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
   private normalizeSubscribeKeywordValue(
     key: string,
     value: string,
-    context: { name: string; days: string; expireDateText: string },
+    context: { name: string; days: string; expireDateText: string; category: string; location: string },
   ) {
     const text = `${value || ''}`.trim()
     if (/^phrase\d+$/i.test(key)) {
@@ -232,7 +234,9 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
       return dateText.slice(0, 32)
     }
     if (/^thing\d+$/i.test(key)) {
-      const thingText = text || context.name || '食材'
+      const thingText = key.toLowerCase() === 'thing4'
+        ? (text || context.location || '冷藏')
+        : (text || context.name || '食材')
       return thingText.slice(0, 20)
     }
     if (/^number\d+$/i.test(key)) {
@@ -244,11 +248,15 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
 
   private getSubscribeKeywordFallbackValue(
     key: string,
-    context: { name: string; days: string; expireDateText: string },
+    context: { name: string; days: string; expireDateText: string; category: string; location: string },
   ) {
     if (/^phrase\d+$/i.test(key)) return '到期提醒'.slice(0, 5)
     if (/^date\d+$/i.test(key)) return context.expireDateText.slice(0, 32)
-    if (/^thing\d+$/i.test(key)) return (context.name || '食材').slice(0, 20)
+    if (/^thing\d+$/i.test(key)) {
+      if (key.toLowerCase() === 'thing4') return (context.location || '冷藏').slice(0, 20)
+      if (key.toLowerCase() === 'thing3') return (context.category || '食材').slice(0, 20)
+      return (context.name || '食材').slice(0, 20)
+    }
     if (/^number\d+$/i.test(key)) return `${Number(context.days) || 0}`.slice(0, 10)
     return '提醒'
   }
@@ -256,7 +264,7 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
   private patchSubscribeCandidateByErrmsg(
     candidate: Record<string, { value: string }>,
     errmsg: string,
-    context: { name: string; days: string; expireDateText: string },
+    context: { name: string; days: string; expireDateText: string; category: string; location: string },
   ) {
     const m = `${errmsg || ''}`.match(/data\.([a-zA-Z]+\d+)\.value\s+is\s+empty/i)
     const key = `${m?.[1] || ''}`.trim()
@@ -396,7 +404,11 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
     })
   }
 
-  private async sendSubscribeMessage(userId: number, subscribe: ReturnType<ExpiryReminderService['normalizeSubscribe']>, items: Array<{ name: string; daysLeft: number }>) {
+  private async sendSubscribeMessage(
+    userId: number,
+    subscribe: ReturnType<ExpiryReminderService['normalizeSubscribe']>,
+    items: Array<{ name: string; daysLeft: number; category?: string; location?: string | null }>,
+  ) {
     const templateId = this.pickAcceptedTemplateId(subscribe)
     const openId = `${subscribe.openId || ''}`.trim()
     if (!templateId) return { attempted: false, reason: 'no-template-authorized' }
@@ -412,6 +424,8 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
       const context = {
         name: `${first?.name || '食材'}`.trim() || '食材',
         days: `${first?.daysLeft ?? 0}`,
+        category: `${first?.category || ''}`.trim() || '食材',
+        location: this.normalizeStorageLocation(first?.location),
         expireDateText: first && Number.isFinite(first.daysLeft)
           ? (() => {
               const d = new Date()
@@ -481,6 +495,15 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private normalizeStorageLocation(location: unknown) {
+    const text = `${location || ''}`.trim()
+    if (!text) return '冷藏'
+    if (text.includes('冻')) return '冷冻'
+    if (text.includes('冷藏') || text.includes('冷')) return '冷藏'
+    if (text.includes('常温') || text.includes('室温')) return '常温'
+    return text.slice(0, 20)
+  }
+
   private getDaysLeft(expireDate: Date | null) {
     if (!expireDate) return Number.POSITIVE_INFINITY
     const now = new Date()
@@ -511,6 +534,7 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
           id: item.id,
           name: item.name,
           category,
+          location: item.location,
           expireDate: item.expireDate,
           daysLeft,
           shouldRemind,
@@ -521,6 +545,7 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
         id: x.id,
         name: x.name,
         category: x.category,
+        location: x.location,
         expireDate: x.expireDate,
         daysLeft: x.daysLeft,
       }))
@@ -550,7 +575,7 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
     const sendResult = await this.sendSubscribeMessage(
       userId,
       this.normalizeSubscribe(settings.subscribe),
-      items.map((x) => ({ name: x.name, daysLeft: x.daysLeft })),
+      items.map((x) => ({ name: x.name, daysLeft: x.daysLeft, category: x.category, location: x.location })),
     )
 
     const log = await this.prisma.expiryReminderLog.create({
