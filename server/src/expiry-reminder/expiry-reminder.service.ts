@@ -166,15 +166,11 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
     return `${json.openid || ''}`.trim()
   }
 
-  private buildSubscribeMessageData(items: Array<{ name: string; daysLeft: number }>, subscribe: ReturnType<ExpiryReminderService['normalizeSubscribe']>) {
+  private buildSubscribeMessageDataCandidates(
+    items: Array<{ name: string; daysLeft: number }>,
+    subscribe: ReturnType<ExpiryReminderService['normalizeSubscribe']>,
+  ) {
     const fromConfig = subscribe.templateData || {}
-    if (Object.keys(fromConfig).length) {
-      const mapped: Record<string, { value: string }> = {}
-      Object.keys(fromConfig).forEach((k) => {
-        mapped[k] = { value: fromConfig[k] }
-      })
-      return mapped
-    }
     const first = items[0]
     const name = first ? `${first.name}` : '食材'
     const days = first ? `${first.daysLeft}` : '0'
@@ -190,13 +186,60 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
           return `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, '0')}-${`${d.getDate()}`.padStart(2, '0')}`
         })()
       : t.slice(0, 10)
-    return {
-      thing1: { value: `${name}`.slice(0, 20) },
-      date2: { value: expireDateText },
-      thing3: { value: '食材' },
-      thing4: { value: '冰箱' },
-      number5: { value: `${days}` },
+    const builtinCandidates = [
+      {
+        thing1: { value: `${name}`.slice(0, 20) },
+        date2: { value: expireDateText },
+        thing3: { value: '食材' },
+        thing4: { value: '冰箱' },
+        number5: { value: `${days}` },
+      },
+      // Compatibility fallback for templates using phrase/date keyword names.
+      {
+        thing1: { value: `${name}`.slice(0, 20) },
+        phrase2: { value: '食材'.slice(0, 5) },
+        phrase3: { value: '尽快食用'.slice(0, 5) },
+        date4: { value: expireDateText },
+      },
+      {
+        phrase1: { value: `${name}`.slice(0, 5) },
+        phrase2: { value: '到期提醒'.slice(0, 5) },
+        phrase3: { value: '尽快食用'.slice(0, 5) },
+      },
+    ]
+    if (Object.keys(fromConfig).length) {
+      const mapped: Record<string, { value: string }> = {}
+      Object.keys(fromConfig).forEach((k) => {
+        mapped[k] = { value: this.normalizeSubscribeKeywordValue(k, fromConfig[k], { name, days, expireDateText }) }
+      })
+      return [mapped, ...builtinCandidates]
     }
+    return builtinCandidates
+  }
+
+  private normalizeSubscribeKeywordValue(
+    key: string,
+    value: string,
+    context: { name: string; days: string; expireDateText: string },
+  ) {
+    const text = `${value || ''}`.trim()
+    if (/^phrase\d+$/i.test(key)) {
+      const chineseOnly = text.replace(/[^\u4e00-\u9fa5]/g, '').trim()
+      return (chineseOnly || '到期提醒').slice(0, 5)
+    }
+    if (/^date\d+$/i.test(key)) {
+      const dateText = text || context.expireDateText
+      return dateText.slice(0, 32)
+    }
+    if (/^thing\d+$/i.test(key)) {
+      const thingText = text || context.name || '食材'
+      return thingText.slice(0, 20)
+    }
+    if (/^number\d+$/i.test(key)) {
+      const numText = `${Number(context.days) || 0}`
+      return numText.slice(0, 10)
+    }
+    return text.slice(0, 64)
   }
 
   private extractSubscribeFromRules(raw: unknown) {
@@ -337,30 +380,52 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
     try {
       const token = await this.getWeChatAccessToken()
       const page = '/pages/profile/expiry-reminder'
-      const payload = {
-        touser: openId,
-        template_id: templateId,
-        page,
-        data: this.buildSubscribeMessageData(items, subscribe),
-      }
       const url = `https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=${encodeURIComponent(token)}`
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const json = await res.json() as any
-      const ok = Number(json?.errcode) === 0
-      if (!ok) {
-        this.logger.warn(`subscribe send failed user=${userId} code=${json?.errcode} msg=${json?.errmsg}`)
-      }
-      return {
+      const candidates = this.buildSubscribeMessageDataCandidates(items, subscribe)
+      let finalResult: {
+        attempted: boolean
+        success: boolean
+        errcode: number
+        errmsg: string
+        msgid: string
+      } = {
         attempted: true,
-        success: ok,
-        errcode: Number(json?.errcode || 0),
-        errmsg: `${json?.errmsg || ''}`.trim(),
-        msgid: `${json?.msgid || ''}`.trim(),
+        success: false,
+        errcode: 47003,
+        errmsg: 'template data invalid',
+        msgid: '',
       }
+
+      for (const candidate of candidates) {
+        const payload = {
+          touser: openId,
+          template_id: templateId,
+          page,
+          data: candidate,
+        }
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        const json = (await res.json()) as any
+        const ok = Number(json?.errcode) === 0
+        finalResult = {
+          attempted: true,
+          success: ok,
+          errcode: Number(json?.errcode || 0),
+          errmsg: `${json?.errmsg || ''}`.trim(),
+          msgid: `${json?.msgid || ''}`.trim(),
+        }
+        if (ok) return finalResult
+        // Retry with next candidate only for template data format issue.
+        if (finalResult.errcode !== 47003) break
+      }
+
+      this.logger.warn(
+        `subscribe send failed user=${userId} code=${finalResult.errcode} msg=${finalResult.errmsg}`,
+      )
+      return finalResult
     } catch (e: any) {
       this.logger.warn(`subscribe send exception user=${userId} ${e?.message || e}`)
       return {
