@@ -186,7 +186,7 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
           return `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, '0')}-${`${d.getDate()}`.padStart(2, '0')}`
         })()
       : t.slice(0, 10)
-    const builtinCandidates = [
+    const builtinCandidates: Array<Record<string, { value: string }>> = [
       {
         thing1: { value: `${name}`.slice(0, 20) },
         date2: { value: expireDateText },
@@ -240,6 +240,32 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
       return numText.slice(0, 10)
     }
     return text.slice(0, 64)
+  }
+
+  private getSubscribeKeywordFallbackValue(
+    key: string,
+    context: { name: string; days: string; expireDateText: string },
+  ) {
+    if (/^phrase\d+$/i.test(key)) return '到期提醒'.slice(0, 5)
+    if (/^date\d+$/i.test(key)) return context.expireDateText.slice(0, 32)
+    if (/^thing\d+$/i.test(key)) return (context.name || '食材').slice(0, 20)
+    if (/^number\d+$/i.test(key)) return `${Number(context.days) || 0}`.slice(0, 10)
+    return '提醒'
+  }
+
+  private patchSubscribeCandidateByErrmsg(
+    candidate: Record<string, { value: string }>,
+    errmsg: string,
+    context: { name: string; days: string; expireDateText: string },
+  ) {
+    const m = `${errmsg || ''}`.match(/data\.([a-zA-Z]+\d+)\.value\s+is\s+empty/i)
+    const key = `${m?.[1] || ''}`.trim()
+    if (!key) return null
+    if (candidate[key]?.value?.trim()) return null
+    return {
+      ...candidate,
+      [key]: { value: this.getSubscribeKeywordFallbackValue(key, context) },
+    }
   }
 
   private extractSubscribeFromRules(raw: unknown) {
@@ -382,6 +408,19 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
       const page = '/pages/profile/expiry-reminder'
       const url = `https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=${encodeURIComponent(token)}`
       const candidates = this.buildSubscribeMessageDataCandidates(items, subscribe)
+      const first = items[0]
+      const context = {
+        name: `${first?.name || '食材'}`.trim() || '食材',
+        days: `${first?.daysLeft ?? 0}`,
+        expireDateText: first && Number.isFinite(first.daysLeft)
+          ? (() => {
+              const d = new Date()
+              d.setHours(0, 0, 0, 0)
+              d.setDate(d.getDate() + first.daysLeft)
+              return `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, '0')}-${`${d.getDate()}`.padStart(2, '0')}`
+            })()
+          : new Date().toISOString().slice(0, 10),
+      }
       let finalResult: {
         attempted: boolean
         success: boolean
@@ -397,29 +436,34 @@ export class ExpiryReminderService implements OnModuleInit, OnModuleDestroy {
       }
 
       for (const candidate of candidates) {
-        const payload = {
-          touser: openId,
-          template_id: templateId,
-          page,
-          data: candidate,
+        let sendingCandidate: Record<string, { value: string }> = { ...candidate }
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          const payload = {
+            touser: openId,
+            template_id: templateId,
+            page,
+            data: sendingCandidate,
+          }
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+          const json = (await res.json()) as any
+          const ok = Number(json?.errcode) === 0
+          finalResult = {
+            attempted: true,
+            success: ok,
+            errcode: Number(json?.errcode || 0),
+            errmsg: `${json?.errmsg || ''}`.trim(),
+            msgid: `${json?.msgid || ''}`.trim(),
+          }
+          if (ok) return finalResult
+          if (finalResult.errcode !== 47003) break
+          const patched = this.patchSubscribeCandidateByErrmsg(sendingCandidate, finalResult.errmsg, context)
+          if (!patched) break
+          sendingCandidate = patched
         }
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-        const json = (await res.json()) as any
-        const ok = Number(json?.errcode) === 0
-        finalResult = {
-          attempted: true,
-          success: ok,
-          errcode: Number(json?.errcode || 0),
-          errmsg: `${json?.errmsg || ''}`.trim(),
-          msgid: `${json?.msgid || ''}`.trim(),
-        }
-        if (ok) return finalResult
-        // Retry with next candidate only for template data format issue.
-        if (finalResult.errcode !== 47003) break
       }
 
       this.logger.warn(
