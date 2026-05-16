@@ -259,9 +259,10 @@ export class AiService {
         .replace(/\s+/g, ' ')
         .trim()
       const fallback = this.parseVoiceTextFallback(text)
-      const name = `${parsed?.name || ''}`.trim() || fallback.name
-      const quantity = this.normalizeVoiceQuantity(parsed?.quantity ?? fallback.quantity)
-      const unit = `${parsed?.unit || ''}`.trim() || fallback.unit
+      const parsedSingle = this.parseVoiceSingleItem(`${parsed?.name || ''}`.trim())
+      const name = parsedSingle.name || fallback.name
+      const quantity = this.normalizeVoiceQuantity(parsed?.quantity ?? parsedSingle.quantity ?? fallback.quantity)
+      const unit = `${parsed?.unit || parsedSingle.unit || ''}`.trim() || fallback.unit
       const items = this.normalizeVoiceItems(
         Array.isArray(parsed?.items) ? parsed.items : [],
         fallback.items || [],
@@ -1038,10 +1039,8 @@ export class AiService {
       }
     }
     const multiItems = this.parseMultiVoiceItems(cleaned)
-    const m = cleaned.match(
-      /^([\u4e00-\u9fa5A-Za-z]+?)\s*([零一二两三四五六七八九十百千万\d]+(?:\.\d+)?)?\s*(个|颗|斤|公斤|千克|克|袋|包|瓶|盒|罐|把|根|条|片|块|份|毫升|升)?$/,
-    )
-    if (!m) {
+    const parsedSingle = this.parseVoiceSingleItem(cleaned)
+    if (!parsedSingle?.name) {
       return {
         name: cleaned,
         quantity: undefined as number | undefined,
@@ -1049,11 +1048,10 @@ export class AiService {
         items: multiItems,
       }
     }
-    const [, rawName = '', rawQty = '', rawUnit = ''] = m
     return {
-      name: rawName.trim(),
-      quantity: this.normalizeVoiceQuantity(rawQty),
-      unit: rawUnit.trim(),
+      name: parsedSingle.name,
+      quantity: parsedSingle.quantity,
+      unit: parsedSingle.unit || '',
       items: multiItems,
     }
   }
@@ -1065,19 +1063,44 @@ export class AiService {
       .filter(Boolean)
     const list = parts
       .map((part) => {
-        const m = part.match(
-          /^([\u4e00-\u9fa5A-Za-z]+?)\s*([零一二两三四五六七八九十百千万\d]+(?:\.\d+)?)?\s*(个|颗|斤|公斤|千克|克|袋|包|瓶|盒|罐|把|根|条|片|块|份|毫升|升)?$/,
-        )
-        if (!m) return { name: part }
-        const [, rawName = '', rawQty = '', rawUnit = ''] = m
-        return {
-          name: rawName.trim(),
-          quantity: this.normalizeVoiceQuantity(rawQty),
-          unit: rawUnit.trim() || undefined,
-        }
+        const parsed = this.parseVoiceSingleItem(part)
+        if (!parsed.name) return { name: part }
+        return parsed
       })
       .filter((x) => !!`${x?.name || ''}`.trim())
     return list
+  }
+
+  private parseVoiceSingleItem(text: string) {
+    const cleaned = `${text || ''}`.replace(/\s+/g, ' ').trim()
+    if (!cleaned) return { name: '', quantity: undefined as number | undefined, unit: undefined as string | undefined }
+    const unitPattern = '(个|颗|斤|公斤|千克|克|袋|包|瓶|盒|罐|把|根|条|片|块|份|毫升|升)'
+    const qtyPattern = '([零一二两三四五六七八九十百千万\\d]+(?:\\.\\d+)?)'
+    // 名称在前：番茄两个 / 番茄 2 个
+    const nameFirst = cleaned.match(
+      new RegExp(`^([\\u4e00-\\u9fa5A-Za-z]+?)\\s*${qtyPattern}?\\s*${unitPattern}?$`),
+    )
+    if (nameFirst) {
+      const [, rawName = '', rawQty = '', rawUnit = ''] = nameFirst
+      return {
+        name: rawName.trim(),
+        quantity: this.normalizeVoiceQuantity(rawQty),
+        unit: rawUnit.trim() || undefined,
+      }
+    }
+    // 数量在前：两个番茄 / 2个土豆
+    const qtyFirst = cleaned.match(
+      new RegExp(`^${qtyPattern}\\s*${unitPattern}?\\s*([\\u4e00-\\u9fa5A-Za-z]+)$`),
+    )
+    if (qtyFirst) {
+      const [, rawQty = '', rawUnit = '', rawName = ''] = qtyFirst
+      return {
+        name: rawName.trim(),
+        quantity: this.normalizeVoiceQuantity(rawQty),
+        unit: rawUnit.trim() || undefined,
+      }
+    }
+    return { name: cleaned, quantity: undefined as number | undefined, unit: undefined as string | undefined }
   }
 
   private normalizeVoiceQuantity(value: unknown) {
@@ -1120,12 +1143,15 @@ export class AiService {
   ) {
     const source = Array.isArray(modelItems) && modelItems.length ? modelItems : fallbackItems
     const normalized = source
-      .map((x) => ({
-        name: `${x?.name || ''}`.trim(),
-        quantity: this.normalizeVoiceQuantity(x?.quantity),
-        unit: `${x?.unit || ''}`.trim() || undefined,
-        category: this.validCategories.has(`${x?.category || ''}`.trim()) ? `${x?.category}`.trim() : undefined,
-      }))
+      .map((x) => {
+        const parsedName = this.parseVoiceSingleItem(`${x?.name || ''}`)
+        return {
+          name: parsedName.name,
+          quantity: this.normalizeVoiceQuantity(x?.quantity ?? parsedName.quantity),
+          unit: `${x?.unit || parsedName.unit || ''}`.trim() || undefined,
+          category: this.validCategories.has(`${x?.category || ''}`.trim()) ? `${x?.category}`.trim() : undefined,
+        }
+      })
       .filter((x) => !!x.name)
     if (normalized.length) return normalized
     if (!single.name) return []
