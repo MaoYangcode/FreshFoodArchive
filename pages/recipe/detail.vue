@@ -15,6 +15,7 @@
 					<text class="title">{{ recipe.name }}</text>
 					<text class="meta">{{ recipe.servings }}人份 · {{ recipe.duration }}分钟 · {{ recipe.difficulty }}</text>
 				</view>
+				<button v-if="fromFavorite && favorited" class="head-unfavorite-btn" @click="unfavorite">取消收藏</button>
 			</view>
 			<view class="recipe-banner">
 				<view class="banner-title-row">
@@ -48,7 +49,13 @@
 </template>
 
 <script>
-import { addFavoriteRecipe, getFavoriteRecipeByName, markFavoriteRecipeCompleted, upsertBasketItems as upsertBasketItemsLocal } from '@/store/app-store'
+import {
+	addFavoriteRecipe,
+	getFavoriteRecipeByName,
+	markFavoriteRecipeCompleted,
+	removeFavoriteRecipe,
+	upsertBasketItems as upsertBasketItemsLocal
+} from '@/store/app-store'
 import { getIngredientList } from '@/api/modules/ingredients'
 import { upsertBasketItems as upsertBasketItemsApi } from '@/api/modules/basket'
 import BottomNav from '@/components/bottom-nav.vue'
@@ -186,6 +193,33 @@ export default {
 			this.lastCompletedAt = updated.lastCompletedAt || ''
 			uni.showToast({ title: '已标记完成', icon: 'success' })
 		},
+		unfavorite() {
+			if (!this.favorited) {
+				uni.showToast({ title: '当前未收藏', icon: 'none' })
+				return
+			}
+			uni.showModal({
+				title: '取消收藏',
+				content: '确认取消收藏该菜谱吗？',
+				success: (res) => {
+					if (!res.confirm) return
+					const ok = removeFavoriteRecipe(this.recipe.name)
+					if (!ok) {
+						uni.showToast({ title: '取消失败，请重试', icon: 'none' })
+						return
+					}
+					this.favorited = false
+					this.completedCount = 0
+					this.lastCompletedAt = ''
+					uni.showToast({ title: '已取消收藏', icon: 'success' })
+					if (this.fromFavorite) {
+						setTimeout(() => {
+							this.backToResult()
+						}, 220)
+					}
+				}
+			})
+		},
 		formatDateTime(time) {
 			if (!time) return ''
 			const date = new Date(time)
@@ -308,9 +342,11 @@ export default {
 .back-left { width: 30px; height: 30px; border-radius: 999rpx; display: inline-flex; align-items: center; justify-content: center; }
 .back-arrow { font-size: 30px; line-height: 1; color: #c7ced9; transform: translateY(-1px); }
 .recipe-inner { background: #fff; border: 1rpx solid #eef3f1; border-radius: 14px; box-shadow: 0 10rpx 20rpx rgba(33,60,38,.06); padding: 16rpx; margin-bottom: 12rpx; }
-.head { display: grid; grid-template-columns: 64px 1fr; column-gap: 12px; row-gap: 8rpx; align-items: center; margin-bottom: 18rpx; }
+.head { display: grid; grid-template-columns: 64px 1fr auto; column-gap: 12px; row-gap: 8rpx; align-items: center; margin-bottom: 18rpx; }
 .head-main { min-width: 0; }
 .recipe-avatar { width: 64px; height: 64px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg,#f1f8f2,#f8fcf8); border: 1rpx solid #e8f1ea; }
+.head-unfavorite-btn { height: 30px; line-height: 30px; padding: 0 10px; border-radius: 999rpx; font-size: 12px; color: #6a6f6b; background: #f3f3f3; border: 1rpx solid #e4e7e5; box-shadow: none; }
+.head-unfavorite-btn::after { border: none; }
 .favorite-wrap { margin-bottom: 8rpx; }
 .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10rpx; }
 .action-grid.single { grid-template-columns: 1fr; }

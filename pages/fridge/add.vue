@@ -351,7 +351,8 @@ export default {
 				if (voiceIntent.expireDate) {
 					this.form.expireDate = voiceIntent.expireDate
 				}
-				const voiceCategory = this.categories.includes(firstItem?.category) ? firstItem.category : ''
+				const inferredCategory = this.inferCategoryByName(this.form.name)
+				const voiceCategory = this.categories.includes(firstItem?.category) ? firstItem.category : (inferredCategory || '')
 				if (voiceCategory) {
 					this.form.category = voiceCategory
 					if (!voiceIntent.expireDate) {
@@ -433,10 +434,11 @@ export default {
 			}
 		},
 		normalizeRecognizedItem(item, fallbackLocation = '', fallbackExpireDate = '') {
-			const category = this.categories.includes(item?.category) ? item.category : '其他'
-			const quantity = item?.quantity || item?.quantity === 0 ? `${item.quantity}` : '1'
 			const intent = this.extractVoiceIntent(item?.name || '')
 			const name = item?.name ? `${intent.name || item.name}` : ''
+			const guessedCategory = this.inferCategoryByName(name)
+			const category = this.categories.includes(item?.category) ? item.category : (guessedCategory || '其他')
+			const quantity = item?.quantity || item?.quantity === 0 ? `${item.quantity}` : '1'
 			const unit = this.normalizeRecognizedUnit(item?.unit, name, category)
 			const location = this.normalizeVoiceLocation(item?.location || intent.location || fallbackLocation || this.form.location || '冷藏')
 			const expireDate = this.normalizeVoiceExpireDate(item?.expireDate || intent.expireDate || fallbackExpireDate || this.form.expireDate)
@@ -797,6 +799,18 @@ export default {
 			if (cat === '肉类') return '克'
 			if (cat === '饮料') return '毫升'
 			return '个'
+		},
+		inferCategoryByName(name) {
+			const text = `${name || ''}`
+			if (!text) return ''
+			if (/(苹果|香蕉|橙|梨|桃|葡萄|莓|西瓜|哈密瓜|柚|柠檬|樱桃|芒果|菠萝|榴莲)/.test(text)) return '水果'
+			if (/(菜|葱|姜|蒜|椒|茄|瓜|萝卜|土豆|西兰花|蘑菇|菌|豆角|白菜|生菜|菠菜|芹菜)/.test(text)) return '蔬菜'
+			if (/(牛肉|猪肉|羊肉|鸡肉|鸭肉|排骨|里脊|肉馅|火腿|培根)/.test(text)) return '肉类'
+			if (/(蛋|牛奶|酸奶|芝士|黄油|奶酪|奶油)/.test(text)) return '蛋奶'
+			if (/(虾|鱼|蟹|贝|蛤|鱿鱼|海参|海带)/.test(text)) return '海鲜'
+			if (/(可乐|雪碧|果汁|饮料|矿泉水|纯净水|茶饮|咖啡)/.test(text)) return '饮料'
+			if (/(酱|醋|盐|糖|料酒|生抽|老抽|蚝油|胡椒|孜然|番茄酱|沙拉酱)/.test(text)) return '调味品'
+			return '其他'
 		},
 		onBatchCategoryChange(index, e) {
 			const category = this.categories[e.detail.value]

@@ -1158,11 +1158,15 @@ export class AiService {
     const normalized = source
       .map((x) => {
         const parsedName = this.parseVoiceSingleItem(`${x?.name || ''}`)
+        const rawCategory = `${x?.category || ''}`.trim()
+        const category = this.validCategories.has(rawCategory)
+          ? rawCategory
+          : this.inferCategoryByName(parsedName.name)
         return {
           name: parsedName.name,
           quantity: this.normalizeVoiceQuantity(x?.quantity ?? parsedName.quantity),
           unit: `${x?.unit || parsedName.unit || ''}`.trim() || undefined,
-          category: this.validCategories.has(`${x?.category || ''}`.trim()) ? `${x?.category}`.trim() : undefined,
+          category: category || undefined,
         }
       })
       .filter((x) => !!x.name)
@@ -1173,6 +1177,7 @@ export class AiService {
         name: single.name,
         quantity: this.normalizeVoiceQuantity(single.quantity),
         unit: `${single.unit || ''}`.trim() || undefined,
+        category: this.inferCategoryByName(single.name) || undefined,
       },
     ]
   }
