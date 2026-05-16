@@ -700,19 +700,25 @@ export default {
 				.replace(/^(帮我|请|麻烦|把|将|我要|我想|给我)\s*/g, '')
 				.trim()
 
-			const match = text.match(
-				/^([零一二两三四五六七八九十百千万\d]+(?:\.\d+)?)\s*(个|颗|斤|公斤|千克|克|袋|包|瓶|盒|罐|把|根|条|片|块|份|毫升|升)?\s*(.+)$/,
-			)
+			const unitPattern = '(个|颗|斤|公斤|千克|克|袋|包|瓶|盒|罐|把|根|条|片|块|份|毫升|升)'
+			const qtyPattern = '([零一二两三四五六七八九十百千万\\d]+(?:\\.\\d+)?)'
+			const qtyFirst = text.match(new RegExp(`^${qtyPattern}\\s*${unitPattern}?\\s*(.+)$`))
+			const nameFirst = text.match(new RegExp(`^(.+?)\\s*${qtyPattern}\\s*${unitPattern}$`))
 			let quantity
 			let unit = ''
 			let name = text
-			if (match) {
-				quantity = this.parseChineseVoiceNumber(match[1])
-				unit = `${match[2] || ''}`.trim()
-				name = `${match[3] || ''}`.trim()
+			if (qtyFirst) {
+				quantity = this.parseChineseVoiceNumber(qtyFirst[1])
+				unit = `${qtyFirst[2] || ''}`.trim()
+				name = `${qtyFirst[3] || ''}`.trim()
+			} else if (nameFirst) {
+				quantity = this.parseChineseVoiceNumber(nameFirst[2])
+				unit = `${nameFirst[3] || ''}`.trim()
+				name = `${nameFirst[1] || ''}`.trim()
 			}
 			name = `${name || ''}`
 				.replace(/^(一个|一份|一斤|一袋|一包|一盒|一瓶|一罐|一根|一条|一片|一块)\s*/g, '')
+				.replace(/\s*([零一二两三四五六七八九十百千万\d]+)\s*(个|颗|斤|公斤|千克|克|袋|包|瓶|盒|罐|把|根|条|片|块|份|毫升|升)\s*$/g, '')
 				.replace(/([零一二两三四五六七八九十百千万\d]+)\s*(放|存|冻)$/g, '')
 				.replace(/(放在|放到|放进|放入|存到|存入|放至|存至|放|存|冻起来|冻上|冻)$/g, '')
 				.trim()
