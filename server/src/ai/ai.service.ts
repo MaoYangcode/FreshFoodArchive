@@ -1083,7 +1083,7 @@ export class AiService {
     if (nameFirst) {
       const [, rawName = '', rawQty = '', rawUnit = ''] = nameFirst
       return {
-        name: rawName.trim(),
+        name: this.cleanVoiceName(rawName),
         quantity: this.normalizeVoiceQuantity(rawQty),
         unit: rawUnit.trim() || undefined,
       }
@@ -1095,12 +1095,25 @@ export class AiService {
     if (qtyFirst) {
       const [, rawQty = '', rawUnit = '', rawName = ''] = qtyFirst
       return {
-        name: rawName.trim(),
+        name: this.cleanVoiceName(rawName),
         quantity: this.normalizeVoiceQuantity(rawQty),
         unit: rawUnit.trim() || undefined,
       }
     }
-    return { name: cleaned, quantity: undefined as number | undefined, unit: undefined as string | undefined }
+    return {
+      name: this.cleanVoiceName(cleaned),
+      quantity: undefined as number | undefined,
+      unit: undefined as string | undefined,
+    }
+  }
+
+  private cleanVoiceName(raw: string) {
+    return `${raw || ''}`
+      .replace(/\s+/g, '')
+      .replace(/(放在|放到|放进|放入|存到|存入|放至|存至|冻起来|冻上|放冰箱|冰箱里|冷藏室|冷藏层|冷冻室|冷冻层|冷冻柜|保鲜层)$/g, '')
+      .replace(/([零一二两三四五六七八九十百千万\d]+)(放|存|冻)$/g, '')
+      .replace(/(放|存|冻)$/g, '')
+      .trim()
   }
 
   private normalizeVoiceQuantity(value: unknown) {
