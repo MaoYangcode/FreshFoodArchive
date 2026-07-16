@@ -281,6 +281,7 @@ export class AiService {
   }
 
   async generateRecipeList(payload: any): Promise<RecipeGenerateResult> {
+    const startedAt = Date.now()
     const ingredients = Array.isArray(payload?.ingredients) ? payload.ingredients : []
     const count = Math.min(Math.max(Number(payload?.count || 6), 1), 10)
     const cookingTime = Number(payload?.cookingTime || 30)
@@ -289,6 +290,7 @@ export class AiService {
     const requestNonce = `${payload?.requestNonce || ''}`.trim()
     const userId = Math.max(Number(payload?.userId || 1), 1)
     const profile = await this.loadUserProfileForRecipe(userId)
+    const profileMs = Date.now() - startedAt
     const avoidances = profile.avoidances
     const dietPreferences = profile.dietPreferences
     const cookwareNote = profile.note
@@ -326,6 +328,17 @@ export class AiService {
     const pantryNames = ingredients
       .map((x: any) => `${x?.name || ''}`.trim())
       .filter(Boolean)
+    const uniquePantryNames = Array.from(new Set(pantryNames.map((x) => this.normalizeTextForCompare(x)))).filter(Boolean)
+    const isSingleIngredientMode = uniquePantryNames.length === 1
+    const singleIngredientGuidance = isSingleIngredientMode
+      ? [
+          '单一库存食材场景：请围绕这个核心食材生成 6 道不同常见家常菜。',
+          '允许补充常见主料、辅料和调味料来让菜成立，不要因为库存只有一种食材而反复犹豫或返回空。',
+          '6 道菜应覆盖不同做法，例如快炒、炖/焖、汤、主食/馅料、蒸/煮、凉拌/快手菜；不要只换调料重复同一种菜。',
+        ].join('\n')
+      : [
+          '多食材场景：优先覆盖不同库存食材，保持菜式多样。',
+        ].join('\n')
 
     const prompt = [
       '你是家庭烹饪助手。仅返回 JSON，不要附带解释文本。',
@@ -340,6 +353,7 @@ export class AiService {
       `已展示菜谱名（禁止重复）：${excludeNames.length ? excludeNames.join('、') : '无'}`,
       `本次生成随机标识：${requestNonce || 'none'}`,
       `食材：${ingredientText}`,
+      singleIngredientGuidance,
       '菜谱合理性要求（必须遵守）：',
       '1) 菜名必须是常见家常菜，不要生造菜名，不要出现明显违和组合（如“苹果炒土豆”）。',
       '2) 每道菜至少命中 1 种库存食材（库存优先）。',
@@ -355,7 +369,9 @@ export class AiService {
     ].join('\n')
 
     let content = ''
+    let dashScopeMs = 0
     try {
+      const dashScopeStartedAt = Date.now()
       content = await this.callDashScope(
         this.textModel,
         [
@@ -366,9 +382,11 @@ export class AiService {
         0.2,
         2200,
       )
+      dashScopeMs = Date.now() - dashScopeStartedAt
     } catch (err) {
+      dashScopeMs = dashScopeMs || Date.now() - startedAt - profileMs
       this.logger.warn(
-        `DashScope generate-recipe failed, fallback to mock: ${err?.message || err || 'unknown error'}`,
+        `DashScope generate-recipe failed, fallback to mock: ${err?.message || err || 'unknown error'}; ingredientCount=${pantryNames.length}, singleIngredient=${isSingleIngredientMode}, profileMs=${profileMs}, dashScopeMs=${dashScopeMs}, totalMs=${Date.now() - startedAt}`,
       )
       const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
       profileApplied.generatedCount = mocked.length
@@ -403,8 +421,9 @@ export class AiService {
     }
     const beforeFilterCount = recipes.length
     recipes = this.filterRecipesByAvoidances(recipes, avoidances)
+    const parsedMs = Date.now() - startedAt - profileMs - dashScopeMs
     this.logger.log(
-      `recipe-filter-stats parsed=${list.length}, fallbackParsed=${fallbackRecipes.length}, normalized=${recipesBeforeExclude.length}, afterExclude=${recipesBeforeAnyStrictFilter.length}, afterPantry=${beforeFilterCount}, afterAvoidance=${recipes.length}`,
+      `recipe-filter-stats parsed=${list.length}, fallbackParsed=${fallbackRecipes.length}, normalized=${recipesBeforeExclude.length}, afterExclude=${recipesBeforeAnyStrictFilter.length}, afterPantry=${beforeFilterCount}, afterAvoidance=${recipes.length}, ingredientCount=${pantryNames.length}, singleIngredient=${isSingleIngredientMode}, profileMs=${profileMs}, dashScopeMs=${dashScopeMs}, parseFilterMs=${Math.max(parsedMs, 0)}`,
     )
     let removedByAvoidanceCount = Math.max(beforeFilterCount - recipes.length, 0)
 
@@ -425,6 +444,7 @@ export class AiService {
         `期望总烹饪时长（分钟）：${cookingTime}`,
         `食材：${ingredientText}`,
         `本次生成随机标识：${requestNonce || Date.now()}`,
+        singleIngredientGuidance,
         '菜谱合理性要求（必须遵守）：',
         '1) 菜名必须是常见家常菜，不要生造菜名，不要出现明显违和组合（如“苹果炒土豆”）。',
         '2) 每道菜至少命中 1 种库存食材（库存优先）。',
@@ -438,7 +458,9 @@ export class AiService {
         '如果无法生成，返回 {"recipes":[]}',
       ].join('\n')
       let retryContent = ''
+      let retryDashScopeMs = 0
       try {
+        const retryStartedAt = Date.now()
         retryContent = await this.callDashScope(
           this.textModel,
           [
@@ -449,9 +471,15 @@ export class AiService {
           excludeNames.length ? 0.55 : 0.2,
           2200,
         )
+        retryDashScopeMs = Date.now() - retryStartedAt
       } catch (_) {
         this.logger.warn('DashScope retry generate-recipe failed, keep current generated recipes')
         retryContent = ''
+      }
+      if (retryDashScopeMs) {
+        this.logger.log(
+          `recipe-retry-stats remain=${remain}, ingredientCount=${pantryNames.length}, singleIngredient=${isSingleIngredientMode}, dashScopeMs=${retryDashScopeMs}`,
+        )
       }
       const retryParsed = this.parseJson(retryContent)
       const retryList = this.pickRecipeArray(retryParsed)
@@ -494,6 +522,9 @@ export class AiService {
     profileApplied.generatedCount = finalRecipes.length
     profileApplied.removedByAvoidanceCount = removedByAvoidanceCount
     profileApplied.reducedByAvoidance = finalRecipes.length < count && removedByAvoidanceCount > 0
+    this.logger.log(
+      `recipe-generate-total requested=${count}, returned=${finalRecipes.length}, ingredientCount=${pantryNames.length}, singleIngredient=${isSingleIngredientMode}, totalMs=${Date.now() - startedAt}`,
+    )
     return { recipes: finalRecipes, profileApplied }
   }
 
