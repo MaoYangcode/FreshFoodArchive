@@ -39,6 +39,22 @@ type RecipeGenerateResult = {
   profileApplied: ProfileApplied
 }
 
+type RecipeGenerateTaskStatus = 'pending' | 'generating' | 'done' | 'failed'
+
+type RecipeGenerateTask = {
+  taskId: string
+  status: RecipeGenerateTaskStatus
+  recipes: GeneratedRecipe[]
+  doneCount: number
+  totalCount: number
+  message: string
+  profileApplied: ProfileApplied | null
+  createdAt: number
+  updatedAt: number
+  expiresAt: number
+  errors: string[]
+}
+
 type VoiceRecognizeResult = {
   text: string
   name: string
@@ -56,6 +72,7 @@ type VoiceRecognizeResult = {
 export class AiService {
   constructor(private readonly prisma: PrismaService) {}
   private readonly logger = new Logger(AiService.name)
+  private readonly recipeTasks = new Map<string, RecipeGenerateTask>()
 
   private readonly apiKey = process.env.DASHSCOPE_API_KEY || ''
   private readonly endpoint = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
@@ -95,6 +112,174 @@ export class AiService {
     平菇: '蘑菇',
     口蘑: '蘑菇',
     鸡胸: '鸡胸肉',
+  }
+
+  createRecipeGenerateTask(payload: any) {
+    this.cleanupRecipeTasks()
+    const count = Math.min(Math.max(Number(payload?.count || 6), 1), 10)
+    const taskId = `recipe_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+    const now = Date.now()
+    const task: RecipeGenerateTask = {
+      taskId,
+      status: 'pending',
+      recipes: [],
+      doneCount: 0,
+      totalCount: count,
+      message: '正在生成菜谱',
+      profileApplied: null,
+      createdAt: now,
+      updatedAt: now,
+      expiresAt: now + 10 * 60 * 1000,
+      errors: [],
+    }
+    this.recipeTasks.set(taskId, task)
+    setTimeout(() => {
+      this.runRecipeGenerateTask(taskId, payload).catch((error) => {
+        const current = this.recipeTasks.get(taskId)
+        if (!current) return
+        current.status = current.recipes.length ? 'done' : 'failed'
+        current.message = current.recipes.length ? '已生成部分菜谱' : error?.message || '菜谱生成失败'
+        current.errors.push(error?.message || `${error || 'unknown error'}`)
+        current.updatedAt = Date.now()
+      })
+    }, 0)
+    return this.toRecipeTaskSnapshot(task)
+  }
+
+  getRecipeGenerateTask(taskId: string) {
+    this.cleanupRecipeTasks()
+    const task = this.recipeTasks.get(`${taskId || ''}`.trim())
+    return task ? this.toRecipeTaskSnapshot(task) : null
+  }
+
+  private toRecipeTaskSnapshot(task: RecipeGenerateTask) {
+    return {
+      taskId: task.taskId,
+      status: task.status,
+      recipes: task.recipes.slice(0, task.totalCount),
+      doneCount: Math.min(task.recipes.length, task.totalCount),
+      totalCount: task.totalCount,
+      message: task.message,
+      profileApplied: task.profileApplied,
+      updatedAt: task.updatedAt,
+      errors: task.errors.slice(-3),
+    }
+  }
+
+  private cleanupRecipeTasks() {
+    const now = Date.now()
+    for (const [taskId, task] of this.recipeTasks.entries()) {
+      if (task.expiresAt <= now) this.recipeTasks.delete(taskId)
+    }
+  }
+
+  private async runRecipeGenerateTask(taskId: string, payload: any) {
+    const task = this.recipeTasks.get(taskId)
+    if (!task) return
+    task.status = 'generating'
+    task.message = '正在生成第 1 批菜谱'
+    task.updatedAt = Date.now()
+
+    const totalCount = task.totalCount
+    const batchSizes = this.makeRecipeBatchSizes(totalCount, 2)
+    const batchFocus = ['快炒、凉拌、快手菜', '炖焖、汤羹、蒸煮菜', '主食、馅料、烤煎菜']
+    const maxConcurrency = 2
+    let cursor = 0
+    let running = 0
+
+    await new Promise<void>((resolve) => {
+      const launchNext = () => {
+        if (!this.recipeTasks.has(taskId)) {
+          resolve()
+          return
+        }
+        if (cursor >= batchSizes.length && running <= 0) {
+          resolve()
+          return
+        }
+        while (running < maxConcurrency && cursor < batchSizes.length) {
+          const batchIndex = cursor
+          const batchCount = batchSizes[cursor]
+          cursor += 1
+          running += 1
+          this.runRecipeGenerateBatch(taskId, payload, batchCount, batchIndex, batchFocus[batchIndex % batchFocus.length])
+            .catch((error) => {
+              const current = this.recipeTasks.get(taskId)
+              if (current) {
+                current.errors.push(error?.message || `${error || 'unknown error'}`)
+                current.updatedAt = Date.now()
+              }
+            })
+            .finally(() => {
+              running -= 1
+              launchNext()
+            })
+        }
+      }
+      launchNext()
+    })
+
+    const current = this.recipeTasks.get(taskId)
+    if (!current) return
+    current.doneCount = Math.min(current.recipes.length, current.totalCount)
+    current.status = current.recipes.length ? 'done' : 'failed'
+    current.message = current.recipes.length >= current.totalCount ? '菜谱生成完成' : '已生成部分菜谱'
+    current.updatedAt = Date.now()
+    this.logger.log(
+      `recipe-task-total taskId=${taskId}, returned=${current.doneCount}, total=${current.totalCount}, errors=${current.errors.length}`,
+    )
+  }
+
+  private makeRecipeBatchSizes(totalCount: number, preferredSize: number) {
+    const sizes: number[] = []
+    let remaining = Math.max(0, Math.floor(totalCount))
+    while (remaining > 0) {
+      const size = Math.min(preferredSize, remaining)
+      sizes.push(size)
+      remaining -= size
+    }
+    return sizes
+  }
+
+  private async runRecipeGenerateBatch(
+    taskId: string,
+    payload: any,
+    batchCount: number,
+    batchIndex: number,
+    batchFocus: string,
+  ) {
+    const task = this.recipeTasks.get(taskId)
+    if (!task) return
+    const existingNames = task.recipes.map((x) => x.name).filter(Boolean)
+    const excludeNames = [...this.normalizeStringArray(payload?.excludeNames), ...existingNames]
+    task.message = `正在生成第 ${batchIndex + 1} 批菜谱`
+    task.updatedAt = Date.now()
+
+    const result = await this.generateRecipeList({
+      ...(payload || {}),
+      count: batchCount,
+      excludeNames,
+      batchFocus,
+      allowMockFallback: false,
+      requestNonce: `${payload?.requestNonce || taskId}_${batchIndex}_${Date.now()}`,
+    })
+    const current = this.recipeTasks.get(taskId)
+    if (!current) return
+    const seen = new Set(current.recipes.map((x) => this.normalizeTextForCompare(x.name)))
+    for (const recipe of result.recipes || []) {
+      const key = this.normalizeTextForCompare(recipe?.name)
+      if (!key || seen.has(key)) continue
+      current.recipes.push(recipe)
+      seen.add(key)
+      if (current.recipes.length >= current.totalCount) break
+    }
+    current.doneCount = Math.min(current.recipes.length, current.totalCount)
+    current.profileApplied = result.profileApplied || current.profileApplied
+    current.message = current.doneCount >= current.totalCount ? '菜谱生成完成' : `已生成 ${current.doneCount}/${current.totalCount}`
+    current.updatedAt = Date.now()
+    this.logger.log(
+      `recipe-task-batch taskId=${taskId}, batch=${batchIndex + 1}, requested=${batchCount}, accepted=${current.doneCount}, focus=${batchFocus}`,
+    )
   }
 
   async recognizeIngredientFromImage(file: any): Promise<RecognizedIngredient[]> {
@@ -288,6 +473,8 @@ export class AiService {
     const tastePreference = `${payload?.tastePreference || '家常'}`
     const excludeNames = this.normalizeStringArray(payload?.excludeNames)
     const requestNonce = `${payload?.requestNonce || ''}`.trim()
+    const batchFocus = `${payload?.batchFocus || ''}`.trim()
+    const allowRecipeMockFallback = payload?.allowMockFallback !== false
     const userId = Math.max(Number(payload?.userId || 1), 1)
     const profile = await this.loadUserProfileForRecipe(userId)
     const profileMs = Date.now() - startedAt
@@ -309,6 +496,7 @@ export class AiService {
 
     if (!ingredients.length) return { recipes: [], profileApplied }
     if (!this.apiKey) {
+      if (!allowRecipeMockFallback) throw new Error('DASHSCOPE_API_KEY 未配置')
       const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
       profileApplied.generatedCount = mocked.length
       profileApplied.removedByAvoidanceCount = Math.max(count - mocked.length, 0)
@@ -351,6 +539,7 @@ export class AiService {
       `期望总烹饪时长（分钟）：${cookingTime}`,
       `候选数量：${count}`,
       `已展示菜谱名（禁止重复）：${excludeNames.length ? excludeNames.join('、') : '无'}`,
+      batchFocus ? `本批菜式方向：${batchFocus}` : '',
       `本次生成随机标识：${requestNonce || 'none'}`,
       `食材：${ingredientText}`,
       singleIngredientGuidance,
@@ -388,6 +577,9 @@ export class AiService {
       this.logger.warn(
         `DashScope generate-recipe failed, fallback to mock: ${err?.message || err || 'unknown error'}; ingredientCount=${pantryNames.length}, singleIngredient=${isSingleIngredientMode}, profileMs=${profileMs}, dashScopeMs=${dashScopeMs}, totalMs=${Date.now() - startedAt}`,
       )
+      if (!allowRecipeMockFallback) {
+        throw new Error(err?.message || '菜谱生成服务调用失败')
+      }
       const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
       profileApplied.generatedCount = mocked.length
       profileApplied.removedByAvoidanceCount = Math.max(count - mocked.length, 0)
@@ -435,6 +627,7 @@ export class AiService {
         `请补充生成 ${remain} 道新菜谱，且与已有菜谱不要重复。`,
         `已有菜谱名：${[...excludeNames, ...recipes.map((x) => x.name)].filter(Boolean).join('、') || '无'}`,
         `以下菜名绝对禁止出现：${[...excludeNames, ...recipes.map((x) => x.name)].filter(Boolean).join('、') || '无'}`,
+        batchFocus ? `本批菜式方向：${batchFocus}` : '',
         '如果菜名与已有菜谱重复，则该条视为无效，不要返回。',
         `口味偏好：${tastePreference}`,
         `饮食偏好（软约束）：${dietPreferences.length ? dietPreferences.join('、') : '无特别偏好'}`,
@@ -516,6 +709,9 @@ export class AiService {
       this.logger.warn(
         `DashScope returned empty recipes after filtering, fallback to mock recipes. pantry=[${pantryNames.join(',')}], contentSnippet=${snippet}`,
       )
+      if (!allowRecipeMockFallback) {
+        throw new Error('AI 未生成可用菜谱，请重试')
+      }
       const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
       finalRecipes = mocked.slice(0, count)
     }

@@ -11,6 +11,23 @@ export function recommendRecipes(payload) {
 
 export const generateRecipes = recommendRecipes
 
+export function createRecipeTask(payload) {
+	return request({
+		url: '/ai/generate-recipe-task',
+		method: 'POST',
+		data: payload,
+		timeout: 15000
+	})
+}
+
+export function getRecipeTask(taskId) {
+	return request({
+		url: `/ai/generate-recipe-task/${encodeURIComponent(`${taskId || ''}`)}`,
+		method: 'GET',
+		timeout: 10000
+	})
+}
+
 export function getRecipeDetail(payload) {
 	return request({
 		url: '/ai/generate-recipe',

@@ -25,7 +25,7 @@
 <script>
 import BottomNav from '@/components/bottom-nav.vue'
 import { getIngredientList } from '@/api/modules/ingredients'
-import { recommendRecipes } from '@/api/modules/recipes'
+import { createRecipeTask } from '@/api/modules/recipes'
 import { getCurrentUserId } from '@/utils/current-user'
 
 const RECIPE_PANTRY_CACHE_KEY = 'FFA_RECIPE_PANTRY_CACHE'
@@ -169,13 +169,15 @@ export default {
 				this.progressTimer = null
 			}
 		},
-		openRecipeResultPage() {
+		openRecipeResultPage(taskId = '') {
 			const pages = getCurrentPages()
+			const query = taskId ? `?taskId=${encodeURIComponent(taskId)}` : ''
+			const targetUrl = `/pages/recipe/result${query}`
 			const openWithRedirect = () => {
 				uni.redirectTo({
-					url: '/pages/recipe/result',
+					url: targetUrl,
 					fail: () => {
-						uni.reLaunch({ url: '/pages/recipe/result' })
+						uni.reLaunch({ url: targetUrl })
 					}
 				})
 			}
@@ -184,7 +186,7 @@ export default {
 				return
 			}
 			uni.navigateTo({
-				url: '/pages/recipe/result',
+				url: targetUrl,
 				fail: (err) => {
 					const msg = `${err?.errMsg || ''}`
 					if (msg.includes('webview count limit exceed')) {
@@ -215,32 +217,31 @@ export default {
 					return
 				}
 
-				const aiRes = await recommendRecipes({
+				const taskRes = await createRecipeTask({
 					userId,
 					ingredients,
 					tastePreference: '家常',
 					cookingTime: 30,
 					count: 6
 				})
-				const recipes = Array.isArray(aiRes?.data?.recipes) ? aiRes.data.recipes : []
-				const profileApplied = aiRes?.data?.profileApplied || null
-				if (!recipes.length) {
-					uni.showToast({ title: '未生成菜谱，请重试', icon: 'none' })
+				const taskId = `${taskRes?.data?.taskId || taskRes?.taskId || ''}`.trim()
+				if (!taskId) {
+					uni.showToast({ title: '创建生成任务失败，请重试', icon: 'none' })
 					return
 				}
 
 				const batchId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 				this.generateProgress = 100
-				uni.setStorageSync('latestGeneratedRecipes', recipes)
+				uni.setStorageSync('latestGeneratedRecipes', [])
 				uni.setStorageSync('latestGeneratedBatchId', batchId)
-				uni.setStorageSync('latestRecipeProfileApplied', profileApplied)
+				uni.setStorageSync('latestRecipeProfileApplied', null)
 				uni.setStorageSync(
 					'latestPantryTags',
 					ingredients.slice(0, 6).map((x) => x.name).filter(Boolean)
 				)
 				uni.setStorageSync('latestPantryIngredients', ingredients)
 				await this.finishProgress()
-				this.openRecipeResultPage()
+				this.openRecipeResultPage(taskId)
 			} catch (e) {
 				console.error('生成失败', e)
 				const msg = `${e?.message || e?.msg || e?.data?.message || ''}`.trim()

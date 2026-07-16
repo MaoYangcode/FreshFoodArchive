@@ -25,7 +25,11 @@
 				</view>
 			</picker>
 		</view>
-		<view class="recipe-card" v-for="item in displayRecipes" :key="item.id" @click="openDetail(item)">
+		<view v-if="taskId" class="task-status">
+			<text class="task-title">{{ taskStatusText }}</text>
+			<text class="task-count">{{ recipes.length }}/{{ taskTotalCount }}</text>
+		</view>
+		<view class="recipe-card" v-for="(item, idx) in displayRecipes" :key="item.id" @click="openDetail(item)">
 			<view class="recipe-avatar">
 				<IngredientIcon :name="pickRecipeCoverName(item)" :size="44" />
 			</view>
@@ -44,7 +48,15 @@
 			</view>
 			<text class="recipe-cta" :class="{ blue: idx === 0 }">查看做法</text>
 		</view>
-		<view v-if="!displayRecipes.length" class="empty-hint">当前筛选条件下暂无菜谱，试试取消筛选。</view>
+		<view v-for="idx in skeletonCount" :key="`skeleton_${idx}`" class="recipe-card skeleton-card">
+			<view class="recipe-avatar skeleton-avatar"></view>
+			<view class="recipe-main">
+				<view class="skeleton-line title-line"></view>
+				<view class="skeleton-line meta-line"></view>
+			</view>
+			<text class="recipe-cta pending">生成中</text>
+		</view>
+		<view v-if="!displayRecipes.length && !isTaskGenerating" class="empty-hint">当前筛选条件下暂无菜谱，试试取消筛选。</view>
 		<BottomNav current="recipe" />
 	</view>
 </template>
@@ -52,12 +64,13 @@
 <script>
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
+import { getRecipeTask } from '@/api/modules/recipes'
 
 export default {
 	components: { BottomNav, IngredientIcon },
 	data() {
 		return {
-			pantryTags: ['番茄', '鸡蛋', '牛肉', '洋葱'],
+			pantryTags: [],
 			sortMode: 'score',
 			sortOptions: [
 				{ key: 'score', label: '按匹配度' },
@@ -66,29 +79,13 @@ export default {
 			],
 			cookingTimeOptions: [0, 20, 30, 45, 60],
 			selectedCookingTime: 30,
-			recipes: [
-				{
-					id: 1,
-					name: '番茄炒蛋',
-					score: 96,
-					duration: 10,
-					difficulty: '简单',
-					emoji: '🍅',
-					sourceIndex: 0,
-					raw: { ingredients: [{ name: '番茄' }, { name: '鸡蛋' }] }
-				},
-				{
-					id: 2,
-					name: '黑椒牛肉',
-					score: 89,
-					duration: 18,
-					difficulty: '中等',
-					emoji: '🥩',
-					sourceIndex: 1,
-					raw: { ingredients: [{ name: '牛肉' }, { name: '洋葱' }] }
-				}
-			],
-			profileApplied: null
+			recipes: [],
+			profileApplied: null,
+			taskId: '',
+			taskStatus: '',
+			taskMessage: '',
+			taskTotalCount: 6,
+			taskPollTimer: null
 		}
 	},
 	computed: {
@@ -98,6 +95,19 @@ export default {
 		currentCookingTimeLabel() {
 			const v = Number(this.selectedCookingTime || 0)
 			return v <= 0 ? '不限时长' : `${v}分钟内`
+		},
+		isTaskGenerating() {
+			return !!this.taskId && ['pending', 'generating'].includes(`${this.taskStatus || ''}`)
+		},
+		taskStatusText() {
+			if (!this.taskId) return ''
+			if (this.taskStatus === 'done') return '菜谱生成完成'
+			if (this.taskStatus === 'failed') return this.taskMessage || '菜谱生成失败'
+			return this.taskMessage || '正在生成菜谱'
+		},
+		skeletonCount() {
+			if (!this.isTaskGenerating) return 0
+			return Math.max(0, Number(this.taskTotalCount || 6) - this.recipes.length)
 		},
 		displayRecipes() {
 			const pantrySet = new Set(this.pantryTags.map((x) => this.normalizeName(x)).filter(Boolean))
@@ -121,12 +131,18 @@ export default {
 			return filtered.sort((a, b) => this.compareRecipes(a, b))
 		}
 	},
-	onLoad() {
+	onLoad(query = {}) {
+		this.taskId = `${query?.taskId || ''}`.trim()
 		this.ensureShareMenu()
+		this.loadGeneratedRecipes()
+		if (this.taskId) this.startTaskPolling()
 	},
 	onShow() {
 		this.ensureShareMenu()
-		this.loadGeneratedRecipes()
+		if (!this.taskId) this.loadGeneratedRecipes()
+	},
+	onUnload() {
+		this.stopTaskPolling()
 	},
 	onShareAppMessage() {
 		const tags = (Array.isArray(this.pantryTags) ? this.pantryTags : []).filter(Boolean).slice(0, 3).join('、')
@@ -208,7 +224,11 @@ export default {
 			this.profileApplied = profileApplied && typeof profileApplied === 'object' ? profileApplied : null
 			if (!Array.isArray(generated) || !generated.length) return
 
-			this.recipes = generated.slice(0, 6).map((item, idx) => ({
+			this.applyGeneratedRecipes(generated)
+		},
+		applyGeneratedRecipes(generated) {
+			const list = Array.isArray(generated) ? generated : []
+			this.recipes = list.slice(0, 6).map((item, idx) => ({
 				id: item.id || idx + 1,
 				name: item.name || `菜谱 ${idx + 1}`,
 				score: Number(item.matchScore || item.score || 85),
@@ -218,6 +238,43 @@ export default {
 				sourceIndex: idx,
 				raw: item
 			}))
+		},
+		startTaskPolling() {
+			this.stopTaskPolling()
+			this.pollRecipeTask()
+			this.taskPollTimer = setInterval(() => this.pollRecipeTask(), 1500)
+		},
+		stopTaskPolling() {
+			if (this.taskPollTimer) {
+				clearInterval(this.taskPollTimer)
+				this.taskPollTimer = null
+			}
+		},
+		async pollRecipeTask() {
+			const taskId = `${this.taskId || ''}`.trim()
+			if (!taskId) return
+			try {
+				const res = await getRecipeTask(taskId)
+				const task = res?.data || res || {}
+				const recipes = Array.isArray(task?.recipes) ? task.recipes : []
+				this.taskStatus = `${task?.status || ''}`.trim()
+				this.taskMessage = `${task?.message || ''}`.trim()
+				this.taskTotalCount = Number(task?.totalCount || 6)
+				this.profileApplied = task?.profileApplied || this.profileApplied
+				if (recipes.length) {
+					this.applyGeneratedRecipes(recipes)
+					uni.setStorageSync('latestGeneratedRecipes', recipes)
+					uni.setStorageSync('latestRecipeProfileApplied', this.profileApplied)
+				}
+				if (this.taskStatus === 'done' || this.taskStatus === 'failed') {
+					this.stopTaskPolling()
+					if (!recipes.length && this.taskStatus === 'failed') {
+						uni.showToast({ title: this.taskMessage || '生成失败，请稍后重试', icon: 'none' })
+					}
+				}
+			} catch (e) {
+				console.error('查询菜谱任务失败', e)
+			}
 		},
 		getDifficultyWeight(v) {
 			if (v === '简单') return 1
@@ -388,6 +445,29 @@ export default {
 	margin-bottom: 10rpx;
 }
 
+.task-status {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	border: 1rpx solid #e1efe5;
+	border-radius: 12px;
+	background: #f6fbf7;
+	padding: 10rpx 14rpx;
+	margin-bottom: 14rpx;
+}
+
+.task-title {
+	font-size: 12px;
+	color: #58715f;
+	font-weight: 600;
+}
+
+.task-count {
+	font-size: 12px;
+	color: #3f9a4e;
+	font-weight: 700;
+}
+
 .recipe-avatar {
 	width: 60px;
 	height: 60px;
@@ -494,6 +574,48 @@ export default {
 .recipe-cta.blue {
 	background: #edf4ff;
 	color: #4a73d9;
+}
+
+.recipe-cta.pending {
+	background: #f1f5f2;
+	color: #7d8f84;
+}
+
+.skeleton-card {
+	pointer-events: none;
+}
+
+.skeleton-avatar,
+.skeleton-line {
+	background: linear-gradient(90deg, #edf2ef, #f7faf8, #edf2ef);
+	background-size: 200% 100%;
+	animation: skeleton-loading 1.2s ease-in-out infinite;
+}
+
+.skeleton-avatar {
+	width: 60px;
+	height: 60px;
+	border-radius: 14px;
+	border: 1rpx solid #e7efea;
+}
+
+.skeleton-line {
+	height: 14px;
+	border-radius: 999rpx;
+}
+
+.title-line {
+	width: 70%;
+}
+
+.meta-line {
+	width: 48%;
+	margin-top: 14rpx;
+}
+
+@keyframes skeleton-loading {
+	0% { background-position: 200% 0; }
+	100% { background-position: -200% 0; }
 }
 
 .empty-hint {

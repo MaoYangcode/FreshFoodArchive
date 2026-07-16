@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, UploadedFile, UseInterceptors } from '@nestjs/common'
+import { Body, Controller, Get, Param, Post, Req, UploadedFile, UseInterceptors } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { memoryStorage } from 'multer'
 import { AiService } from './ai.service'
@@ -98,6 +98,33 @@ export class AiController {
         data: null,
       }
     }
+  }
+
+  @Post('generate-recipe-task')
+  async createGenerateRecipeTask(@Req() req: any, @Body() body: any) {
+    try {
+      const payload = {
+        ...(body || {}),
+        userId: Number(req?.userId || 1),
+      }
+      const task = this.aiService.createRecipeGenerateTask(payload)
+      return { code: 0, message: 'ok', data: task }
+    } catch (error: any) {
+      return {
+        code: 10022,
+        message: error?.message || '创建菜谱生成任务失败',
+        data: null,
+      }
+    }
+  }
+
+  @Get('generate-recipe-task/:taskId')
+  getGenerateRecipeTask(@Param('taskId') taskId: string) {
+    const task = this.aiService.getRecipeGenerateTask(taskId)
+    if (!task) {
+      return { code: 10024, message: '菜谱生成任务不存在或已过期', data: null }
+    }
+    return { code: 0, message: 'ok', data: task }
   }
 
   @Post('recognize-audio')
