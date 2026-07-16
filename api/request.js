@@ -1,4 +1,11 @@
-import { getAuthToken, getCurrentUserId } from '../utils/current-user'
+import {
+	clearAuthToken,
+	clearCurrentUserId,
+	getAuthToken,
+	getCurrentUserId,
+	setAuthToken,
+	setCurrentUserId
+} from '../utils/current-user'
 
 // NOTE: Real-device debug often changes LAN IP.
 // Read storage-configured base URL first, then fall back to defaults.
@@ -54,6 +61,7 @@ function getBaseCandidates() {
 }
 
 let activeBaseUrl = getBaseCandidates()[0] || DEFAULT_BASE_URL_CANDIDATES[0]
+let silentLoginPromise = null
 
 export const BASE_URL = activeBaseUrl
 export function getActiveBaseUrl() {
@@ -68,29 +76,101 @@ export function setApiBaseUrl(baseUrl) {
 	return true
 }
 
-function requestOnce(baseUrl, { url, method = 'GET', data = {}, header = {}, timeout = 8000 }) {
+function isUnauthorizedPayload(payload) {
+	const statusCode = Number(payload?.statusCode || payload?.code || 0)
+	return statusCode === 401 || `${payload?.error || ''}` === 'Unauthorized'
+}
+
+function toUserId(value) {
+	const n = Number(value)
+	if (!Number.isFinite(n) || n <= 0) return 0
+	return Math.floor(n)
+}
+
+function requestWeChatCode() {
+	return new Promise((resolve, reject) => {
+		if (typeof uni === 'undefined' || typeof uni.login !== 'function') {
+			reject(new Error('当前环境不支持微信登录'))
+			return
+		}
+		uni.login({
+			provider: 'weixin',
+			success: ({ code }) => {
+				const safeCode = `${code || ''}`.trim()
+				if (!safeCode) {
+					reject(new Error('未获取到微信登录凭证'))
+					return
+				}
+				resolve(safeCode)
+			},
+			fail: (err) => reject(err || new Error('微信登录失败'))
+		})
+	})
+}
+
+function postWeChatLogin(baseUrl, code) {
+	return new Promise((resolve, reject) => {
+		uni.request({
+			url: `${baseUrl}/auth/wechat-login`,
+			method: 'POST',
+			data: { code },
+			header: { 'Content-Type': 'application/json' },
+			timeout: 15000,
+			success: (res) => {
+				const payload = res.data || {}
+				const statusCode = Number(res?.statusCode || 0)
+				if (statusCode < 200 || statusCode >= 300) {
+					console.error('静默登录失败', {
+						statusCode,
+						message: payload?.message || payload?.errmsg || payload?.errMsg || ''
+					})
+					reject(payload)
+					return
+				}
+				const userId = toUserId(payload?.userId)
+				const token = `${payload?.token || ''}`.trim()
+				if (!userId || !token) {
+					reject(new Error('invalid login payload'))
+					return
+				}
+				setCurrentUserId(userId)
+				setAuthToken(token)
+				console.log('静默登录成功', { userId })
+				resolve({ userId, token })
+			},
+			fail: (err) => {
+				console.error('静默登录请求失败', err)
+				reject(err)
+			}
+		})
+	})
+}
+
+function silentLogin(baseUrl) {
+	if (silentLoginPromise) return silentLoginPromise
+	clearCurrentUserId()
+	clearAuthToken()
+	silentLoginPromise = requestWeChatCode()
+		.then((code) => postWeChatLogin(baseUrl, code))
+		.finally(() => {
+			silentLoginPromise = null
+		})
+	return silentLoginPromise
+}
+
+function getRequestToken(baseUrl, isAuthLogin) {
+	if (isAuthLogin) return Promise.resolve('')
+	const token = `${getAuthToken() || ''}`.trim()
+	if (token) return Promise.resolve(token)
+	return silentLogin(baseUrl).then((res) => `${res?.token || getAuthToken() || ''}`.trim())
+}
+
+function requestOnce(baseUrl, { url, method = 'GET', data = {}, header = {}, timeout = 8000 }, retryAuth = true) {
 	return new Promise((resolve, reject) => {
 		const safeUrl = `${url || ''}`.trim()
 		const isAuthLogin = safeUrl === '/auth/wechat-login' || safeUrl.includes('/auth/wechat-login?')
-		const pickToken = () => `${getAuthToken() || ''}`.trim()
-		const waitForToken = (maxWaitMs = 5000) => new Promise((resolveToken) => {
-			const start = Date.now()
-			const loop = () => {
-				const current = pickToken()
-				if (current) {
-					resolveToken(current)
-					return
-				}
-				if (Date.now() - start >= maxWaitMs) {
-					resolveToken('')
-					return
-				}
-				setTimeout(loop, 200)
-			}
-			loop()
-		})
 		const userId = getCurrentUserId()
-		Promise.resolve(isAuthLogin ? '' : waitForToken())
+		getRequestToken(baseUrl, isAuthLogin)
 			.then((token) => {
 				if (!isAuthLogin && !token) {
 					reject({
@@ -114,6 +194,14 @@ function requestOnce(baseUrl, { url, method = 'GET', data = {}, header = {}, tim
 						const payload = res.data || {}
 						const statusCode = Number(res?.statusCode || 0)
 						if (statusCode < 200 || statusCode >= 300) {
+							if (!isAuthLogin && retryAuth && isUnauthorizedPayload(payload)) {
+								console.warn('登录已失效，正在重新静默登录')
+								silentLogin(baseUrl)
+									.then(() => requestOnce(baseUrl, { url, method, data, header, timeout }, false))
+									.then(resolve)
+									.catch(reject)
+								return
+							}
 							reject(payload)
 							return
 						}
