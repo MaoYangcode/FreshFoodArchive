@@ -177,7 +177,7 @@ export class AiService {
     const task = this.recipeTasks.get(taskId)
     if (!task) return
     task.status = 'generating'
-    task.message = '正在生成第 1 批菜谱'
+    task.message = '正在生成菜谱'
     task.updatedAt = Date.now()
 
     const totalCount = task.totalCount
@@ -252,8 +252,6 @@ export class AiService {
     if (!task) return
     const existingNames = task.recipes.map((x) => x.name).filter(Boolean)
     const excludeNames = [...this.normalizeStringArray(payload?.excludeNames), ...existingNames]
-    task.message = `正在生成第 ${batchIndex + 1} 批菜谱`
-    task.updatedAt = Date.now()
 
     const result = await this.generateRecipeList({
       ...(payload || {}),

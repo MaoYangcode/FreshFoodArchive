@@ -29,7 +29,7 @@
 			<text class="task-title">{{ taskStatusText }}</text>
 			<text class="task-count">{{ recipes.length }}/{{ taskTotalCount }}</text>
 		</view>
-		<view class="recipe-card" v-for="(item, idx) in displayRecipes" :key="item.id" @click="openDetail(item)">
+		<view class="recipe-card" v-for="item in displayRecipes" :key="item.id" @click="openDetail(item)">
 			<view class="recipe-avatar">
 				<IngredientIcon :name="pickRecipeCoverName(item)" :size="44" />
 			</view>
@@ -46,7 +46,7 @@
 					<text class="meta-item"><text class="meta-icon recipe-iconfont">&#xe6a1;</text>{{ item.difficulty }}</text>
 				</view>
 			</view>
-			<text class="recipe-cta" :class="{ blue: idx === 0 }">查看做法</text>
+			<text class="recipe-cta">查看做法</text>
 		</view>
 		<view v-for="idx in skeletonCount" :key="`skeleton_${idx}`" class="recipe-card skeleton-card">
 			<view class="recipe-avatar skeleton-avatar"></view>
@@ -101,9 +101,14 @@ export default {
 		},
 		taskStatusText() {
 			if (!this.taskId) return ''
-			if (this.taskStatus === 'done') return '菜谱生成完成'
+			const generatedCount = this.recipes.length
+			const totalCount = Number(this.taskTotalCount || 6)
+			if (this.taskStatus === 'done') {
+				return generatedCount >= totalCount ? '菜谱生成完成' : `生成结束，共 ${generatedCount} 道菜谱`
+			}
 			if (this.taskStatus === 'failed') return this.taskMessage || '菜谱生成失败'
-			return this.taskMessage || '正在生成菜谱'
+			if (generatedCount > 0) return `已生成 ${generatedCount} 道，其余继续生成中`
+			return '正在生成菜谱，请稍候'
 		},
 		skeletonCount() {
 			if (!this.isTaskGenerating) return 0
@@ -133,6 +138,7 @@ export default {
 	},
 	onLoad(query = {}) {
 		this.taskId = `${query?.taskId || ''}`.trim()
+		if (this.taskId) this.taskStatus = 'pending'
 		this.ensureShareMenu()
 		this.loadGeneratedRecipes()
 		if (this.taskId) this.startTaskPolling()
@@ -569,11 +575,6 @@ export default {
 	background: #eaf7ee;
 	color: #409a4d;
 	font-weight: 700;
-}
-
-.recipe-cta.blue {
-	background: #edf4ff;
-	color: #4a73d9;
 }
 
 .recipe-cta.pending {

@@ -95,7 +95,7 @@
 
 <script>
 import { deleteIngredient, getIngredientDetail, getIngredientList, updateIngredient } from '@/api/modules/ingredients'
-import { recommendRecipes } from '@/api/modules/recipes'
+import { createRecipeTask } from '@/api/modules/recipes'
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import { getCurrentUserId } from '@/utils/current-user'
@@ -218,8 +218,9 @@ export default {
 			const normalized = this.normalizeNameForCompare(haystack)
 			return normalized.includes(key)
 		},
-		openRecipeResultPage() {
-			const target = '/pages/recipe/result'
+		openRecipeResultPage(taskId = '') {
+			const query = taskId ? `?taskId=${encodeURIComponent(taskId)}` : ''
+			const target = `/pages/recipe/result${query}`
 			const openWithRedirect = () => {
 				uni.redirectTo({
 					url: target,
@@ -264,53 +265,29 @@ export default {
 			this.startRelatedProgress()
 			try {
 				const userId = getCurrentUserId()
-				const listRes = await getIngredientList({ userId })
-				const list = Array.isArray(listRes) ? listRes : []
-				const normalizedList = list.map((x) => this.normalizeIngredientItem(x)).filter((x) => !!x.name)
 				const currentItem = this.normalizeIngredientItem(this.form)
-				const pantryIngredients = normalizedList.length ? normalizedList : [currentItem]
-				const hasFocus = pantryIngredients.some((x) => this.normalizeNameForCompare(x.name) === this.normalizeNameForCompare(focusName))
-				const requestIngredients = hasFocus ? pantryIngredients : [currentItem, ...pantryIngredients]
-				const aiRes = await recommendRecipes({
+				const requestIngredients = [currentItem]
+				const taskRes = await createRecipeTask({
 					userId,
 					ingredients: requestIngredients,
 					tastePreference: '家常',
 					cookingTime: 30,
 					count: 6
 				})
-				const fullPantryRecipes = (Array.isArray(aiRes?.data?.recipes) ? aiRes.data.recipes : [])
-					.filter((x) => this.recipeIncludesIngredient(x, focusName))
-				const profileApplied = aiRes?.data?.profileApplied || null
-				const focusedRes = await recommendRecipes({
-					userId,
-					ingredients: [currentItem],
-					tastePreference: '家常',
-					cookingTime: 30,
-					count: 6
-				})
-				const singleFocusedRecipes = (Array.isArray(focusedRes?.data?.recipes) ? focusedRes.data.recipes : [])
-					.filter((x) => this.recipeIncludesIngredient(x, focusName))
-				const merged = [...singleFocusedRecipes, ...fullPantryRecipes]
-				const seen = new Set()
-				const recipes = merged.filter((item) => {
-					const key = this.normalizeNameForCompare(item?.name)
-					if (!key || seen.has(key)) return false
-					seen.add(key)
-					return true
-				})
-				if (!recipes.length) {
-					uni.showToast({ title: '暂未生成该食材相关菜谱', icon: 'none' })
+				const taskId = `${taskRes?.data?.taskId || taskRes?.taskId || ''}`.trim()
+				if (!taskId) {
+					uni.showToast({ title: '创建生成任务失败，请重试', icon: 'none' })
 					return
 				}
 				await this.finishRelatedProgress()
 				await new Promise((resolve) => setTimeout(resolve, 180))
 				const batchId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-				uni.setStorageSync('latestGeneratedRecipes', recipes.slice(0, 6))
+				uni.setStorageSync('latestGeneratedRecipes', [])
 				uni.setStorageSync('latestGeneratedBatchId', batchId)
-				uni.setStorageSync('latestRecipeProfileApplied', profileApplied)
+				uni.setStorageSync('latestRecipeProfileApplied', null)
 				uni.setStorageSync('latestPantryTags', [focusName])
 				uni.setStorageSync('latestPantryIngredients', requestIngredients)
-				this.openRecipeResultPage()
+				this.openRecipeResultPage(taskId)
 			} catch (e) {
 				console.error('生成相关菜谱失败', e)
 				uni.showToast({ title: '生成失败，请稍后重试', icon: 'none' })
