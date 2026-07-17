@@ -94,7 +94,7 @@
 </template>
 
 <script>
-import { deleteIngredient, getIngredientDetail, getIngredientList, updateIngredient } from '@/api/modules/ingredients'
+import { deleteIngredient, getIngredientDetail, updateIngredient } from '@/api/modules/ingredients'
 import { createRecipeTask } from '@/api/modules/recipes'
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
@@ -104,8 +104,7 @@ export default {
 	components: { BottomNav, IngredientIcon },
 	computed: {
 		relatedButtonText() {
-			if (!this.isRelatedGenerating) return '相关菜谱'
-			return `生成中 ${Math.max(1, Math.min(99, Math.round(this.relatedProgress || 0)))}%`
+			return this.isRelatedGenerating ? '生成中...' : '相关菜谱'
 		}
 	},
 	data() {
@@ -129,9 +128,7 @@ export default {
 				expireDate: '',
 				createdAt: ''
 			},
-			isRelatedGenerating: false,
-			relatedProgress: 0,
-			relatedProgressTimer: null
+			isRelatedGenerating: false
 		}
 	},
 	onLoad(options) {
@@ -148,76 +145,6 @@ export default {
 		})
 	},
 	methods: {
-		startRelatedProgress() {
-			this.stopRelatedProgress()
-			this.relatedProgress = 1
-			this.relatedProgressTimer = setInterval(() => {
-				if (!this.isRelatedGenerating) return
-				if (this.relatedProgress >= 96) return
-				if (this.relatedProgress < 20) {
-					this.relatedProgress += 1
-					return
-				}
-				if (this.relatedProgress < 45) {
-					this.relatedProgress += 1.6
-					return
-				}
-				if (this.relatedProgress < 70) {
-					this.relatedProgress += 2
-					return
-				}
-				if (this.relatedProgress < 88) {
-					this.relatedProgress += 1.2
-					return
-				}
-				this.relatedProgress += 0.35
-			}, 700)
-		},
-		finishRelatedProgress() {
-			return new Promise((resolve) => {
-				const from = Math.max(1, Number(this.relatedProgress || 0))
-				const to = 100
-				const totalMs = 1200
-				const stepMs = 60
-				const stepCount = Math.max(1, Math.floor(totalMs / stepMs))
-				let currentStep = 0
-				const timer = setInterval(() => {
-					currentStep += 1
-					const ratio = Math.min(1, currentStep / stepCount)
-					this.relatedProgress = from + (to - from) * ratio
-					if (ratio >= 1) {
-						clearInterval(timer)
-						this.relatedProgress = 100
-						resolve()
-					}
-				}, stepMs)
-			})
-		},
-		stopRelatedProgress() {
-			if (this.relatedProgressTimer) {
-				clearInterval(this.relatedProgressTimer)
-				this.relatedProgressTimer = null
-			}
-		},
-		normalizeNameForCompare(text) {
-			return `${text || ''}`
-				.toLowerCase()
-				.replace(/[（(].*?[）)]/g, '')
-				.replace(/[^a-z0-9\u4e00-\u9fa5]/g, '')
-		},
-		recipeIncludesIngredient(recipe, ingredientName) {
-			const key = this.normalizeNameForCompare(ingredientName)
-			if (!key) return false
-			const haystack = [
-				`${recipe?.name || ''}`,
-				...(Array.isArray(recipe?.ingredients) ? recipe.ingredients.map((x) => `${x?.name || ''}`) : []),
-				...(Array.isArray(recipe?.steps) ? recipe.steps.map((x) => `${x || ''}`) : [])
-			]
-				.join(' ')
-				.toLowerCase()
-			const normalized = this.normalizeNameForCompare(haystack)
-			return normalized.includes(key)
-		},
 		openRecipeResultPage(taskId = '') {
 			const query = taskId ? `?taskId=${encodeURIComponent(taskId)}` : ''
 			const target = `/pages/recipe/result${query}`
@@ -262,7 +189,6 @@ export default {
 				return
 			}
 			this.isRelatedGenerating = true
-			this.startRelatedProgress()
 			try {
 				const userId = getCurrentUserId()
 				const currentItem = this.normalizeIngredientItem(this.form)
@@ -279,8 +205,6 @@ export default {
 					uni.showToast({ title: '创建生成任务失败，请重试', icon: 'none' })
 					return
 				}
-				await this.finishRelatedProgress()
-				await new Promise((resolve) => setTimeout(resolve, 180))
 				const batchId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 				uni.setStorageSync('latestGeneratedRecipes', [])
 				uni.setStorageSync('latestGeneratedBatchId', batchId)
@@ -292,9 +216,7 @@ export default {
 				console.error('生成相关菜谱失败', e)
 				uni.showToast({ title: '生成失败，请稍后重试', icon: 'none' })
 			} finally {
-				this.stopRelatedProgress()
 				this.isRelatedGenerating = false
-				this.relatedProgress = 0
 			}
 		},
 		goBackToList() {

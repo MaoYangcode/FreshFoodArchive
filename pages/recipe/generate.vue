@@ -42,15 +42,12 @@ export default {
 	data() {
 		return {
 			isGenerating: false,
-			pantryIngredients: [],
-			generateProgress: 0,
-			progressTimer: null
+			pantryIngredients: []
 		}
 	},
 	computed: {
 		generateButtonText() {
-			if (!this.isGenerating) return '生成菜谱'
-			return `生成中 ${Math.max(1, Math.min(99, Math.round(this.generateProgress)))}%`
+			return this.isGenerating ? '生成中...' : '生成菜谱'
 		}
 	},
 	onLoad() {
@@ -61,9 +58,6 @@ export default {
 		this.ensureShareMenu()
 		this.hydratePantryCache()
 		this.prefetchPantryIngredients()
-	},
-	onUnload() {
-		this.stopProgress()
 	},
 	onShareAppMessage() {
 		const names = (Array.isArray(this.pantryIngredients) ? this.pantryIngredients : [])
@@ -122,53 +116,6 @@ export default {
 				this.persistPantryCache(ingredients)
 			} catch (_) {}
 		},
-		startProgress() {
-			this.stopProgress()
-			this.generateProgress = 5
-			this.progressTimer = setInterval(() => {
-				if (!this.isGenerating) return
-				if (this.generateProgress >= 99) return
-				if (this.generateProgress < 60) {
-					this.generateProgress += 7
-					return
-				}
-				if (this.generateProgress < 85) {
-					this.generateProgress += 2.8
-					return
-				}
-				if (this.generateProgress < 95) {
-					this.generateProgress += 1.1
-					return
-				}
-				this.generateProgress += 0.35
-			}, 700)
-		},
-		finishProgress() {
-			return new Promise((resolve) => {
-				const from = Math.max(1, Number(this.generateProgress || 0))
-				const to = 100
-				const totalMs = 480
-				const stepMs = 40
-				const stepCount = Math.max(1, Math.floor(totalMs / stepMs))
-				let currentStep = 0
-				const timer = setInterval(() => {
-					currentStep += 1
-					const ratio = Math.min(1, currentStep / stepCount)
-					this.generateProgress = from + (to - from) * ratio
-					if (ratio >= 1) {
-						clearInterval(timer)
-						this.generateProgress = 100
-						resolve()
-					}
-				}, stepMs)
-			})
-		},
-		stopProgress() {
-			if (this.progressTimer) {
-				clearInterval(this.progressTimer)
-				this.progressTimer = null
-			}
-		},
 		openRecipeResultPage(taskId = '') {
 			const pages = getCurrentPages()
 			const query = taskId ? `?taskId=${encodeURIComponent(taskId)}` : ''
@@ -200,7 +147,6 @@ export default {
 		async generate() {
 			if (this.isGenerating) return
 			this.isGenerating = true
-			this.startProgress()
 			try {
 				const userId = getCurrentUserId()
 				let ingredients = this.normalizeIngredients(this.pantryIngredients)
@@ -231,7 +177,6 @@ export default {
 				}
 
 				const batchId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-				this.generateProgress = 100
 				uni.setStorageSync('latestGeneratedRecipes', [])
 				uni.setStorageSync('latestGeneratedBatchId', batchId)
 				uni.setStorageSync('latestRecipeProfileApplied', null)
@@ -240,16 +185,13 @@ export default {
 					ingredients.slice(0, 6).map((x) => x.name).filter(Boolean)
 				)
 				uni.setStorageSync('latestPantryIngredients', ingredients)
-				await this.finishProgress()
 				this.openRecipeResultPage(taskId)
 			} catch (e) {
 				console.error('生成失败', e)
 				const msg = `${e?.message || e?.msg || e?.data?.message || ''}`.trim()
 				uni.showToast({ title: msg || '生成失败，请稍后重试', icon: 'none' })
 			} finally {
-				this.stopProgress()
 				this.isGenerating = false
-				this.generateProgress = 0
 			}
 		}
 	}
