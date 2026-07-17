@@ -310,8 +310,10 @@ export class AiService {
     const prompt = [
       '请识别图片中的食材，只返回 JSON，不要额外文本。',
       '如果图片中有多个食材，必须全部识别并逐条输出，不要只返回一个。',
-      'JSON 结构：{"ingredients":[{"name":"食材名","category":"类别","confidence":0.95}]}',
+      'JSON 结构：{"ingredients":[{"name":"食材名","category":"类别","quantity":3,"unit":"个","confidence":0.95}]}',
       'category 仅可取：水果、蔬菜、肉类、蛋奶、海鲜、饮料、调味品、其他。',
+      'quantity 和 unit 必须返回。对番茄、鸡蛋、土豆等可数食材按画面中可见数量逐个计数，不能全部默认写 1。',
+      '成把、成袋或成盒的食材使用“把”“袋”“盒”等单位；无法准确逐个计数时，给出合理估算数量并使用“份”。',
       'confidence 范围是 0 到 1，可选。',
       '如果无法识别，返回 {"ingredients":[]}',
     ].join('\n')
@@ -1529,8 +1531,9 @@ export class AiService {
         '请对同一张食材图片进行第二轮补充识别，只返回 JSON。',
         '目标：尽可能识别完整，尤其补充第一眼容易漏掉的小食材、边缘食材和包装内食材。',
         '如果不确定，也可以低置信度返回，不要只给4条左右结果。',
-        'JSON 结构：{"ingredients":[{"name":"食材名","category":"类别","confidence":0.75}]}',
+        'JSON 结构：{"ingredients":[{"name":"食材名","category":"类别","quantity":3,"unit":"个","confidence":0.75}]}',
         'category 仅可取：水果、蔬菜、肉类、蛋奶、海鲜、饮料、调味品、其他。',
+        'quantity 和 unit 必须返回；可数食材按可见数量逐个计数，成把或包装食材使用“把”“袋”“盒”“份”等单位。',
         '若确实无法识别，返回 {"ingredients":[]}',
       ].join('\n')
       const content = await this.callDashScope(
