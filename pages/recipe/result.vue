@@ -65,15 +65,17 @@
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import { getRecipeTask } from '@/api/modules/recipes'
+import { getIngredientList } from '@/api/modules/ingredients'
 
 export default {
 	components: { BottomNav, IngredientIcon },
 	data() {
 		return {
 			pantryTags: [],
+			pantryNames: [],
 			sortMode: 'source',
 			sortOptions: [
-				{ key: 'source', label: '默认顺序' },
+				{ key: 'match', label: '按匹配度' },
 				{ key: 'duration', label: '按用时' },
 				{ key: 'difficulty', label: '按难度' }
 			],
@@ -115,7 +117,7 @@ export default {
 			return Math.max(0, Number(this.taskTotalCount || 6) - this.recipes.length)
 		},
 		displayRecipes() {
-			const pantrySet = new Set(this.pantryTags.map((x) => this.normalizeName(x)).filter(Boolean))
+			const pantrySet = new Set(this.pantryNames.map((x) => this.normalizeName(x)).filter(Boolean))
 			const withHint = this.recipes.map((item) => {
 				const required = Array.isArray(item?.raw?.ingredients)
 					? item.raw.ingredients.map((x) => this.normalizeName(x?.name)).filter(Boolean)
@@ -123,7 +125,7 @@ export default {
 				const missing = required.filter((name) => !pantrySet.has(name))
 				const missingCount = missing.length
 				const missingText =
-					required.length === 0 ? '食材信息待补充' : missingCount === 0 ? '可直接做' : `缺少 ${missingCount} 项食材`
+					required.length === 0 ? '食材信息待补充' : missingCount === 0 ? '食材齐全' : `缺少 ${missingCount} 项食材`
 				return { ...item, missingCount, missingText }
 			})
 
@@ -141,11 +143,15 @@ export default {
 		if (this.taskId) this.taskStatus = 'pending'
 		this.ensureShareMenu()
 		this.loadGeneratedRecipes()
+		this.loadPantryNames()
 		if (this.taskId) this.startTaskPolling()
 	},
 	onShow() {
 		this.ensureShareMenu()
-		if (!this.taskId) this.loadGeneratedRecipes()
+		if (!this.taskId) {
+			this.loadGeneratedRecipes()
+			this.loadPantryNames()
+		}
 	},
 	onUnload() {
 		this.stopTaskPolling()
@@ -208,6 +214,11 @@ export default {
 				.replace(/[（(].*?[）)]/g, '')
 				.replace(/[^a-z0-9\u4e00-\u9fa5]/g, '')
 		},
+		recipeDedupeKey(text) {
+			return this.normalizeName(text)
+				.replace(/馅(?=饺子)/g, '')
+				.replace(/水饺/g, '饺子')
+		},
 		onCookingTimeChange(e) {
 			const idx = Number(e?.detail?.value)
 			if (!Number.isFinite(idx) || idx < 0 || idx >= this.cookingTimeOptions.length) return
@@ -215,6 +226,7 @@ export default {
 		},
 		getSortIcon(key) {
 			if (key === 'source') return '◎'
+			if (key === 'match') return '◎'
 			if (key === 'duration') return '\ue621'
 			if (key === 'difficulty') return '\ue6a1'
 			return ''
@@ -224,6 +236,12 @@ export default {
 			if (Array.isArray(pantry) && pantry.length) {
 				this.pantryTags = pantry
 			}
+			const pantryIngredients = uni.getStorageSync('latestPantryIngredients')
+			if (Array.isArray(pantryIngredients) && pantryIngredients.length) {
+				this.pantryNames = pantryIngredients.map((item) => `${item?.name || ''}`.trim()).filter(Boolean)
+			} else if (Array.isArray(pantry) && pantry.length) {
+				this.pantryNames = pantry
+			}
 
 			const generated = uni.getStorageSync('latestGeneratedRecipes')
 			const profileApplied = uni.getStorageSync('latestRecipeProfileApplied')
@@ -232,9 +250,29 @@ export default {
 
 			this.applyGeneratedRecipes(generated)
 		},
+		unwrapListPayload(source) {
+			if (Array.isArray(source)) return source
+			if (source && Array.isArray(source.data)) return source.data
+			if (source && source.data && Array.isArray(source.data.data)) return source.data.data
+			return []
+		},
+		async loadPantryNames() {
+			try {
+				const res = await getIngredientList()
+				const names = this.unwrapListPayload(res).map((item) => `${item?.name || ''}`.trim()).filter(Boolean)
+				if (names.length) this.pantryNames = names
+			} catch (_) {}
+		},
 		applyGeneratedRecipes(generated) {
 			const list = Array.isArray(generated) ? generated : []
-			this.recipes = list.slice(0, 6).map((item, idx) => ({
+			const seen = new Set()
+			const uniqueList = list.filter((item) => {
+				const key = this.recipeDedupeKey(item?.name)
+				if (!key || seen.has(key)) return false
+				seen.add(key)
+				return true
+			})
+			this.recipes = uniqueList.slice(0, 6).map((item, idx) => ({
 				id: item.id || idx + 1,
 				name: item.name || `菜谱 ${idx + 1}`,
 				duration: Number(item.duration || 15),
@@ -288,6 +326,10 @@ export default {
 			return 9
 		},
 		compareRecipes(a, b) {
+			if (this.sortMode === 'match') {
+				if (a.missingCount !== b.missingCount) return a.missingCount - b.missingCount
+				return (a.sourceIndex || 0) - (b.sourceIndex || 0)
+			}
 			if (this.sortMode === 'duration') {
 				if (a.duration !== b.duration) return a.duration - b.duration
 				return (a.sourceIndex || 0) - (b.sourceIndex || 0)

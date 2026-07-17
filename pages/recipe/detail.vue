@@ -20,8 +20,16 @@
 			<view class="recipe-banner">
 				<view class="banner-title-row">
 					<text class="banner-title">所需食材</text>
+					<text class="banner-count" :class="{ missing: missingIngredientCount > 0 }">{{ missingIngredientCount > 0 ? `还需${missingIngredientCount}种` : '食材齐全' }}</text>
 				</view>
-				<text class="banner-meta">{{ recipe.ingredientsText }}</text>
+				<view v-if="availableIngredientItems.length" class="ingredient-group available">
+					<text class="ingredient-group-label">冰箱已有</text>
+					<text class="ingredient-group-text">{{ formatIngredientItems(availableIngredientItems) }}</text>
+				</view>
+				<view v-if="missingIngredientItems.length" class="ingredient-group missing">
+					<text class="ingredient-group-label">还需准备</text>
+					<text class="ingredient-group-text">{{ formatIngredientItems(missingIngredientItems) }}</text>
+				</view>
 			</view>
 			<view v-if="detailLoading" class="detail-loading-card">
 				<view class="detail-loading-dot"></view>
@@ -53,7 +61,7 @@
 				</view>
 				<view class="nutrition-grid">
 					<view v-for="item in nutritionItems" :key="item.key" class="nutrition-item">
-						<NutritionIcon class="nutrition-icon" :file="item.iconFile" :fallback="item.fallback" :color="item.color" :size="12" />
+						<NutritionIcon class="nutrition-icon" :file="item.iconFile" :fallback="item.fallback" :color="item.color" :size="15" />
 						<text class="nutrition-label">{{ item.label }}</text>
 						<text class="nutrition-value">{{ item.value }}</text>
 						<text class="nutrition-unit">{{ item.unit }}</text>
@@ -91,7 +99,7 @@ import IngredientIcon from '@/components/ingredient-icon.vue'
 import NutritionIcon from '@/components/nutrition-icon.vue'
 import { toSmartBasketItem } from '@/utils/smart-purchase'
 
-const RECIPE_DETAIL_CACHE_PREFIX = 'FFA_RECIPE_DETAIL_V1_'
+const RECIPE_DETAIL_CACHE_PREFIX = 'FFA_RECIPE_DETAIL_V2_'
 
 export default {
 	components: { BottomNav, IngredientIcon, NutritionIcon },
@@ -103,6 +111,7 @@ export default {
 			detailError: '',
 			completedCount: 0,
 			lastCompletedAt: '',
+			pantryNames: [],
 			recipe: {
 				name: '番茄炒蛋',
 				duration: 12,
@@ -126,6 +135,35 @@ export default {
 		hasNutrition() {
 			return !!this.recipe?.nutrition && this.nutritionItems.some((item) => Number(item.rawValue) > 0)
 		},
+		availableIngredientItems() {
+			return this.ingredientDisplayItems.filter((item) => !item.isMissing)
+		},
+		missingIngredientItems() {
+			return this.ingredientDisplayItems.filter((item) => item.isMissing)
+		},
+		missingIngredientCount() {
+			return this.missingIngredientItems.length
+		},
+		ingredientDisplayItems() {
+			const pantrySet = new Set(this.pantryNames.map((name) => this.normalizeName(name)).filter(Boolean))
+			const withAvailability = (item) => ({
+				...item,
+				isMissing: pantrySet.size > 0 && !pantrySet.has(this.normalizeName(item.name))
+			})
+			const rawItems = Array.isArray(this.recipe?.raw?.ingredients)
+				? this.recipe.raw.ingredients.map((item) => {
+					const name = `${item?.name || ''}`.trim()
+					const quantity = item?.quantity === undefined || item?.quantity === null ? '' : `${item.quantity}`.trim()
+					const unit = `${item?.unit || ''}`.trim()
+					return { name, amount: `${quantity}${unit}`.trim() }
+				}).filter((item) => !!item.name).map(withAvailability)
+				: []
+			if (rawItems.length) return rawItems
+			return (Array.isArray(this.recipe?.ingredients) ? this.recipe.ingredients : [])
+				.map((item) => ({ name: `${item || ''}`.trim(), amount: '' }))
+				.filter((item) => !!item.name)
+				.map(withAvailability)
+		},
 		nutritionItems() {
 			const value = this.recipe?.nutrition || {}
 			return [
@@ -140,6 +178,7 @@ export default {
 	},
 	onLoad(query) {
 		this.ensureShareMenu()
+		this.loadPantryNames()
 		this.fromFavorite = !!(query && query.fromFavorite === '1')
 		const cached = uni.getStorageSync('latestRecipeDetail')
 		if (cached && typeof cached === 'object') this.applyRecipeFromRaw(cached)
@@ -164,6 +203,28 @@ export default {
 		}
 	},
 	methods: {
+		formatIngredientItems(items) {
+			return (Array.isArray(items) ? items : [])
+				.map((item) => `${item?.name || ''}${item?.amount || ''}`.trim())
+				.filter(Boolean)
+				.join('、')
+		},
+		async loadPantryNames() {
+			try {
+				const res = await getIngredientList()
+				const items = this.unwrapListPayload(res)
+				const names = items.map((item) => `${item?.name || ''}`.trim()).filter(Boolean)
+				if (names.length) {
+					this.pantryNames = names
+					return
+				}
+			} catch (_) {}
+			const storedIngredients = uni.getStorageSync('latestPantryIngredients')
+			const storedTags = uni.getStorageSync('latestPantryTags')
+			this.pantryNames = Array.isArray(storedIngredients) && storedIngredients.length
+				? storedIngredients.map((item) => `${item?.name || ''}`.trim()).filter(Boolean)
+				: (Array.isArray(storedTags) ? storedTags.map((name) => `${name || ''}`.trim()).filter(Boolean) : [])
+		},
 		formatNutritionValue(value) {
 			const number = Number(value || 0)
 			if (!Number.isFinite(number)) return '0'
@@ -218,9 +279,11 @@ export default {
 				const res = await getRecipeDetail({ recipe: summary })
 				const detail = res?.data?.recipe || res?.recipe
 				if (!this.isDetailComplete(detail)) throw new Error('详情内容不完整')
-				this.applyRecipeFromRaw(detail)
-				this.writeDetailCache(detail)
-				uni.setStorageSync('latestRecipeDetail', detail)
+				const summaryIngredients = Array.isArray(summary?.ingredients) ? summary.ingredients : []
+				const resolvedDetail = summaryIngredients.length ? { ...detail, ingredients: summaryIngredients } : detail
+				this.applyRecipeFromRaw(resolvedDetail)
+				this.writeDetailCache(resolvedDetail)
+				uni.setStorageSync('latestRecipeDetail', resolvedDetail)
 			} catch (error) {
 				const message = `${error?.message || error?.msg || error?.data?.message || ''}`.trim()
 				this.detailError = message || '详细做法生成失败，请重试'
@@ -258,7 +321,10 @@ export default {
 			}
 		},
 		formatStepText(step) {
-			return `${step || ''}`.replace(/^\s*\d+\s*[\.、:：)\]]\s*/, '').trim()
+			return `${step || ''}`
+				.replace(/^\s*\d+\s*[\.、:：)\]]\s*/, '')
+				.replace(/\bshimmer\b/gi, '微微发亮')
+				.trim()
 		},
 		syncFavoriteState(preferFavoriteData = false) {
 			const fav = getFavoriteRecipeByName(this.recipe.name)
@@ -354,7 +420,11 @@ export default {
 			return text.slice(0, 16)
 		},
 		normalizeName(text) {
-			return `${text || ''}`.trim().replace(/\s+/g, '').toLowerCase()
+			return `${text || ''}`
+				.trim()
+				.toLowerCase()
+				.replace(/[（(].*?[）)]/g, '')
+				.replace(/[^a-z0-9\u4e00-\u9fa5]/g, '')
 		},
 		pickRecipeIngredientItems() {
 			const fromRaw = Array.isArray(this.recipe?.raw?.ingredients)
@@ -458,27 +528,34 @@ export default {
 </script>
 
 <style scoped>
-.container { padding: 10px 12px 88px; }
-.top { display: flex; align-items: center; gap: 10rpx; margin-bottom: 16rpx; }
+.container { padding: 10px 12px 96px; }
+.top { display: flex; align-items: center; gap: 10rpx; margin-bottom: 20rpx; }
 .top-title { font-size: 20px; font-weight: 700; }
 .back-left { width: 30px; height: 30px; border-radius: 999rpx; display: inline-flex; align-items: center; justify-content: center; }
 .back-arrow { font-size: 30px; line-height: 1; color: #c7ced9; transform: translateY(-1px); }
-.recipe-inner { background: #fff; border: 1rpx solid #eef3f1; border-radius: 14px; box-shadow: 0 10rpx 20rpx rgba(33,60,38,.06); padding: 16rpx; margin-bottom: 12rpx; }
-.head { display: grid; grid-template-columns: 64px 1fr auto; column-gap: 12px; row-gap: 8rpx; align-items: center; margin-bottom: 18rpx; }
+.recipe-inner { margin-bottom: 14rpx; }
+.head { display: grid; grid-template-columns: 58px 1fr auto; column-gap: 12px; row-gap: 8rpx; align-items: center; margin-bottom: 14rpx; padding: 18rpx; background: #fff; border: 1rpx solid #edf2ee; border-radius: 18px; box-shadow: 0 8rpx 22rpx rgba(39,76,45,.055); }
 .head-main { min-width: 0; }
-.recipe-avatar { width: 64px; height: 64px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg,#f1f8f2,#f8fcf8); border: 1rpx solid #e8f1ea; }
+.recipe-avatar { width: 58px; height: 58px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: linear-gradient(145deg,#edf8ef,#f9fcf9); border: 1rpx solid #dfede2; }
 .head-unfavorite-btn { height: 30px; line-height: 30px; padding: 0 10px; border-radius: 999rpx; font-size: 12px; color: #6a6f6b; background: #f3f3f3; border: 1rpx solid #e4e7e5; box-shadow: none; }
 .head-unfavorite-btn::after { border: none; }
 .favorite-wrap { margin-bottom: 8rpx; }
 .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10rpx; }
 .action-grid.single { grid-template-columns: 1fr; }
 .complete-meta { display: block; font-size: 11px; color: #7f8c83; margin-top: 8rpx; padding-left: 4rpx; }
-.title { display: block; font-size: 18px; font-weight: 700; }
-.meta { display: block; margin-top: 4rpx; font-size: 12px; color: #738177; }
-.recipe-banner { border-radius: 14px; padding: 12rpx 14rpx; background: linear-gradient(135deg,#f4f8f5,#f8fbf8); border: 1rpx solid #e2ebe4; margin-bottom: 16rpx; }
-.banner-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6rpx; }
-.banner-title { font-weight: 700; font-size: 14px; }
-.banner-meta { color: #6f7d73; line-height: 1.8; font-size: 12px; }
+.title { display: block; font-size: 18px; line-height: 1.35; font-weight: 800; color: #1f2922; }
+.meta { display: block; margin-top: 5rpx; font-size: 12px; color: #738177; }
+.recipe-banner { border-radius: 18px; padding: 18rpx; background: #fff; border: 1rpx solid #edf2ee; box-shadow: 0 8rpx 22rpx rgba(39,76,45,.045); margin-bottom: 14rpx; }
+.banner-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14rpx; }
+.banner-title { font-weight: 800; font-size: 15px; color: #202a22; }
+.banner-count { color: #8a958d; font-size: 10px; }
+.banner-count.missing { color: #c37a3d; font-weight: 600; }
+.ingredient-group { display: grid; grid-template-columns: 98rpx 1fr; column-gap: 12rpx; align-items: start; padding: 9rpx 0 15rpx; }
+.ingredient-group + .ingredient-group { margin-top: 5rpx; padding-top: 18rpx; border-top: 1rpx solid #eef2ef; }
+.ingredient-group-label { display: inline-flex; align-items: center; justify-content: center; min-height: 38rpx; padding: 0 8rpx; border-radius: 8px; background: #edf6ef; color: #4f8f59; font-size: 9px; font-weight: 700; }
+.ingredient-group-text { color: #59665d; font-size: 11px; line-height: 1.75; }
+.ingredient-group.missing .ingredient-group-label { background: #fff2e5; color: #bd7133; }
+.ingredient-group.missing .ingredient-group-text { color: #a96732; }
 .detail-loading-card,
 .detail-error-card { display: flex; align-items: center; gap: 14rpx; border: 1rpx solid #e6eee8; border-radius: 14px; padding: 20rpx 16rpx; background: #f8fbf8; margin-bottom: 12rpx; }
 .detail-loading-dot { width: 24rpx; height: 24rpx; border-radius: 50%; border: 4rpx solid #dcecdf; border-top-color: #55ad61; animation: detail-spin .8s linear infinite; flex-shrink: 0; }
@@ -489,40 +566,43 @@ export default {
 .detail-retry-btn { margin: 0; padding: 0 16rpx; height: 54rpx; line-height: 54rpx; border-radius: 999rpx; background: #edf6ef; color: #4c9657; font-size: 11px; font-weight: 700; }
 .detail-retry-btn::after { border: none; }
 @keyframes detail-spin { to { transform: rotate(360deg); } }
-.step-card { border: 1rpx solid #edf2ef; border-radius: 14px; padding: 12rpx; background: #fff; margin-bottom: 10rpx; }
-.step-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8rpx; }
-.step-title { font-weight: 700; font-size: 14px; }
-.step-meta { color: #738177; font-size: 12px; }
-.step-line { flex: 1; color: #6f7d73; line-height: 1.8; font-size: 12px; }
-.step-item { display: flex; align-items: flex-start; gap: 10rpx; margin-bottom: 10rpx; }
-.step-item:last-child { margin-bottom: 0; }
+.step-card { border: 1rpx solid #edf2ee; border-radius: 18px; padding: 18rpx; background: #fff; margin-bottom: 14rpx; box-shadow: 0 8rpx 22rpx rgba(39,76,45,.045); }
+.step-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18rpx; }
+.step-title { font-weight: 800; font-size: 15px; color: #202a22; }
+.step-meta { color: #8a958d; font-size: 10px; }
+.step-list { padding-top: 2rpx; }
+.step-line { display: block; color: #536058; line-height: 1.72; font-size: 12px; }
+.step-item { position: relative; min-height: 54rpx; padding: 0 0 22rpx 44rpx; }
+.step-item:not(:last-child)::after { content: ''; position: absolute; left: 14rpx; top: 34rpx; bottom: 3rpx; width: 1rpx; background: #dfece1; }
+.step-item:last-child { padding-bottom: 0; }
 .step-no {
-	width: 28rpx;
-	height: 28rpx;
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 30rpx;
+	height: 30rpx;
 	border-radius: 50%;
-	background: #e7f5ea;
-	color: #4f9d5c;
+	background: #e5f4e8;
+	color: #489554;
 	font-size: 10px;
-	font-weight: 700;
+	font-weight: 800;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	flex-shrink: 0;
-	margin-top: 4rpx;
 }
-.nutrition-card { border: 1rpx solid #e1ebe3; border-radius: 14px; padding: 12rpx 12rpx 10rpx; background: linear-gradient(180deg, #fff, #fbfdfb); margin-top: 12rpx; }
-.nutrition-head { display: flex; align-items: baseline; gap: 8rpx; margin-bottom: 10rpx; }
-.nutrition-title { font-size: 14px; font-weight: 800; color: #202820; }
+.nutrition-card { border: 1rpx solid #e4ece5; border-radius: 18px; padding: 18rpx 16rpx 14rpx; background: #fff; margin-bottom: 14rpx; box-shadow: 0 8rpx 22rpx rgba(39,76,45,.045); }
+.nutrition-head { display: flex; align-items: baseline; gap: 8rpx; margin-bottom: 14rpx; }
+.nutrition-title { font-size: 15px; font-weight: 800; color: #202820; }
 .nutrition-serving { font-size: 10px; color: #89938c; }
 .nutrition-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5rpx; }
-.nutrition-item { min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8rpx 2rpx 7rpx; border-radius: 10px; background: #f6f9f6; border: 1rpx solid #eef3ef; }
-.nutrition-icon { height: 26rpx; line-height: 26rpx; font-size: 12px; color: #55a765; font-weight: 800; }
-.nutrition-label { width: 100%; margin-top: 2rpx; color: #68736b; font-size: 8px; line-height: 1.25; text-align: center; white-space: nowrap; transform: scale(.92); }
-.nutrition-value { margin-top: 5rpx; color: #1e2620; font-size: 13px; font-weight: 800; line-height: 1; }
-.nutrition-unit { margin-top: 4rpx; color: #8a948d; font-size: 8px; line-height: 1; }
-.nutrition-analysis { display: block; margin-top: 11rpx; padding-top: 9rpx; border-top: 1rpx solid #edf2ee; color: #5f6962; font-size: 10px; line-height: 1.65; }
+.nutrition-item { min-width: 0; min-height: 112rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16rpx 2rpx 15rpx; border-radius: 10px; background: #f6f9f6; border: 1rpx solid #eef3ef; }
+.nutrition-icon { height: 32rpx; line-height: 32rpx; font-size: 15px; color: #55a765; font-weight: 800; }
+.nutrition-label { width: 100%; margin-top: 4rpx; color: #68736b; font-size: 9px; line-height: 1.25; text-align: center; white-space: nowrap; transform: scale(.92); }
+.nutrition-value { margin-top: 8rpx; color: #1e2620; font-size: 15px; font-weight: 800; line-height: 1; }
+.nutrition-unit { margin-top: 6rpx; color: #8a948d; font-size: 9px; line-height: 1; }
+.nutrition-analysis { display: block; margin-top: 18rpx; padding-top: 15rpx; border-top: 1rpx solid #edf2ee; color: #5f6962; font-size: 10px; line-height: 1.75; }
 .nutrition-analysis-label { color: #4eaa5c; font-weight: 700; }
-.nutrition-disclaimer { display: block; margin-top: 5rpx; color: #a0a7a2; font-size: 8px; line-height: 1.4; }
+.nutrition-disclaimer { display: block; margin-top: 10rpx; color: #a0a7a2; font-size: 8px; line-height: 1.5; }
 .btn { width: 100%; border: none; border-radius: 16rpx; padding: 14rpx 12rpx; color: #fff; font-size: 14px; font-weight: 700; box-shadow: 0 8rpx 16rpx rgba(58,116,66,.22); }
 .btn::after { border: none; }
 .primary { background: linear-gradient(135deg,#70c977,#4cae57); }

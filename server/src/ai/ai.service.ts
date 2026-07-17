@@ -92,7 +92,7 @@ export class AiService {
   private readonly asrEndpoint =
     process.env.DASHSCOPE_ASR_ENDPOINT ||
     'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation'
-  private readonly visionModel = process.env.DASHSCOPE_VISION_MODEL || 'qwen2.5-vl-7b-instruct'
+  private readonly visionModel = process.env.DASHSCOPE_VISION_MODEL || 'qwen3.6-flash'
   private readonly textModel = process.env.DASHSCOPE_TEXT_MODEL || 'qwen2.5-14b-instruct'
   private readonly asrModel = process.env.DASHSCOPE_ASR_MODEL || 'qwen3-asr-flash'
   private readonly recipeRetryEnabled = `${process.env.AI_RECIPE_ENABLE_RETRY || ''}`.trim() === '1'
@@ -277,9 +277,9 @@ export class AiService {
     })
     const current = this.recipeTasks.get(taskId)
     if (!current) return
-    const seen = new Set(current.recipes.map((x) => this.normalizeTextForCompare(x.name)))
+    const seen = new Set(current.recipes.map((x) => this.normalizeRecipeNameForDedupe(x.name)))
     for (const recipe of result.recipes || []) {
-      const key = this.normalizeTextForCompare(recipe?.name)
+      const key = this.normalizeRecipeNameForDedupe(recipe?.name)
       if (!key || seen.has(key)) continue
       current.recipes.push({
         ...recipe,
@@ -569,6 +569,7 @@ export class AiService {
       '3) 允许补充 1-3 种常见缺失食材来让菜谱成立（如“土豆炖牛肉”可补充牛肉）。',
       '4) 不要为了凑数量输出不符合常理的菜。',
       '5) 同一批结果要尽量多样：优先覆盖不同库存食材，不要多数菜都围绕同一个主食材。',
+      '6) 菜名和做法不得语义重复，例如“白菜猪肉饺子”和“白菜猪肉馅饺子”属于同一道菜，只能保留一个。',
       'JSON 结构：',
       outputSchema,
       'difficulty 仅可取：简单、中等、困难。',
@@ -618,8 +619,8 @@ export class AiService {
     recipes = this.dedupeRecipesByName(recipes)
     const recipesBeforeExclude = recipes.slice()
     if (excludeNames.length) {
-      const blocked = new Set(excludeNames.map((x) => this.normalizeTextForCompare(x)))
-      recipes = recipes.filter((x) => !blocked.has(this.normalizeTextForCompare(x.name)))
+      const blocked = new Set(excludeNames.map((x) => this.normalizeRecipeNameForDedupe(x)))
+      recipes = recipes.filter((x) => !blocked.has(this.normalizeRecipeNameForDedupe(x.name)))
     }
     const recipesBeforeAnyStrictFilter = recipes.slice()
     const recipesBeforePantryFilter = recipes.slice()
@@ -665,6 +666,7 @@ export class AiService {
         '3) 允许补充 1-3 种常见缺失食材来让菜谱成立（如“土豆炖牛肉”可补充牛肉）。',
         '4) 不要为了凑数量输出不符合常理的菜。',
         '5) 同一批结果要尽量多样：优先覆盖不同库存食材，不要多数菜都围绕同一个主食材。',
+        '6) 菜名和做法不得语义重复，例如“白菜猪肉饺子”和“白菜猪肉馅饺子”属于同一道菜，只能保留一个。',
         'JSON 结构：',
         outputSchema,
         'difficulty 仅可取：简单、中等、困难。',
@@ -704,11 +706,11 @@ export class AiService {
       const retryRecipes = this.filterRecipesByAvoidances(retryDeduped, avoidances)
       removedByAvoidanceCount += Math.max(retryDeduped.length - retryRecipes.length, 0)
       const seen = new Set([
-        ...excludeNames.map((x) => this.normalizeTextForCompare(x)),
-        ...recipes.map((x) => this.normalizeTextForCompare(x.name)),
+        ...excludeNames.map((x) => this.normalizeRecipeNameForDedupe(x)),
+        ...recipes.map((x) => this.normalizeRecipeNameForDedupe(x.name)),
       ])
       for (const item of retryRecipes) {
-        const key = this.normalizeTextForCompare(item.name)
+        const key = this.normalizeRecipeNameForDedupe(item.name)
         if (!key || seen.has(key)) continue
         recipes.push(item)
         seen.add(key)
@@ -789,6 +791,8 @@ export class AiService {
       `可用厨具：${profile.note || '常见家用厨具'}`,
       `忌口食材（绝对不能出现）：${profile.avoidances.length ? profile.avoidances.join('、') : '无'}`,
       '食材数量和单位必须明确，步骤必须具体，包含必要的火候和时间信息。',
+      '必须严格沿用列表摘要中的食材，不得增加、删除或替换食材；所有文字必须使用简体中文，不得夹杂英文单词。',
+      '描述油温时使用“油面微微发亮”“微微冒烟”等明确中文，不得使用 shimmer 等英文表达。',
       '营养数据按每人份估算，数值使用数字；热量单位 kcal，蛋白质/脂肪/碳水/膳食纤维单位 g，钠单位 mg。',
       '营养分析保持一句话，不要宣称治疗疾病或提供医学结论。',
       `JSON 结构：${schema}`,
@@ -807,9 +811,9 @@ export class AiService {
     const parsed = this.parseJson(content)
     const list = this.pickRecipeArray(parsed)
     const detailSource = parsed?.recipe || list[0] || parsed
-    const returnedIngredients = Array.isArray(detailSource?.ingredients) && detailSource.ingredients.length
-      ? detailSource.ingredients
-      : ingredients
+    const returnedIngredients = ingredients.length
+      ? ingredients
+      : (Array.isArray(detailSource?.ingredients) ? detailSource.ingredients : [])
     const recipe = this.normalizeRecipe({
       ...summary,
       ...(detailSource || {}),
@@ -896,6 +900,12 @@ export class AiService {
     return `${text || ''}`.trim().replace(/\s+/g, '').toLowerCase()
   }
 
+  private normalizeRecipeNameForDedupe(text: unknown) {
+    return this.normalizeTextForCompare(text)
+      .replace(/馅(?=饺子)/g, '')
+      .replace(/水饺/g, '饺子')
+  }
+
   private recipeContainsAvoidance(recipe: GeneratedRecipe, avoidances: string[]) {
     if (!avoidances.length) return false
     const haystack = [
@@ -924,7 +934,7 @@ export class AiService {
     const seen = new Set<string>()
     const output: GeneratedRecipe[] = []
     for (const item of list) {
-      const key = this.normalizeTextForCompare(item?.name)
+      const key = this.normalizeRecipeNameForDedupe(item?.name)
       if (!key || seen.has(key)) continue
       seen.add(key)
       output.push(item)
@@ -948,7 +958,7 @@ export class AiService {
     // Pass 1: try to cover different pantry ingredients first.
     for (const item of sorted) {
       if (chosen.length >= count) break
-      const recipeKey = this.normalizeTextForCompare(item.name)
+      const recipeKey = this.normalizeRecipeNameForDedupe(item.name)
       if (!recipeKey || chosenNameSet.has(recipeKey)) continue
       const primary = this.pickPrimaryPantryKey(item, pantryKeys)
       if (!primary || seenPrimaryCovered.has(primary)) continue
@@ -961,7 +971,7 @@ export class AiService {
     // Pass 2: fill rest while preventing one primary ingredient from dominating.
     for (const item of sorted) {
       if (chosen.length >= count) break
-      const recipeKey = this.normalizeTextForCompare(item.name)
+      const recipeKey = this.normalizeRecipeNameForDedupe(item.name)
       if (!recipeKey || chosenNameSet.has(recipeKey)) continue
       const primary = this.pickPrimaryPantryKey(item, pantryKeys)
       if (primary) {
@@ -977,7 +987,7 @@ export class AiService {
     if (chosen.length < count) {
       for (const item of sorted) {
         if (chosen.length >= count) break
-        const recipeKey = this.normalizeTextForCompare(item.name)
+        const recipeKey = this.normalizeRecipeNameForDedupe(item.name)
         if (!recipeKey || chosenNameSet.has(recipeKey)) continue
         chosen.push(item)
         chosenNameSet.add(recipeKey)
