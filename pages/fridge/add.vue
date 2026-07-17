@@ -427,7 +427,10 @@ export default {
 				uni.showToast({ title: `识别到${list.length}条，请确认`, icon: 'none' })
 			} catch (e) {
 				console.error('识别失败', e)
-				const msg = `${e?.message || ''}`.trim() || '识别失败，请重试'
+				const rawMessage = `${e?.message || e?.errMsg || e?.data?.message || ''}`.trim()
+				const msg = rawMessage.includes('timeout') || rawMessage.includes('超时')
+					? '识别超时，请检查网络后重试'
+					: (rawMessage || '识别失败，请重试')
 				uni.showToast({ title: msg, icon: 'none' })
 			} finally {
 				uni.hideLoading()

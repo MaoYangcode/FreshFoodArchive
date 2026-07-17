@@ -336,26 +336,10 @@ export class AiService {
       )
 
       const primary = this.extractIngredientsFromResponse(content)
-      if (primary.length >= 10) return primary
+      if (primary.length) return primary
 
       const enhanced = await this.runIngredientEnhancePass(dataUrl)
-      const merged = this.mergeRecognizedIngredients(primary, enhanced)
-      if (merged.length >= 10) return merged
-
-      const loose = await this.runIngredientLoosePass(dataUrl)
-      let result = this.mergeRecognizedIngredients(merged, loose)
-      if (result.length >= 10) return result
-
-      for (let round = 0; round < 5 && result.length < 16; round += 1) {
-        const extra = await this.runIngredientContinuePass(
-          dataUrl,
-          result.map((x) => x.name).filter(Boolean),
-        )
-        const next = this.mergeRecognizedIngredients(result, extra)
-        if (next.length <= result.length) break
-        result = next
-      }
-      return result
+      return enhanced
     } catch (error: any) {
       if (this.allowMockFallback) return this.mockRecognize()
       throw new Error(error?.message || '食材识别服务调用失败')
@@ -402,26 +386,10 @@ export class AiService {
       )
 
       const primary = this.extractIngredientsFromResponse(content)
-      if (primary.length >= 12) return primary
+      if (primary.length) return primary
 
       const enhanced = await this.runReceiptEnhancePass(dataUrl)
-      const merged = this.mergeRecognizedIngredients(primary, enhanced)
-      if (merged.length >= 12) return merged
-
-      const loose = await this.runReceiptLoosePass(dataUrl)
-      let result = this.mergeRecognizedIngredients(merged, loose)
-      if (result.length >= 12) return result
-
-      for (let round = 0; round < 5 && result.length < 26; round += 1) {
-        const extra = await this.runReceiptContinuePass(
-          dataUrl,
-          result.map((x) => x.name).filter(Boolean),
-        )
-        const next = this.mergeRecognizedIngredients(result, extra)
-        if (next.length <= result.length) break
-        result = next
-      }
-      return result
+      return enhanced
     } catch (error: any) {
       if (this.allowMockFallback) return this.mockRecognize()
       throw new Error(error?.message || '小票识别服务调用失败')

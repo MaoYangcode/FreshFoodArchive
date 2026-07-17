@@ -35,6 +35,7 @@ function uploadAiFile(apiPath, filePath) {
 			url: `${getActiveBaseUrl()}${apiPath}`,
 			filePath,
 			name: 'file',
+			timeout: 120000,
 			header: {
 				Authorization: `Bearer ${token}`
 			},
