@@ -37,7 +37,7 @@
 				<view class="title-row">
 					<view class="name-score-row">
 						<text class="name">{{ item.name }}</text>
-						<text class="score-pill">匹配度 {{ item.score }}%</text>
+						<text class="score-pill">{{ item.missingText }}</text>
 					</view>
 				</view>
 				<view class="meta">
@@ -71,9 +71,9 @@ export default {
 	data() {
 		return {
 			pantryTags: [],
-			sortMode: 'score',
+			sortMode: 'source',
 			sortOptions: [
-				{ key: 'score', label: '按匹配度' },
+				{ key: 'source', label: '默认顺序' },
 				{ key: 'duration', label: '按用时' },
 				{ key: 'difficulty', label: '按难度' }
 			],
@@ -214,7 +214,7 @@ export default {
 			this.selectedCookingTime = this.cookingTimeOptions[idx]
 		},
 		getSortIcon(key) {
-			if (key === 'score') return '◎'
+			if (key === 'source') return '◎'
 			if (key === 'duration') return '\ue621'
 			if (key === 'difficulty') return '\ue6a1'
 			return ''
@@ -237,7 +237,6 @@ export default {
 			this.recipes = list.slice(0, 6).map((item, idx) => ({
 				id: item.id || idx + 1,
 				name: item.name || `菜谱 ${idx + 1}`,
-				score: Number(item.matchScore || item.score || 85),
 				duration: Number(item.duration || 15),
 				difficulty: item.difficulty || '简单',
 				emoji: this.pickEmoji(item),
@@ -248,7 +247,7 @@ export default {
 		startTaskPolling() {
 			this.stopTaskPolling()
 			this.pollRecipeTask()
-			this.taskPollTimer = setInterval(() => this.pollRecipeTask(), 1500)
+			this.taskPollTimer = setInterval(() => this.pollRecipeTask(), 800)
 		},
 		stopTaskPolling() {
 			if (this.taskPollTimer) {
@@ -291,17 +290,13 @@ export default {
 		compareRecipes(a, b) {
 			if (this.sortMode === 'duration') {
 				if (a.duration !== b.duration) return a.duration - b.duration
-				if (a.score !== b.score) return b.score - a.score
 				return (a.sourceIndex || 0) - (b.sourceIndex || 0)
 			}
 			if (this.sortMode === 'difficulty') {
 				const diff = this.getDifficultyWeight(a.difficulty) - this.getDifficultyWeight(b.difficulty)
 				if (diff !== 0) return diff
-				if (a.score !== b.score) return b.score - a.score
 				return (a.sourceIndex || 0) - (b.sourceIndex || 0)
 			}
-			if (a.score !== b.score) return b.score - a.score
-			if (a.duration !== b.duration) return a.duration - b.duration
 			return (a.sourceIndex || 0) - (b.sourceIndex || 0)
 		},
 		pickEmoji(item) {

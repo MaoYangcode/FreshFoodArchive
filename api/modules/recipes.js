@@ -30,7 +30,7 @@ export function getRecipeTask(taskId) {
 
 export function getRecipeDetail(payload) {
 	return request({
-		url: '/ai/generate-recipe',
+		url: '/ai/generate-recipe-detail',
 		method: 'POST',
 		data: payload,
 		timeout: 90000

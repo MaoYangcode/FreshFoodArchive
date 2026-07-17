@@ -14,11 +14,24 @@ type GeneratedRecipe = {
   name: string
   duration: number
   difficulty: string
-  matchScore: number
+  matchScore?: number
   coverImage: string
   ingredients: Array<{ name: string; quantity?: number; unit?: string }>
   steps: string[]
   tips?: string
+  servings?: number
+  nutrition?: RecipeNutrition
+  detailReady?: boolean
+}
+
+type RecipeNutrition = {
+  calories: number
+  protein: number
+  fat: number
+  carbohydrates: number
+  fiber: number
+  sodium: number
+  analysis: string
 }
 
 type ProfileApplied = {
@@ -258,6 +271,7 @@ export class AiService {
       count: batchCount,
       excludeNames,
       batchFocus,
+      summaryOnly: true,
       allowMockFallback: false,
       requestNonce: `${payload?.requestNonce || taskId}_${batchIndex}_${Date.now()}`,
     })
@@ -267,7 +281,10 @@ export class AiService {
     for (const recipe of result.recipes || []) {
       const key = this.normalizeTextForCompare(recipe?.name)
       if (!key || seen.has(key)) continue
-      current.recipes.push(recipe)
+      current.recipes.push({
+        ...recipe,
+        id: `${taskId}_${batchIndex + 1}_${current.recipes.length + 1}`,
+      })
       seen.add(key)
       if (current.recipes.length >= current.totalCount) break
     }
@@ -472,6 +489,7 @@ export class AiService {
     const excludeNames = this.normalizeStringArray(payload?.excludeNames)
     const requestNonce = `${payload?.requestNonce || ''}`.trim()
     const batchFocus = `${payload?.batchFocus || ''}`.trim()
+    const summaryOnly = payload?.summaryOnly === true
     const allowRecipeMockFallback = payload?.allowMockFallback !== false
     const userId = Math.max(Number(payload?.userId || 1), 1)
     const profile = await this.loadUserProfileForRecipe(userId)
@@ -496,6 +514,7 @@ export class AiService {
     if (!this.apiKey) {
       if (!allowRecipeMockFallback) throw new Error('DASHSCOPE_API_KEY 未配置')
       const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
+        .map((item, idx) => this.normalizeRecipe(item, idx, summaryOnly))
       profileApplied.generatedCount = mocked.length
       profileApplied.removedByAvoidanceCount = Math.max(count - mocked.length, 0)
       profileApplied.reducedByAvoidance = profileApplied.removedByAvoidanceCount > 0
@@ -526,6 +545,9 @@ export class AiService {
           '多食材场景：优先覆盖不同库存食材，保持菜式多样。',
         ].join('\n')
 
+    const outputSchema = summaryOnly
+      ? '{"recipes":[{"id":"ai_001","name":"菜名","duration":15,"difficulty":"简单","ingredients":[{"name":"番茄","quantity":2,"unit":"个"}]}]}'
+      : '{"recipes":[{"id":"ai_001","name":"菜名","duration":15,"difficulty":"简单","matchScore":95,"coverImage":"","ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["步骤1","步骤2"],"tips":"可选"}]}'
     const prompt = [
       '你是家庭烹饪助手。仅返回 JSON，不要附带解释文本。',
       '请根据给定食材生成菜谱候选列表。',
@@ -548,10 +570,10 @@ export class AiService {
       '4) 不要为了凑数量输出不符合常理的菜。',
       '5) 同一批结果要尽量多样：优先覆盖不同库存食材，不要多数菜都围绕同一个主食材。',
       'JSON 结构：',
-      '{"recipes":[{"id":"ai_001","name":"菜名","duration":15,"difficulty":"简单","matchScore":95,"coverImage":"","ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["步骤1","步骤2"],"tips":"可选"}]}',
+      outputSchema,
       'difficulty 仅可取：简单、中等、困难。',
-      'matchScore 范围 0-100。',
-      'steps 按实际烹饪需要返回，不限制步数；每一步都要具体可执行（包含关键动作或火候信息）。',
+      summaryOnly ? '本次只生成列表摘要，不要返回 steps、tips、matchScore、nutrition 等详情字段。' : 'matchScore 范围 0-100。',
+      summaryOnly ? '' : 'steps 按实际烹饪需要返回，不限制步数；每一步都要具体可执行（包含关键动作或火候信息）。',
       '如果无法生成，返回 {"recipes":[]}',
     ].join('\n')
 
@@ -567,7 +589,7 @@ export class AiService {
         ],
         true,
         0.2,
-        2200,
+        summaryOnly ? 900 : 2200,
       )
       dashScopeMs = Date.now() - dashScopeStartedAt
     } catch (err) {
@@ -579,6 +601,7 @@ export class AiService {
         throw new Error(err?.message || '菜谱生成服务调用失败')
       }
       const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
+        .map((item, idx) => this.normalizeRecipe(item, idx, summaryOnly))
       profileApplied.generatedCount = mocked.length
       profileApplied.removedByAvoidanceCount = Math.max(count - mocked.length, 0)
       profileApplied.reducedByAvoidance = profileApplied.removedByAvoidanceCount > 0
@@ -590,8 +613,8 @@ export class AiService {
     const fallbackRecipes = !list.length ? this.parseRecipeArrayFallback(content) : []
     const recipeSource = list.length ? list : fallbackRecipes
     let recipes = recipeSource
-      .map((item: any, idx: number) => this.normalizeRecipe(item, idx))
-      .filter((x: GeneratedRecipe) => !!x.name && Array.isArray(x.steps) && x.steps.length > 0)
+      .map((item: any, idx: number) => this.normalizeRecipe(item, idx, summaryOnly))
+      .filter((x: GeneratedRecipe) => !!x.name && (summaryOnly || x.steps.length > 0))
     recipes = this.dedupeRecipesByName(recipes)
     const recipesBeforeExclude = recipes.slice()
     if (excludeNames.length) {
@@ -643,9 +666,9 @@ export class AiService {
         '4) 不要为了凑数量输出不符合常理的菜。',
         '5) 同一批结果要尽量多样：优先覆盖不同库存食材，不要多数菜都围绕同一个主食材。',
         'JSON 结构：',
-        '{"recipes":[{"id":"ai_001","name":"菜名","duration":15,"difficulty":"简单","matchScore":95,"coverImage":"","ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["步骤1","步骤2"],"tips":"可选"}]}',
+        outputSchema,
         'difficulty 仅可取：简单、中等、困难。',
-        'matchScore 范围 0-100。',
+        summaryOnly ? '本次只生成列表摘要，不要返回 steps、tips、matchScore、nutrition 等详情字段。' : 'matchScore 范围 0-100。',
         '如果无法生成，返回 {"recipes":[]}',
       ].join('\n')
       let retryContent = ''
@@ -660,7 +683,7 @@ export class AiService {
           ],
           true,
           excludeNames.length ? 0.55 : 0.2,
-          2200,
+          summaryOnly ? 900 : 2200,
         )
         retryDashScopeMs = Date.now() - retryStartedAt
       } catch (_) {
@@ -675,8 +698,8 @@ export class AiService {
       const retryParsed = this.parseJson(retryContent)
       const retryList = this.pickRecipeArray(retryParsed)
       const retryNormalized = retryList
-        .map((item: any, idx: number) => this.normalizeRecipe(item, recipes.length + idx))
-        .filter((x: GeneratedRecipe) => !!x.name && Array.isArray(x.steps) && x.steps.length > 0)
+        .map((item: any, idx: number) => this.normalizeRecipe(item, recipes.length + idx, summaryOnly))
+        .filter((x: GeneratedRecipe) => !!x.name && (summaryOnly || x.steps.length > 0))
       const retryDeduped = this.dedupeRecipesByName(retryNormalized)
       const retryRecipes = this.filterRecipesByAvoidances(retryDeduped, avoidances)
       removedByAvoidanceCount += Math.max(retryDeduped.length - retryRecipes.length, 0)
@@ -692,7 +715,7 @@ export class AiService {
         if (recipes.length >= count) break
       }
     }
-    recipes = this.diversifyRecipes(recipes, pantryNames, count)
+    if (!summaryOnly) recipes = this.diversifyRecipes(recipes, pantryNames, count)
     let finalRecipes = recipes.slice(0, count)
     if (!finalRecipes.length) {
       if (recipesBeforeAnyStrictFilter.length) {
@@ -711,6 +734,7 @@ export class AiService {
         throw new Error('AI 未生成可用菜谱，请重试')
       }
       const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
+        .map((item, idx) => this.normalizeRecipe(item, idx, summaryOnly))
       finalRecipes = mocked.slice(0, count)
     }
     profileApplied.generatedCount = finalRecipes.length
@@ -722,7 +746,83 @@ export class AiService {
     return { recipes: finalRecipes, profileApplied }
   }
 
-  private normalizeRecipe(item: any, idx: number): GeneratedRecipe {
+  async generateRecipeDetail(payload: any): Promise<GeneratedRecipe> {
+    const summary = payload?.recipe && typeof payload.recipe === 'object' ? payload.recipe : payload || {}
+    const name = `${summary?.name || ''}`.trim()
+    if (!name) throw new Error('菜谱名称为空')
+
+    const userId = Math.max(Number(payload?.userId || 1), 1)
+    const profile = await this.loadUserProfileForRecipe(userId)
+    const ingredients = Array.isArray(summary?.ingredients) ? summary.ingredients : []
+    const ingredientText = ingredients
+      .map((item: any) => `${item?.name || ''}${item?.quantity ?? ''}${item?.unit || ''}`.trim())
+      .filter(Boolean)
+      .join('、')
+    const schema = '{"recipe":{"name":"菜名","duration":15,"difficulty":"简单","servings":2,"ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["具体步骤1","具体步骤2"],"tips":"烹饪提示","nutrition":{"calories":286,"protein":18.6,"fat":12.8,"carbohydrates":24.7,"fiber":3.2,"sodium":560,"analysis":"每人份营养特点简述"}}}'
+
+    if (!this.apiKey) {
+      if (!this.allowMockFallback) throw new Error('DASHSCOPE_API_KEY 未配置')
+      return this.normalizeRecipe({
+        ...summary,
+        servings: 2,
+        steps: ['准备并清洗所有食材。', '按菜式需要依次烹饪，调味后出锅。'],
+        tips: '根据个人口味调整调味料用量。',
+        nutrition: {
+          calories: 280,
+          protein: 16,
+          fat: 12,
+          carbohydrates: 28,
+          fiber: 4,
+          sodium: 520,
+          analysis: '包含蛋白质和膳食纤维，建议搭配多样化蔬菜。',
+        },
+      }, 0, false)
+    }
+
+    const prompt = [
+      '你是家庭烹饪与营养分析助手。仅返回 JSON，不要附带解释文本。',
+      `请为菜谱“${name}”补全可直接照做的详细做法和每人份营养估算。`,
+      `列表摘要食材：${ingredientText || '请按这道菜的常见做法补全'}`,
+      `预计用时：${Math.max(Number(summary?.duration || 15), 1)} 分钟`,
+      `难度：${summary?.difficulty || '简单'}`,
+      `饮食偏好（尽量贴合）：${profile.dietPreferences.length ? profile.dietPreferences.join('、') : '无特别偏好'}`,
+      `可用厨具：${profile.note || '常见家用厨具'}`,
+      `忌口食材（绝对不能出现）：${profile.avoidances.length ? profile.avoidances.join('、') : '无'}`,
+      '食材数量和单位必须明确，步骤必须具体，包含必要的火候和时间信息。',
+      '营养数据按每人份估算，数值使用数字；热量单位 kcal，蛋白质/脂肪/碳水/膳食纤维单位 g，钠单位 mg。',
+      '营养分析保持一句话，不要宣称治疗疾病或提供医学结论。',
+      `JSON 结构：${schema}`,
+    ].join('\n')
+
+    const content = await this.callDashScope(
+      this.textModel,
+      [
+        { role: 'system', content: '你是结构化 JSON 菜谱详情生成助手。' },
+        { role: 'user', content: prompt },
+      ],
+      true,
+      0.2,
+      2200,
+    )
+    const parsed = this.parseJson(content)
+    const list = this.pickRecipeArray(parsed)
+    const detailSource = parsed?.recipe || list[0] || parsed
+    const returnedIngredients = Array.isArray(detailSource?.ingredients) && detailSource.ingredients.length
+      ? detailSource.ingredients
+      : ingredients
+    const recipe = this.normalizeRecipe({
+      ...summary,
+      ...(detailSource || {}),
+      id: summary?.id || detailSource?.id,
+      name,
+      ingredients: returnedIngredients,
+    }, 0, false)
+    if (!recipe.steps.length) throw new Error('菜谱详情生成不完整，请重试')
+    if (this.recipeContainsAvoidance(recipe, profile.avoidances)) throw new Error('生成内容包含忌口食材，请重试')
+    return recipe
+  }
+
+  private normalizeRecipe(item: any, idx: number, summaryOnly = false): GeneratedRecipe {
     const steps = Array.isArray(item?.steps)
       ? item.steps.map((s: any) => `${s || ''}`.trim()).filter(Boolean)
       : []
@@ -733,7 +833,7 @@ export class AiService {
       difficulty: ['简单', '中等', '困难'].includes(`${item?.difficulty || ''}`)
         ? `${item.difficulty}`
         : '简单',
-      matchScore: Math.max(0, Math.min(100, Number(item?.matchScore || 85))),
+      matchScore: summaryOnly ? undefined : Math.max(0, Math.min(100, Number(item?.matchScore || 85))),
       coverImage: `${item?.coverImage || ''}`,
       ingredients: Array.isArray(item?.ingredients)
         ? item.ingredients
@@ -744,9 +844,28 @@ export class AiService {
             }))
             .filter((x: any) => !!x.name)
         : [],
-      steps: steps.length ? steps : ['准备并清洗食材。', '按顺序烹饪并调味后出锅。'],
-      tips: `${item?.tips || ''}`.trim(),
+      steps: summaryOnly ? [] : steps,
+      tips: summaryOnly ? '' : `${item?.tips || ''}`.trim(),
+      servings: summaryOnly ? undefined : Math.max(1, Math.min(12, Number(item?.servings || 2))),
+      nutrition: summaryOnly ? undefined : this.normalizeRecipeNutrition(item?.nutrition),
+      detailReady: !summaryOnly && steps.length > 0,
     }
+  }
+
+  private normalizeRecipeNutrition(source: any): RecipeNutrition | undefined {
+    if (!source || typeof source !== 'object') return undefined
+    const number = (value: unknown, max: number) => Math.max(0, Math.min(max, Number(value || 0)))
+    const nutrition: RecipeNutrition = {
+      calories: number(source.calories ?? source.kcal ?? source.energy, 5000),
+      protein: number(source.protein, 500),
+      fat: number(source.fat, 500),
+      carbohydrates: number(source.carbohydrates ?? source.carbs, 1000),
+      fiber: number(source.fiber ?? source.dietaryFiber, 200),
+      sodium: number(source.sodium, 20000),
+      analysis: `${source.analysis || ''}`.trim(),
+    }
+    const hasValue = Object.entries(nutrition).some(([key, value]) => key !== 'analysis' && Number(value) > 0)
+    return hasValue ? nutrition : undefined
   }
 
   private normalizeStringArray(value: unknown) {

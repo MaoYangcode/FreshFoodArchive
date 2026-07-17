@@ -23,7 +23,18 @@
 				</view>
 				<text class="banner-meta">{{ recipe.ingredientsText }}</text>
 			</view>
-			<view class="step-card">
+			<view v-if="detailLoading" class="detail-loading-card">
+				<view class="detail-loading-dot"></view>
+				<view>
+					<text class="detail-loading-title">正在生成详细做法</text>
+					<text class="detail-loading-meta">同时估算每人份营养数据，请稍候…</text>
+				</view>
+			</view>
+			<view v-else-if="detailError" class="detail-error-card">
+				<text class="detail-error-text">{{ detailError }}</text>
+				<button class="detail-retry-btn" @click="retryLoadDetail">重新生成</button>
+			</view>
+			<view v-if="hasRecipeDetail" class="step-card">
 				<view class="step-head">
 					<text class="step-title">步骤</text>
 					<text class="step-meta">共{{ recipe.steps.length }}步</text>
@@ -34,6 +45,22 @@
 						<text class="step-line">{{ formatStepText(step) }}</text>
 					</view>
 				</view>
+			</view>
+			<view v-if="hasNutrition" class="nutrition-card">
+				<view class="nutrition-head">
+					<text class="nutrition-title">营养元素</text>
+					<text class="nutrition-serving">每人份估算</text>
+				</view>
+				<view class="nutrition-grid">
+					<view v-for="item in nutritionItems" :key="item.key" class="nutrition-item">
+						<text class="nutrition-icon">{{ item.icon }}</text>
+						<text class="nutrition-label">{{ item.label }}</text>
+						<text class="nutrition-value">{{ item.value }}</text>
+						<text class="nutrition-unit">{{ item.unit }}</text>
+					</view>
+				</view>
+				<text v-if="recipe.nutrition.analysis" class="nutrition-analysis"><text class="nutrition-analysis-label">营养分析：</text>{{ recipe.nutrition.analysis }}</text>
+				<text class="nutrition-disclaimer">营养数据为 AI 估算值，仅供日常饮食参考。</text>
 			</view>
 		</view>
 		<view class="favorite-wrap">
@@ -58,9 +85,12 @@ import {
 } from '@/store/app-store'
 import { getIngredientList } from '@/api/modules/ingredients'
 import { upsertBasketItems as upsertBasketItemsApi } from '@/api/modules/basket'
+import { getRecipeDetail } from '@/api/modules/recipes'
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import { toSmartBasketItem } from '@/utils/smart-purchase'
+
+const RECIPE_DETAIL_CACHE_PREFIX = 'FFA_RECIPE_DETAIL_V1_'
 
 export default {
 	components: { BottomNav, IngredientIcon },
@@ -68,6 +98,8 @@ export default {
 		return {
 			fromFavorite: false,
 			favorited: false,
+			detailLoading: false,
+			detailError: '',
 			completedCount: 0,
 			lastCompletedAt: '',
 			recipe: {
@@ -75,15 +107,34 @@ export default {
 				duration: 12,
 				difficulty: '简单',
 				servings: 2,
-				ingredients: ['番茄 x2', '鸡蛋 x3', '小葱 x1', '盐 3g'],
-				ingredientsText: '番茄 x2、鸡蛋 x3、小葱 x1、盐 3g',
-				steps: ['西红柿切块，鸡蛋打散。', '先炒鸡蛋盛出，再炒番茄。', '回锅翻炒，调味后出锅。']
+				ingredients: [],
+				ingredientsText: '食材信息加载中',
+				steps: [],
+				nutrition: null,
+				raw: null
 			}
 		}
 	},
 	computed: {
 		completeButtonText() {
 			return this.completedCount > 0 ? `已完成 ${this.completedCount}次` : '标记已完成'
+		},
+		hasRecipeDetail() {
+			return Array.isArray(this.recipe.steps) && this.recipe.steps.length > 0
+		},
+		hasNutrition() {
+			return !!this.recipe?.nutrition && this.nutritionItems.some((item) => Number(item.rawValue) > 0)
+		},
+		nutritionItems() {
+			const value = this.recipe?.nutrition || {}
+			return [
+				{ key: 'calories', icon: '🔥', label: '热量', rawValue: value.calories, value: this.formatNutritionValue(value.calories), unit: 'kcal' },
+				{ key: 'protein', icon: '💪', label: '蛋白质', rawValue: value.protein, value: this.formatNutritionValue(value.protein), unit: 'g' },
+				{ key: 'fat', icon: '💧', label: '脂肪', rawValue: value.fat, value: this.formatNutritionValue(value.fat), unit: 'g' },
+				{ key: 'carbohydrates', icon: '🌾', label: '碳水化合物', rawValue: value.carbohydrates, value: this.formatNutritionValue(value.carbohydrates), unit: 'g' },
+				{ key: 'fiber', icon: '🌿', label: '膳食纤维', rawValue: value.fiber, value: this.formatNutritionValue(value.fiber), unit: 'g' },
+				{ key: 'sodium', icon: 'Na', label: '钠', rawValue: value.sodium, value: this.formatNutritionValue(value.sodium), unit: 'mg' }
+			]
 		}
 	},
 	onLoad(query) {
@@ -93,6 +144,7 @@ export default {
 		if (cached && typeof cached === 'object') this.applyRecipeFromRaw(cached)
 		if (query && query.name) this.recipe.name = decodeURIComponent(query.name)
 		this.syncFavoriteState(this.fromFavorite)
+		this.ensureRecipeDetail()
 	},
 	onShow() {
 		this.ensureShareMenu()
@@ -111,6 +163,73 @@ export default {
 		}
 	},
 	methods: {
+		formatNutritionValue(value) {
+			const number = Number(value || 0)
+			if (!Number.isFinite(number)) return '0'
+			return Number.isInteger(number) ? `${number}` : `${Math.round(number * 10) / 10}`
+		},
+		detailCacheKey(recipe = this.recipe) {
+			const name = this.normalizeName(recipe?.name)
+			return name ? `${RECIPE_DETAIL_CACHE_PREFIX}${name}` : ''
+		},
+		readDetailCache() {
+			const key = this.detailCacheKey()
+			if (!key) return null
+			try {
+				const cached = uni.getStorageSync(key)
+				return cached && typeof cached === 'object' ? cached : null
+			} catch (_) {
+				return null
+			}
+		},
+		writeDetailCache(recipe) {
+			const key = this.detailCacheKey(recipe)
+			if (!key || !recipe || typeof recipe !== 'object') return
+			try {
+				uni.setStorageSync(key, recipe)
+			} catch (_) {}
+		},
+		isDetailComplete(recipe) {
+			return !!recipe && Array.isArray(recipe.steps) && recipe.steps.length > 0 && !!recipe.nutrition
+		},
+		async ensureRecipeDetail(force = false) {
+			if (this.detailLoading) return
+			if (!force) {
+				const cached = this.readDetailCache()
+				if (this.isDetailComplete(cached)) {
+					this.applyRecipeFromRaw(cached)
+					uni.setStorageSync('latestRecipeDetail', cached)
+					return
+				}
+				if (this.isDetailComplete(this.recipe?.raw)) return
+			}
+			this.detailLoading = true
+			this.detailError = ''
+			try {
+				const summary = this.recipe?.raw && typeof this.recipe.raw === 'object'
+					? this.recipe.raw
+					: {
+						name: this.recipe.name,
+						duration: this.recipe.duration,
+						difficulty: this.recipe.difficulty,
+						ingredients: this.pickRecipeIngredientItems()
+					}
+				const res = await getRecipeDetail({ recipe: summary })
+				const detail = res?.data?.recipe || res?.recipe
+				if (!this.isDetailComplete(detail)) throw new Error('详情内容不完整')
+				this.applyRecipeFromRaw(detail)
+				this.writeDetailCache(detail)
+				uni.setStorageSync('latestRecipeDetail', detail)
+			} catch (error) {
+				const message = `${error?.message || error?.msg || error?.data?.message || ''}`.trim()
+				this.detailError = message || '详细做法生成失败，请重试'
+			} finally {
+				this.detailLoading = false
+			}
+		},
+		retryLoadDetail() {
+			this.ensureRecipeDetail(true)
+		},
 		ensureShareMenu() {
 			if (typeof uni === 'undefined' || typeof uni.showShareMenu !== 'function') return
 			try {
@@ -129,9 +248,11 @@ export default {
 				name: raw?.name || this.recipe.name,
 				duration: Number(raw?.duration || this.recipe.duration),
 				difficulty: raw?.difficulty || this.recipe.difficulty,
+				servings: Math.max(1, Number(raw?.servings || this.recipe.servings || 2)),
 				ingredientsText: ingredientText || this.recipe.ingredientsText,
 				ingredients: ingredientText ? ingredientText.split('、') : this.recipe.ingredients,
-				steps: stepList.length ? stepList : this.recipe.steps,
+				steps: stepList,
+				nutrition: raw?.nutrition && typeof raw.nutrition === 'object' ? raw.nutrition : null,
 				raw
 			}
 		},
@@ -357,6 +478,16 @@ export default {
 .banner-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6rpx; }
 .banner-title { font-weight: 700; font-size: 14px; }
 .banner-meta { color: #6f7d73; line-height: 1.8; font-size: 12px; }
+.detail-loading-card,
+.detail-error-card { display: flex; align-items: center; gap: 14rpx; border: 1rpx solid #e6eee8; border-radius: 14px; padding: 20rpx 16rpx; background: #f8fbf8; margin-bottom: 12rpx; }
+.detail-loading-dot { width: 24rpx; height: 24rpx; border-radius: 50%; border: 4rpx solid #dcecdf; border-top-color: #55ad61; animation: detail-spin .8s linear infinite; flex-shrink: 0; }
+.detail-loading-title { display: block; color: #42684a; font-size: 13px; font-weight: 700; }
+.detail-loading-meta { display: block; color: #839087; font-size: 11px; margin-top: 5rpx; }
+.detail-error-card { justify-content: space-between; background: #fff9f5; border-color: #f2e3d7; }
+.detail-error-text { flex: 1; color: #9a6a4a; font-size: 12px; line-height: 1.5; }
+.detail-retry-btn { margin: 0; padding: 0 16rpx; height: 54rpx; line-height: 54rpx; border-radius: 999rpx; background: #edf6ef; color: #4c9657; font-size: 11px; font-weight: 700; }
+.detail-retry-btn::after { border: none; }
+@keyframes detail-spin { to { transform: rotate(360deg); } }
 .step-card { border: 1rpx solid #edf2ef; border-radius: 14px; padding: 12rpx; background: #fff; margin-bottom: 10rpx; }
 .step-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8rpx; }
 .step-title { font-weight: 700; font-size: 14px; }
@@ -378,6 +509,19 @@ export default {
 	flex-shrink: 0;
 	margin-top: 4rpx;
 }
+.nutrition-card { border: 1rpx solid #e9efe9; border-radius: 14px; padding: 14rpx; background: #fff; margin-top: 12rpx; }
+.nutrition-head { display: flex; align-items: baseline; gap: 10rpx; margin-bottom: 12rpx; }
+.nutrition-title { font-size: 15px; font-weight: 800; color: #202820; }
+.nutrition-serving { font-size: 11px; color: #7b887f; }
+.nutrition-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10rpx; }
+.nutrition-item { min-width: 0; display: flex; flex-direction: column; align-items: center; padding: 12rpx 6rpx; border-radius: 12px; background: #f8faf8; }
+.nutrition-icon { height: 34rpx; line-height: 34rpx; font-size: 16px; color: #55a765; font-weight: 800; }
+.nutrition-label { min-height: 34rpx; margin-top: 4rpx; color: #606b63; font-size: 10px; text-align: center; }
+.nutrition-value { margin-top: 6rpx; color: #1e2620; font-size: 17px; font-weight: 800; line-height: 1; }
+.nutrition-unit { margin-top: 5rpx; color: #7b857e; font-size: 10px; }
+.nutrition-analysis { display: block; margin-top: 14rpx; color: #5f6962; font-size: 11px; line-height: 1.7; }
+.nutrition-analysis-label { color: #4eaa5c; font-weight: 700; }
+.nutrition-disclaimer { display: block; margin-top: 8rpx; color: #9aa19c; font-size: 9px; line-height: 1.5; }
 .btn { width: 100%; border: none; border-radius: 16rpx; padding: 14rpx 12rpx; color: #fff; font-size: 14px; font-weight: 700; box-shadow: 0 8rpx 16rpx rgba(58,116,66,.22); }
 .btn::after { border: none; }
 .primary { background: linear-gradient(135deg,#70c977,#4cae57); }

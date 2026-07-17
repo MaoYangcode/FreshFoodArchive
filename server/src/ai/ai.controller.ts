@@ -118,6 +118,23 @@ export class AiController {
     }
   }
 
+  @Post('generate-recipe-detail')
+  async generateRecipeDetail(@Req() req: any, @Body() body: any) {
+    try {
+      const recipe = await this.aiService.generateRecipeDetail({
+        ...(body || {}),
+        userId: Number(req?.userId || 1),
+      })
+      return { code: 0, message: 'ok', data: { recipe } }
+    } catch (error: any) {
+      return {
+        code: 10025,
+        message: error?.message || '菜谱详情生成失败',
+        data: null,
+      }
+    }
+  }
+
   @Get('generate-recipe-task/:taskId')
   getGenerateRecipeTask(@Param('taskId') taskId: string) {
     const task = this.aiService.getRecipeGenerateTask(taskId)
