@@ -1,7 +1,15 @@
-import { Controller, Get, Res } from '@nestjs/common';
+import { Controller, Get, Param, Res } from '@nestjs/common';
 import { AppService } from './app.service';
 import type { Response } from 'express'
 import * as path from 'path'
+
+const NUTRITION_ICON_FILES = new Set([
+  'danbaizhi.svg',
+  'reliang.svg',
+  'xiaomai.svg',
+  'yezi1.svg',
+  'zhifangyouheruhuazhifangzhipin.svg',
+])
 
 @Controller()
 export class AppController {
@@ -20,5 +28,15 @@ export class AppController {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
     res.setHeader('Content-Type', 'font/ttf')
     return res.sendFile(path.join(process.cwd(), '../static/iconfont/iconfont.ttf'))
+  }
+
+  @Get('nutrition-icons/:fileName')
+  getNutritionIcon(@Param('fileName') fileName: string, @Res() res: Response) {
+    const safeName = `${fileName || ''}`.trim()
+    if (!NUTRITION_ICON_FILES.has(safeName)) return res.status(404).end()
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+    res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8')
+    return res.sendFile(path.join(process.cwd(), 'assets/nutrition-icons', safeName))
   }
 }

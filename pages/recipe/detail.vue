@@ -53,7 +53,7 @@
 				</view>
 				<view class="nutrition-grid">
 					<view v-for="item in nutritionItems" :key="item.key" class="nutrition-item">
-						<text class="nutrition-icon">{{ item.icon }}</text>
+						<NutritionIcon class="nutrition-icon" :file="item.iconFile" :fallback="item.fallback" :color="item.color" :size="12" />
 						<text class="nutrition-label">{{ item.label }}</text>
 						<text class="nutrition-value">{{ item.value }}</text>
 						<text class="nutrition-unit">{{ item.unit }}</text>
@@ -88,12 +88,13 @@ import { upsertBasketItems as upsertBasketItemsApi } from '@/api/modules/basket'
 import { getRecipeDetail } from '@/api/modules/recipes'
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
+import NutritionIcon from '@/components/nutrition-icon.vue'
 import { toSmartBasketItem } from '@/utils/smart-purchase'
 
 const RECIPE_DETAIL_CACHE_PREFIX = 'FFA_RECIPE_DETAIL_V1_'
 
 export default {
-	components: { BottomNav, IngredientIcon },
+	components: { BottomNav, IngredientIcon, NutritionIcon },
 	data() {
 		return {
 			fromFavorite: false,
@@ -128,12 +129,12 @@ export default {
 		nutritionItems() {
 			const value = this.recipe?.nutrition || {}
 			return [
-				{ key: 'calories', icon: '🔥', label: '热量', rawValue: value.calories, value: this.formatNutritionValue(value.calories), unit: 'kcal' },
-				{ key: 'protein', icon: '💪', label: '蛋白质', rawValue: value.protein, value: this.formatNutritionValue(value.protein), unit: 'g' },
-				{ key: 'fat', icon: '💧', label: '脂肪', rawValue: value.fat, value: this.formatNutritionValue(value.fat), unit: 'g' },
-				{ key: 'carbohydrates', icon: '🌾', label: '碳水化合物', rawValue: value.carbohydrates, value: this.formatNutritionValue(value.carbohydrates), unit: 'g' },
-				{ key: 'fiber', icon: '🌿', label: '膳食纤维', rawValue: value.fiber, value: this.formatNutritionValue(value.fiber), unit: 'g' },
-				{ key: 'sodium', icon: 'Na', label: '钠', rawValue: value.sodium, value: this.formatNutritionValue(value.sodium), unit: 'mg' }
+				{ key: 'calories', iconFile: 'reliang', fallback: '🔥', color: '#ff7200', label: '热量', rawValue: value.calories, value: this.formatNutritionValue(value.calories), unit: 'kcal' },
+				{ key: 'protein', iconFile: 'danbaizhi', fallback: '●', color: '#a9ada9', label: '蛋白质', rawValue: value.protein, value: this.formatNutritionValue(value.protein), unit: 'g' },
+				{ key: 'fat', iconFile: 'zhifangyouheruhuazhifangzhipin', fallback: '💧', color: '#f59a00', label: '脂肪', rawValue: value.fat, value: this.formatNutritionValue(value.fat), unit: 'g' },
+				{ key: 'carbohydrates', iconFile: 'xiaomai', fallback: '🌾', color: '#e9aa13', label: '碳水化合物', rawValue: value.carbohydrates, value: this.formatNutritionValue(value.carbohydrates), unit: 'g' },
+				{ key: 'fiber', iconFile: 'yezi1', fallback: '🌿', color: '#58ae67', label: '膳食纤维', rawValue: value.fiber, value: this.formatNutritionValue(value.fiber), unit: 'g' },
+				{ key: 'sodium', iconFile: '', fallback: 'Na', color: '#58ae67', label: '钠', rawValue: value.sodium, value: this.formatNutritionValue(value.sodium), unit: 'mg' }
 			]
 		}
 	},
@@ -509,19 +510,19 @@ export default {
 	flex-shrink: 0;
 	margin-top: 4rpx;
 }
-.nutrition-card { border: 1rpx solid #e9efe9; border-radius: 14px; padding: 14rpx; background: #fff; margin-top: 12rpx; }
-.nutrition-head { display: flex; align-items: baseline; gap: 10rpx; margin-bottom: 12rpx; }
-.nutrition-title { font-size: 15px; font-weight: 800; color: #202820; }
-.nutrition-serving { font-size: 11px; color: #7b887f; }
-.nutrition-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10rpx; }
-.nutrition-item { min-width: 0; display: flex; flex-direction: column; align-items: center; padding: 12rpx 6rpx; border-radius: 12px; background: #f8faf8; }
-.nutrition-icon { height: 34rpx; line-height: 34rpx; font-size: 16px; color: #55a765; font-weight: 800; }
-.nutrition-label { min-height: 34rpx; margin-top: 4rpx; color: #606b63; font-size: 10px; text-align: center; }
-.nutrition-value { margin-top: 6rpx; color: #1e2620; font-size: 17px; font-weight: 800; line-height: 1; }
-.nutrition-unit { margin-top: 5rpx; color: #7b857e; font-size: 10px; }
-.nutrition-analysis { display: block; margin-top: 14rpx; color: #5f6962; font-size: 11px; line-height: 1.7; }
+.nutrition-card { border: 1rpx solid #e1ebe3; border-radius: 14px; padding: 12rpx 12rpx 10rpx; background: linear-gradient(180deg, #fff, #fbfdfb); margin-top: 12rpx; }
+.nutrition-head { display: flex; align-items: baseline; gap: 8rpx; margin-bottom: 10rpx; }
+.nutrition-title { font-size: 14px; font-weight: 800; color: #202820; }
+.nutrition-serving { font-size: 10px; color: #89938c; }
+.nutrition-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5rpx; }
+.nutrition-item { min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8rpx 2rpx 7rpx; border-radius: 10px; background: #f6f9f6; border: 1rpx solid #eef3ef; }
+.nutrition-icon { height: 26rpx; line-height: 26rpx; font-size: 12px; color: #55a765; font-weight: 800; }
+.nutrition-label { width: 100%; margin-top: 2rpx; color: #68736b; font-size: 8px; line-height: 1.25; text-align: center; white-space: nowrap; transform: scale(.92); }
+.nutrition-value { margin-top: 5rpx; color: #1e2620; font-size: 13px; font-weight: 800; line-height: 1; }
+.nutrition-unit { margin-top: 4rpx; color: #8a948d; font-size: 8px; line-height: 1; }
+.nutrition-analysis { display: block; margin-top: 11rpx; padding-top: 9rpx; border-top: 1rpx solid #edf2ee; color: #5f6962; font-size: 10px; line-height: 1.65; }
 .nutrition-analysis-label { color: #4eaa5c; font-weight: 700; }
-.nutrition-disclaimer { display: block; margin-top: 8rpx; color: #9aa19c; font-size: 9px; line-height: 1.5; }
+.nutrition-disclaimer { display: block; margin-top: 5rpx; color: #a0a7a2; font-size: 8px; line-height: 1.4; }
 .btn { width: 100%; border: none; border-radius: 16rpx; padding: 14rpx 12rpx; color: #fff; font-size: 14px; font-weight: 700; box-shadow: 0 8rpx 16rpx rgba(58,116,66,.22); }
 .btn::after { border: none; }
 .primary { background: linear-gradient(135deg,#70c977,#4cae57); }
