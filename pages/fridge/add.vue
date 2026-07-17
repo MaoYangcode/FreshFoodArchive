@@ -262,6 +262,20 @@ export default {
 				})
 			})
 		},
+		compressLocalImage(filePath) {
+			const source = `${filePath || ''}`.trim()
+			if (!source || typeof uni === 'undefined' || typeof uni.compressImage !== 'function') {
+				return Promise.resolve(source)
+			}
+			return new Promise((resolve) => {
+				uni.compressImage({
+					src: source,
+					quality: 70,
+					success: (res) => resolve(res?.tempFilePath || source),
+					fail: () => resolve(source)
+				})
+			})
+		},
 		toggleVoiceInput() {
 			if (!this.voiceSupported || !this.recorderManager) {
 				uni.showToast({ title: '当前运行环境不支持语音录制', icon: 'none' })
@@ -406,8 +420,9 @@ export default {
 		async startRecognize(mode = 'ingredient') {
 			try {
 				const chooseRes = await this.chooseLocalImage()
-				const filePath = chooseRes?.tempFilePaths?.[0]
-				if (!filePath) return
+				const selectedFilePath = chooseRes?.tempFilePaths?.[0]
+				if (!selectedFilePath) return
+				const filePath = await this.compressLocalImage(selectedFilePath)
 
 				const loadingText = mode === 'receipt' ? '小票识别中...' : '识别中...'
 				uni.showLoading({ title: loadingText })

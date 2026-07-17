@@ -334,7 +334,7 @@ export class AiService {
         ],
         false,
         0.35,
-        1600,
+        600,
       )
 
       const primary = this.extractIngredientsFromResponse(content)
@@ -384,7 +384,7 @@ export class AiService {
         ],
         false,
         0.35,
-        1800,
+        900,
       )
 
       const primary = this.extractIngredientsFromResponse(content)
@@ -1114,6 +1114,12 @@ export class AiService {
     if (forceJson) {
       body.response_format = { type: 'json_object' }
     }
+    const hasVisualInput = messages.some((message: any) =>
+      Array.isArray(message?.content) && message.content.some((part: any) => part?.type === 'image_url'),
+    )
+    if (hasVisualInput && /^(qwen3\.6|qwen3\.5|qwen3-vl)/.test(modelName)) {
+      body.enable_thinking = false
+    }
 
     const response = await this.postDashScopeJson(this.endpoint, body)
     return this.extractMessageText(response?.choices?.[0]?.message?.content)
@@ -1550,7 +1556,7 @@ export class AiService {
         ],
         false,
         0.45,
-        1600,
+        600,
       )
       return this.extractIngredientsFromResponse(content)
     } catch (_) {
@@ -1582,7 +1588,7 @@ export class AiService {
         ],
         false,
         0.45,
-        1800,
+        900,
       )
       return this.extractIngredientsFromResponse(content)
     } catch (_) {
