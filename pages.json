@@ -10,6 +10,13 @@
       }
     },
     {
+      "path": "pages/assistant/index",
+      "style": {
+        "navigationBarTitleText": "语音助手",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/fridge/list",
       "style": {
         "navigationBarTitleText": "我的冰箱",

@@ -3,6 +3,7 @@
 		<view class="top" :style="{ paddingRight: `${navRightGap}px` }">
 			<text class="top-title">鲜食档案</text>
 		</view>
+
 		<view class="stats">
 			<view class="stat s-green">
 				<text class="num">{{ stats.total }}</text>
@@ -69,6 +70,16 @@
 			<text class="tip-text">{{ tip.text }}</text>
 			<view class="tip-tags">
 				<text v-for="tag in tip.tags" :key="tag" class="tip-pill">{{ tag }}</text>
+			</view>
+		</view>
+
+		<view class="assistant-entry" @click="goAssistant">
+			<view class="assistant-figure">
+				<image class="assistant-mascot" src="/static/assistant/fridge-assistant.png" mode="aspectFit"></image>
+			</view>
+			<view class="assistant-bubble">
+				<text class="assistant-title">Hi，我是你的语音助手</text>
+				<text class="assistant-arrow">›</text>
 			</view>
 		</view>
 		<BottomNav current="home" />
@@ -282,6 +293,14 @@ export default {
 					uni.reLaunch({ url: '/pages/fridge/list' })
 				}
 			})
+		},
+		goAssistant() {
+			uni.navigateTo({
+				url: '/pages/assistant/index',
+				fail: () => {
+					uni.redirectTo({ url: '/pages/assistant/index' })
+				}
+			})
 		}
 	}
 }
@@ -318,6 +337,66 @@ export default {
 	display: flex;
 	gap: 16rpx;
 	margin-bottom: 16rpx;
+}
+
+.assistant-entry {
+	display: flex;
+	align-items: center;
+	gap: 4rpx;
+	margin: 28rpx 2rpx 18rpx;
+	padding: 4rpx 8rpx 4rpx 0;
+}
+
+.assistant-title {
+	color: #26352d;
+	font-size: 13px;
+	font-weight: 700;
+}
+
+.assistant-figure {
+	width: 128rpx;
+	height: 108rpx;
+	overflow: hidden;
+	flex-shrink: 0;
+}
+
+.assistant-mascot {
+	width: 128rpx;
+	height: 108rpx;
+	transform: scale(1.72);
+}
+
+.assistant-bubble {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 14rpx;
+	min-height: 68rpx;
+	padding: 0 18rpx 0 22rpx;
+	border: 1rpx solid #dfe6e2;
+	border-radius: 16px;
+	background: #fff;
+	box-shadow: 0 7rpx 17rpx rgba(30, 50, 34, .07);
+}
+
+.assistant-bubble::before {
+	content: '';
+	position: absolute;
+	left: -10rpx;
+	top: 24rpx;
+	width: 18rpx;
+	height: 18rpx;
+	border-left: 1rpx solid #dfe6e2;
+	border-bottom: 1rpx solid #dfe6e2;
+	background: #fff;
+	transform: rotate(45deg);
+}
+
+.assistant-arrow {
+	color: #a7b3ac;
+	font-size: 20px;
+	line-height: 1;
 }
 
 .stat {

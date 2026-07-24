@@ -21,6 +21,15 @@ export function recognizeAudioByUpload(filePath) {
 	return uploadAiFile('/ai/recognize-audio', filePath)
 }
 
+export function parseAssistantCommand(text) {
+	return request({
+		url: '/ai/parse-assistant-command',
+		method: 'POST',
+		data: { text },
+		timeout: 30000
+	})
+}
+
 function uploadAiFile(apiPath, filePath) {
 	return new Promise((resolve, reject) => {
 		const token = `${getAuthToken() || ''}`.trim()

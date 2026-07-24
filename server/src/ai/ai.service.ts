@@ -81,6 +81,40 @@ type VoiceRecognizeResult = {
   }>
 }
 
+type AssistantIntent =
+  | 'inventory_add'
+  | 'inventory_consume'
+  | 'inventory_read'
+  | 'expiry_read'
+  | 'recipe_request'
+  | 'unknown'
+
+type AssistantCommand = {
+  intent: AssistantIntent
+  transcript: string
+  items: Array<{
+    name: string
+    quantity?: number
+    unit?: string
+    category?: string
+    location?: string
+    expireDate?: string
+  }>
+  query: {
+    target?: string
+    scope?: string
+  }
+  recipe: {
+    ingredients: string[]
+    maxDuration?: number
+    difficulty?: string
+    taste?: string
+  }
+  reply: string
+  confidence: number
+  requiresConfirmation: boolean
+}
+
 @Injectable()
 export class AiService {
   constructor(private readonly prisma: PrismaService) {}
@@ -447,6 +481,61 @@ export class AiService {
       }
     } catch (error: any) {
       throw new Error(error?.message || '语音识别服务调用失败')
+    }
+  }
+
+  async parseAssistantCommand(text: unknown): Promise<AssistantCommand> {
+    const transcript = `${text || ''}`.replace(/\s+/g, ' ').trim()
+    if (!transcript) return this.buildAssistantCommandFallback('')
+
+    const schema = {
+      intent: 'inventory_add | inventory_consume | inventory_read | expiry_read | recipe_request | unknown',
+      items: [
+        {
+          name: '食材名',
+          quantity: 2,
+          unit: '个',
+          category: '蔬菜',
+          location: '冷藏',
+          expireDate: '2026-07-28',
+        },
+      ],
+      query: { target: '鸡蛋', scope: 'all | target | expiring' },
+      recipe: { ingredients: ['番茄'], maxDuration: 20, difficulty: '简单', taste: '清淡' },
+      reply: '准备向用户展示的简短确认语',
+      confidence: 0.95,
+    }
+    const prompt = [
+      '你是冰箱库存与菜谱语音助手的指令解析器。只返回 JSON，不要执行任何操作。',
+      `用户原话：${transcript}`,
+      `今天日期：${new Date().toISOString().slice(0, 10)}`,
+      '意图说明：inventory_add=食材入库；inventory_consume=取出、吃掉、喝掉或用掉食材；inventory_read=查询或朗读库存；expiry_read=查询或朗读临期/过期食材；recipe_request=请求菜谱；unknown=无法判断。',
+      '提取用户明确说出的食材、数量、单位、存放位置和日期。没有说出的字段不要猜测。',
+      '“喝完了、吃完了、用完了”属于 inventory_consume，但数量可以留空，后续必须确认。',
+      '“冰箱里有什么、还剩多少、朗读库存”属于 inventory_read。',
+      '“有什么快过期、读一下临期食材”属于 expiry_read。',
+      '菜谱请求要提取指定食材、最长用时、难度和口味。',
+      'reply 使用简短自然的中文，说明你理解到了什么；不要声称已经完成入库、出库或删除。',
+      `JSON 结构：${JSON.stringify(schema)}`,
+    ].join('\n')
+
+    if (!this.apiKey) return this.buildAssistantCommandFallback(transcript)
+    try {
+      const content = await this.callDashScope(
+        this.textModel,
+        [
+          { role: 'system', content: '你是结构化语音指令解析助手，只输出 JSON。' },
+          { role: 'user', content: prompt },
+        ],
+        true,
+        0.1,
+        900,
+      )
+      const parsed = this.parseJson(content)
+      return this.normalizeAssistantCommand(parsed?.command || parsed, transcript)
+    } catch (error: any) {
+      this.logger.warn(`assistant-command-parse fallback: ${error?.message || error || 'unknown'}`)
+      return this.buildAssistantCommandFallback(transcript)
     }
   }
 
@@ -1355,6 +1444,146 @@ export class AiService {
     return 'audio/mpeg'
   }
 
+  private normalizeAssistantCommand(source: any, transcript: string): AssistantCommand {
+    const allowedIntents = new Set<AssistantIntent>([
+      'inventory_add',
+      'inventory_consume',
+      'inventory_read',
+      'expiry_read',
+      'recipe_request',
+      'unknown',
+    ])
+    const rawIntent = `${source?.intent || ''}`.trim() as AssistantIntent
+    const intent = allowedIntents.has(rawIntent) ? rawIntent : this.detectAssistantIntent(transcript)
+    const items = (Array.isArray(source?.items) ? source.items : [])
+      .map((item: any) => {
+        const name = this.canonicalizeIngredientName(this.cleanIngredientName(`${item?.name || ''}`))
+        const quantityValue = Number(item?.quantity)
+        const rawCategory = `${item?.category || ''}`.trim()
+        return {
+          name,
+          quantity: Number.isFinite(quantityValue) && quantityValue > 0 ? quantityValue : undefined,
+          unit: `${item?.unit || ''}`.trim() || undefined,
+          category: this.validCategories.has(rawCategory) ? rawCategory : undefined,
+          location: `${item?.location || ''}`.trim() || undefined,
+          expireDate: `${item?.expireDate || ''}`.trim() || undefined,
+        }
+      })
+      .filter((item) => !!item.name)
+    const recipeIngredients = Array.isArray(source?.recipe?.ingredients)
+      ? source.recipe.ingredients.map((name: any) => `${name || ''}`.trim()).filter(Boolean)
+      : []
+    const maxDuration = Number(source?.recipe?.maxDuration)
+    const confidenceValue = Number(source?.confidence)
+    const command: AssistantCommand = {
+      intent,
+      transcript,
+      items,
+      query: {
+        target: `${source?.query?.target || ''}`.trim() || undefined,
+        scope: `${source?.query?.scope || ''}`.trim() || undefined,
+      },
+      recipe: {
+        ingredients: recipeIngredients,
+        maxDuration: Number.isFinite(maxDuration) && maxDuration > 0 ? maxDuration : undefined,
+        difficulty: `${source?.recipe?.difficulty || ''}`.trim() || undefined,
+        taste: `${source?.recipe?.taste || ''}`.trim() || undefined,
+      },
+      reply: `${source?.reply || ''}`.trim(),
+      confidence: Number.isFinite(confidenceValue)
+        ? Number(Math.max(0, Math.min(1, confidenceValue)).toFixed(2))
+        : 0.7,
+      requiresConfirmation: intent === 'inventory_add' || intent === 'inventory_consume',
+    }
+    if (!command.reply) command.reply = this.buildAssistantReply(command)
+    return command
+  }
+
+  private buildAssistantCommandFallback(transcript: string): AssistantCommand {
+    const intent = this.detectAssistantIntent(transcript)
+    const fallback = this.parseVoiceTextFallback(
+      `${transcript || ''}`
+        .replace(/(请|帮我|我要|想要|一下|今天|刚才|刚刚|已经|冰箱里|库存里|入库|添加|新增|放进去|放进冰箱|买了|买回|取出|拿出|用了|用掉|吃了|吃掉|喝了|喝掉|查询|查看|朗读|读一下|告诉我|推荐|生成|一道|菜谱)/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim(),
+    )
+    const parsedItems = Array.isArray(fallback.items) ? fallback.items : []
+    const items = (parsedItems.length ? parsedItems : (fallback.name ? [fallback] : []))
+      .map((item: any) => ({
+        name: `${item?.name || ''}`.trim(),
+        quantity: item?.quantity,
+        unit: `${item?.unit || ''}`.trim() || undefined,
+      }))
+      .filter((item) => !!item.name)
+    const inventoryTargetMatch = transcript.match(
+      /(?:查一下|查查|查询|查看|告诉我)?\s*([^，。！？?\s]{1,12}?)(?:还有多少|还剩多少|剩多少|有多少)/,
+    )
+    const inventoryTarget = `${inventoryTargetMatch?.[1] || ''}`
+      .replace(/^(冰箱里|库存里|冰箱|库存)/, '')
+      .trim()
+    const recipeIngredientMatch = transcript.match(
+      /(?:用|拿)\s*(.+?)\s*(?:做|推荐|生成|来一道|来个)/,
+    )
+    const recipeIngredientText = `${recipeIngredientMatch?.[1] || ''}`.trim()
+    const recipeIngredients = recipeIngredientText
+      ? recipeIngredientText.split(/[、，,和与跟及+\s]+/).map((name) => name.trim()).filter(Boolean)
+      : []
+    const durationMatch = transcript.match(/(\d+)\s*分钟/)
+    const maxDuration = Number(durationMatch?.[1])
+    const difficulty = ['简单', '中等', '困难'].find((value) => transcript.includes(value))
+    const taste = ['清淡', '香辣', '麻辣', '酸甜', '咸鲜'].find((value) => transcript.includes(value))
+    const command: AssistantCommand = {
+      intent,
+      transcript,
+      items: intent === 'inventory_add' || intent === 'inventory_consume' ? items : [],
+      query: {
+        target: intent === 'inventory_read' ? (inventoryTarget || undefined) : undefined,
+        scope: intent === 'expiry_read' ? 'expiring' : (intent === 'inventory_read' ? 'all' : undefined),
+      },
+      recipe: {
+        ingredients: intent === 'recipe_request' ? recipeIngredients : [],
+        maxDuration: intent === 'recipe_request' && Number.isFinite(maxDuration) && maxDuration > 0
+          ? maxDuration
+          : undefined,
+        difficulty: intent === 'recipe_request' ? difficulty : undefined,
+        taste: intent === 'recipe_request' ? taste : undefined,
+      },
+      reply: '',
+      confidence: intent === 'unknown' ? 0.2 : 0.55,
+      requiresConfirmation: intent === 'inventory_add' || intent === 'inventory_consume',
+    }
+    command.reply = this.buildAssistantReply(command)
+    return command
+  }
+
+  private detectAssistantIntent(text: string): AssistantIntent {
+    const value = `${text || ''}`.replace(/\s+/g, '')
+    if (!value) return 'unknown'
+    if (/(临期|快过期|即将过期|已经过期|过期食材)/.test(value)) return 'expiry_read'
+    if (/(菜谱|做什么菜|吃什么|推荐.*菜|怎么做)/.test(value)) return 'recipe_request'
+    if (/(取出|拿出|出库|用了|用掉|吃了|吃掉|喝了|喝掉|喝完|吃完|用完|减掉|扣掉)/.test(value)) {
+      return 'inventory_consume'
+    }
+    if (/(入库|添加|新增|放进去|放进冰箱|买了|买回|存入)/.test(value)) return 'inventory_add'
+    if (/(库存|冰箱里有什么|还有什么|剩多少|有多少|朗读|读一下|告诉我.*食材)/.test(value)) {
+      return 'inventory_read'
+    }
+    return 'unknown'
+  }
+
+  private buildAssistantReply(command: AssistantCommand) {
+    const names = command.items.map((item) => {
+      const amount = item.quantity ? `${item.quantity}${item.unit || ''}` : ''
+      return `${item.name}${amount}`
+    }).join('、')
+    if (command.intent === 'inventory_add') return names ? `我识别到准备入库：${names}，请确认信息。` : '我听到了入库需求，请补充食材信息。'
+    if (command.intent === 'inventory_consume') return names ? `我识别到准备取出：${names}，请确认数量。` : '我听到了出库需求，请补充食材和数量。'
+    if (command.intent === 'inventory_read') return '我识别到库存查询需求，下一步将读取冰箱库存。'
+    if (command.intent === 'expiry_read') return '我识别到临期食材查询需求，下一步将读取临期库存。'
+    if (command.intent === 'recipe_request') return '我识别到菜谱推荐需求，下一步将根据条件生成菜谱。'
+    return '我还不能确定你的指令，请换一种说法再试一次。'
+  }
+
   private parseVoiceTextFallback(text: string) {
     const cleaned = `${text || ''}`
       .replace(/[，,。；;！!？?]/g, ' ')
@@ -1402,7 +1631,10 @@ export class AiService {
   }
 
   private parseVoiceSingleItem(text: string) {
-    const cleaned = `${text || ''}`.replace(/\s+/g, ' ').trim()
+    const cleaned = `${text || ''}`
+      .replace(/^(今天|刚才|刚刚|已经|我)\s*/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
     if (!cleaned) return { name: '', quantity: undefined as number | undefined, unit: undefined as string | undefined }
     const unitPattern = '(个|颗|斤|公斤|千克|克|袋|包|瓶|盒|罐|把|根|条|片|块|份|毫升|升)'
     const qtyPattern = '([零一二两三四五六七八九十百千万\\d]+(?:\\.\\d+)?)'
@@ -1441,6 +1673,7 @@ export class AiService {
     return `${raw || ''}`
       .replace(/\s+/g, '')
       .replace(/(放在|放到|放进|放入|存到|存入|放至|存至|冻起来|冻上|放冰箱|冰箱里|冷藏室|冷藏层|冷冻室|冷冻层|冷冻柜|保鲜层)$/g, '')
+      .replace(/(放冷藏|放冷冻)$/g, '')
       .replace(/([零一二两三四五六七八九十百千万\d]+)(放|存|冻)$/g, '')
       .replace(/(放|存|冻)$/g, '')
       .trim()

@@ -175,4 +175,22 @@ export class AiController {
       }
     }
   }
+
+  @Post('parse-assistant-command')
+  async parseAssistantCommand(@Body() body: any) {
+    const text = `${body?.text || ''}`.trim()
+    if (!text) {
+      return { code: 10051, message: '语音文字为空', data: null }
+    }
+    try {
+      const command = await this.aiService.parseAssistantCommand(text)
+      return { code: 0, message: 'ok', data: { command } }
+    } catch (error: any) {
+      return {
+        code: 10052,
+        message: error?.message || '语音指令解析失败',
+        data: null,
+      }
+    }
+  }
 }
