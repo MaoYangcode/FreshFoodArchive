@@ -43,6 +43,33 @@ export class IngredientsService {
     })
   }
 
+  async createBatch(userId: number, rawItems: unknown) {
+    const items = Array.isArray(rawItems) ? rawItems : []
+    if (!items.length || items.length > 20) {
+      throw new BadRequestException('入库食材数量应为1至20项')
+    }
+
+    const normalized = items.map((raw: any, index) => {
+      const name = `${raw?.name || ''}`.trim()
+      const category = `${raw?.category || ''}`.trim()
+      const unit = `${raw?.unit || ''}`.trim()
+      const location = `${raw?.location || ''}`.trim()
+      const quantity = Number(raw?.quantity)
+      const expireDate = raw?.expireDate ? new Date(raw.expireDate) : null
+      if (!name || !category || !unit || !location || !Number.isFinite(quantity) || quantity <= 0) {
+        throw new BadRequestException(`第${index + 1}项入库信息不完整`)
+      }
+      if (expireDate && !Number.isFinite(expireDate.getTime())) {
+        throw new BadRequestException(`第${index + 1}项过期日期无效`)
+      }
+      return { name, category, unit, location, quantity, expireDate, userId }
+    })
+
+    return this.prisma.$transaction(
+      normalized.map((data) => this.prisma.ingredient.create({ data })),
+    )
+  }
+
   async remove(id: number, userId: number) {
   const item = await this.prisma.ingredient.findFirst({
     where: { id, userId },

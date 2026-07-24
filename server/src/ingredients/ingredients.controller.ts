@@ -25,6 +25,11 @@ export class IngredientsController {
     return this.ingredientsService.create(Number(req?.userId || 1), body)
   }
 
+  @Post('batch')
+  createBatch(@Req() req: any, @Body() body: any) {
+    return this.ingredientsService.createBatch(Number(req?.userId || 1), body?.items)
+  }
+
   @Delete(':id')
   remove(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
     return this.ingredientsService.remove(id, Number(req?.userId || 1))

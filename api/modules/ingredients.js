@@ -23,6 +23,15 @@ export function createIngredient(payload) {
 	})
 }
 
+export function createIngredientsBatch(items = []) {
+	return request({
+		url: '/ingredients/batch',
+		method: 'POST',
+		data: { items },
+		timeout: 15000
+	})
+}
+
 export function updateIngredient(id, payload) {
 	return request({
 		url: `/ingredients/${id}`,
