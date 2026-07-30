@@ -100,7 +100,7 @@ import { getIngredientList } from '@/api/modules/ingredients'
 import { upsertBasketItems as upsertBasketItemsApi } from '@/api/modules/basket'
 import { getRecipeDetail } from '@/api/modules/recipes'
 import { synthesizeAssistantSpeech } from '@/api/modules/ai'
-import { playSpeechAudio } from '@/utils/speech-audio'
+import { configureSpeechAudio, playSpeechAudio } from '@/utils/speech-audio'
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import NutritionIcon from '@/components/nutrition-icon.vue'
@@ -222,8 +222,11 @@ export default {
 	methods: {
 		initRecipeAudio() {
 			if (typeof uni.createInnerAudioContext !== 'function') return
+			configureSpeechAudio()
 			const audio = uni.createInnerAudioContext()
 			audio.autoplay = false
+			audio.volume = 1
+			audio.obeyMuteSwitch = false
 			audio.onPlay(() => {
 				this.isRecipeSpeaking = true
 			})

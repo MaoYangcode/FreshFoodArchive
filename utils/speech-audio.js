@@ -1,5 +1,17 @@
 import { getActiveBaseUrl } from '@/api/request'
 
+export function configureSpeechAudio() {
+	if (typeof uni.setInnerAudioOption !== 'function') return
+	try {
+		uni.setInnerAudioOption({
+			mixWithOther: false,
+			obeyMuteSwitch: false
+		})
+	} catch (error) {
+		console.warn('语音播放设置初始化失败', error)
+	}
+}
+
 export function playSpeechAudio(audioContext, audioPath) {
 	return new Promise((resolve, reject) => {
 		if (!audioContext || typeof uni.downloadFile !== 'function') {
@@ -22,9 +34,19 @@ export function playSpeechAudio(audioContext, audioPath) {
 					reject(new Error(`朗读音频下载失败${statusCode ? `（${statusCode}）` : ''}`))
 					return
 				}
+				audioContext.stop()
+				audioContext.volume = 1
+				audioContext.obeyMuteSwitch = false
+				audioContext.autoplay = true
 				audioContext.src = tempFilePath
-				audioContext.play()
-				resolve(tempFilePath)
+				setTimeout(() => {
+					try {
+						audioContext.play()
+						resolve(tempFilePath)
+					} catch (error) {
+						reject(error)
+					}
+				}, 180)
 			},
 			fail: (error) => {
 				console.error('朗读音频下载失败', error)

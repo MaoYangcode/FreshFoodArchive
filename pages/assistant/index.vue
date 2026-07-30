@@ -172,7 +172,7 @@ import BottomNav from '@/components/bottom-nav.vue'
 import { parseAssistantCommand, recognizeAudioByUpload, synthesizeAssistantSpeech } from '@/api/modules/ai'
 import { createIngredientsBatch, consumeIngredientsBatch, getIngredientList } from '@/api/modules/ingredients'
 import { createRecipeTask } from '@/api/modules/recipes'
-import { playSpeechAudio } from '@/utils/speech-audio'
+import { configureSpeechAudio, playSpeechAudio } from '@/utils/speech-audio'
 import { getShelfLifeSettings } from '@/api/modules/shelf-life'
 import { getCurrentUserId } from '@/utils/current-user'
 import { DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY, getShelfLifeDays, normalizeShelfLifeDaysByCategory } from '@/utils/shelf-life'
@@ -442,8 +442,11 @@ export default {
 		},
 		initAudioPlayer() {
 			if (typeof uni.createInnerAudioContext !== 'function') return
+			configureSpeechAudio()
 			const audio = uni.createInnerAudioContext()
 			audio.autoplay = false
+			audio.volume = 1
+			audio.obeyMuteSwitch = false
 			audio.onPlay(() => {
 				this.isSpeaking = true
 			})
