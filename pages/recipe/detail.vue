@@ -100,7 +100,7 @@ import { getIngredientList } from '@/api/modules/ingredients'
 import { upsertBasketItems as upsertBasketItemsApi } from '@/api/modules/basket'
 import { getRecipeDetail } from '@/api/modules/recipes'
 import { synthesizeAssistantSpeech } from '@/api/modules/ai'
-import { getActiveBaseUrl } from '@/api/request'
+import { playSpeechAudio } from '@/utils/speech-audio'
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import NutritionIcon from '@/components/nutrition-icon.vue'
@@ -233,7 +233,8 @@ export default {
 			audio.onStop(() => {
 				this.isRecipeSpeaking = false
 			})
-			audio.onError(() => {
+			audio.onError((error) => {
+				console.error('菜谱播放失败', error)
 				this.isRecipeSpeaking = false
 				this.isRecipeSynthesizing = false
 				uni.showToast({ title: '菜谱朗读失败，请重试', icon: 'none' })
@@ -266,9 +267,9 @@ export default {
 				const res = await synthesizeAssistantSpeech(text)
 				const audioPath = `${res?.data?.audioPath || res?.audioPath || ''}`.trim()
 				if (!audioPath) throw new Error('没有生成朗读音频')
-				this.recipeAudioContext.src = `${getActiveBaseUrl()}${audioPath}`
-				this.recipeAudioContext.play()
+				await playSpeechAudio(this.recipeAudioContext, audioPath)
 			} catch (error) {
+				console.error('菜谱朗读失败', error)
 				uni.showToast({ title: `${error?.message || '菜谱朗读失败，请重试'}`, icon: 'none' })
 			} finally {
 				this.isRecipeSynthesizing = false

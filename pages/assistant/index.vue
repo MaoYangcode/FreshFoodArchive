@@ -172,7 +172,7 @@ import BottomNav from '@/components/bottom-nav.vue'
 import { parseAssistantCommand, recognizeAudioByUpload, synthesizeAssistantSpeech } from '@/api/modules/ai'
 import { createIngredientsBatch, consumeIngredientsBatch, getIngredientList } from '@/api/modules/ingredients'
 import { createRecipeTask } from '@/api/modules/recipes'
-import { getActiveBaseUrl } from '@/api/request'
+import { playSpeechAudio } from '@/utils/speech-audio'
 import { getShelfLifeSettings } from '@/api/modules/shelf-life'
 import { getCurrentUserId } from '@/utils/current-user'
 import { DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY, getShelfLifeDays, normalizeShelfLifeDaysByCategory } from '@/utils/shelf-life'
@@ -453,7 +453,8 @@ export default {
 			audio.onStop(() => {
 				this.isSpeaking = false
 			})
-			audio.onError(() => {
+			audio.onError((error) => {
+				console.error('语音助手播放失败', error)
 				this.isSpeaking = false
 				this.isSynthesizing = false
 				uni.showToast({ title: '语音播放失败，请重试', icon: 'none' })
@@ -812,9 +813,9 @@ export default {
 				const res = await synthesizeAssistantSpeech(text)
 				const audioPath = `${res?.data?.audioPath || res?.audioPath || ''}`.trim()
 				if (!audioPath) throw new Error('没有生成朗读音频')
-				this.audioContext.src = `${getActiveBaseUrl()}${audioPath}`
-				this.audioContext.play()
+				await playSpeechAudio(this.audioContext, audioPath)
 			} catch (error) {
+				console.error('语音助手朗读失败', error)
 				uni.showToast({ title: `${error?.message || '朗读失败，请重试'}`, icon: 'none' })
 			} finally {
 				this.isSynthesizing = false
