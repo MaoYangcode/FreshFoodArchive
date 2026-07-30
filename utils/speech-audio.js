@@ -37,7 +37,7 @@ export function playSpeechAudio(audioContext, audioPath) {
 				audioContext.stop()
 				audioContext.volume = 1
 				audioContext.obeyMuteSwitch = false
-				audioContext.autoplay = true
+				audioContext.autoplay = false
 				audioContext.src = tempFilePath
 				setTimeout(() => {
 					try {
