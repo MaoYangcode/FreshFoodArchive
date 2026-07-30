@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, UploadedFile, UseInterceptors } from '@nestjs/common'
+import { Body, Controller, Get, Param, Post, Req, Res, UploadedFile, UseInterceptors } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { memoryStorage } from 'multer'
 import { AiService } from './ai.service'
@@ -191,6 +191,36 @@ export class AiController {
         message: error?.message || '语音指令解析失败',
         data: null,
       }
+    }
+  }
+
+  @Post('synthesize-speech')
+  async synthesizeSpeech(@Body() body: any) {
+    const text = `${body?.text || ''}`.replace(/\s+/g, ' ').trim()
+    if (!text) {
+      return { code: 10061, message: '朗读文字为空', data: null }
+    }
+    try {
+      const audio = await this.aiService.synthesizeSpeech(text)
+      return { code: 0, message: 'ok', data: audio }
+    } catch (error: any) {
+      return {
+        code: 10062,
+        message: error?.message || '语音合成失败',
+        data: null,
+      }
+    }
+  }
+
+  @Get('speech-audio/:audioId')
+  async getSpeechAudio(@Param('audioId') audioId: string, @Res() res: any) {
+    try {
+      const audio = await this.aiService.getSpeechAudio(audioId)
+      res.setHeader('Content-Type', audio.contentType)
+      res.setHeader('Cache-Control', 'private, max-age=300')
+      res.send(audio.buffer)
+    } catch (error: any) {
+      res.status(404).json({ code: 10063, message: error?.message || '朗读音频已失效' })
     }
   }
 }

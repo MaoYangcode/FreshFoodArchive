@@ -39,6 +39,24 @@
 						<text class="intent-pill" :class="intentTone">{{ intentLabel }}</text>
 					</view>
 					<text class="assistant-reply">{{ command.reply }}</text>
+					<view v-if="command.intent === 'inventory_read' && inventoryResult.length" class="inventory-result">
+						<view v-for="(item, index) in inventoryResult" :key="`${item.name}-${item.unit}-${index}`" class="inventory-result-row">
+							<view class="inventory-result-main">
+								<text class="inventory-result-name">{{ item.name }}</text>
+								<text class="inventory-result-location">{{ item.locations.join(' · ') }}</text>
+							</view>
+							<text class="inventory-result-amount">{{ formatQuantity(item.quantity) }}{{ item.unit }}</text>
+						</view>
+					</view>
+					<view v-if="command.intent === 'expiry_read' && expiryResult.length" class="inventory-result expiry-result">
+						<view v-for="(item, index) in expiryResult" :key="`expiry-${item.id}-${index}`" class="inventory-result-row">
+							<view class="inventory-result-main">
+								<text class="inventory-result-name">{{ item.name }}</text>
+								<text class="inventory-result-location">{{ item.location }} · {{ formatExpireDate(item.expireDate) }}</text>
+							</view>
+							<text class="expiry-days" :class="{ expired: item.daysLeft < 0 }">{{ formatDaysLeft(item.daysLeft) }}</text>
+						</view>
+					</view>
 					<view v-if="isPendingInventoryAdd" class="confirm-card">
 						<view v-for="(item, index) in pendingItems" :key="`pending-${index}`" class="confirm-item">
 							<view class="confirm-item-head">
@@ -84,6 +102,27 @@
 							</button>
 						</view>
 					</view>
+					<view v-if="isPendingInventoryConsume" class="confirm-card consume-card">
+						<view v-for="(item, index) in pendingConsumeItems" :key="`consume-${item.name}-${index}`" class="confirm-item">
+							<view class="consume-item-head">
+								<view>
+									<text class="consume-name">{{ item.name }}</text>
+									<text class="consume-stock">当前库存 {{ formatQuantity(item.available) }}{{ item.unit }}</text>
+								</view>
+								<view class="consume-quantity">
+									<text class="consume-step" @click.stop="changeConsumeQuantity(index, -1)">−</text>
+									<input v-model="item.quantity" class="consume-input" type="digit" />
+									<text class="consume-step" @click.stop="changeConsumeQuantity(index, 1)">＋</text>
+								</view>
+							</view>
+						</view>
+						<view class="confirm-actions">
+							<button class="cancel-btn" :disabled="isSubmitting" @click.stop="cancelInventoryConsume">取消</button>
+							<button class="consume-confirm-btn" :disabled="!canConfirmInventoryConsume" @click.stop="confirmInventoryConsume">
+								{{ isSubmitting ? '出库中…' : '确认出库' }}
+							</button>
+						</view>
+					</view>
 					<view v-if="command.items && command.items.length && !isPendingInventoryAdd" class="command-section">
 						<text class="field-label">涉及食材</text>
 						<view class="item-list">
@@ -99,7 +138,11 @@
 					</view>
 					<view class="safety-note">
 						<text class="safety-dot"></text>
-						<text>{{ command.requiresConfirmation ? '确认无误后才会执行，本阶段暂不修改库存' : '当前先完成理解，后续接入实际查询与朗读' }}</text>
+						<text>{{ safetyNote }}</text>
+					</view>
+					<view v-if="canSpeakCurrentResult" class="speak-action" @click.stop="speakCurrentResult">
+						<text class="speak-icon">◉</text>
+						<text>{{ isSpeaking ? '停止朗读' : (isSynthesizing ? '正在生成语音…' : '朗读结果') }}</text>
 					</view>
 				</view>
 			</view>
@@ -126,8 +169,10 @@
 
 <script>
 import BottomNav from '@/components/bottom-nav.vue'
-import { parseAssistantCommand, recognizeAudioByUpload } from '@/api/modules/ai'
-import { createIngredientsBatch } from '@/api/modules/ingredients'
+import { parseAssistantCommand, recognizeAudioByUpload, synthesizeAssistantSpeech } from '@/api/modules/ai'
+import { createIngredientsBatch, consumeIngredientsBatch, getIngredientList } from '@/api/modules/ingredients'
+import { createRecipeTask } from '@/api/modules/recipes'
+import { getActiveBaseUrl } from '@/api/request'
 import { getShelfLifeSettings } from '@/api/modules/shelf-life'
 import { getCurrentUserId } from '@/utils/current-user'
 import { DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY, getShelfLifeDays, normalizeShelfLifeDaysByCategory } from '@/utils/shelf-life'
@@ -141,12 +186,19 @@ export default {
 			isRecording: false,
 			isUnderstanding: false,
 			isSubmitting: false,
+			isGeneratingRecipe: false,
+			isSynthesizing: false,
+			isSpeaking: false,
 			transcript: '',
 			manualText: '',
 			command: null,
 			actionStatus: '',
 			actionMessage: '',
 			pendingItems: [],
+			pendingConsumeItems: [],
+			inventoryResult: [],
+			expiryResult: [],
+			audioContext: null,
 			userId: getCurrentUserId(),
 			categories: ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'],
 			units: ['份', '盒', '罐', '包', '个', '颗', '条', '片', '根', '瓶', '袋', '块', '毫升', '升', '千克', '克', '斤', '公斤', '把', '只'],
@@ -190,6 +242,20 @@ export default {
 					!!item?.expireDate && Number.isFinite(quantity) && quantity > 0
 			})
 		},
+		isPendingInventoryConsume() {
+			return this.command?.intent === 'inventory_consume' && this.pendingConsumeItems.length > 0 && !this.actionStatus
+		},
+		canConfirmInventoryConsume() {
+			if (this.isSubmitting || !this.isPendingInventoryConsume) return false
+			return this.pendingConsumeItems.every((item) => {
+				const quantity = Number(item?.quantity)
+				return Number.isFinite(quantity) && quantity > 0 && quantity <= Number(item?.available || 0)
+			})
+		},
+		canSpeakCurrentResult() {
+			return ['inventory_read', 'expiry_read'].includes(this.command?.intent) &&
+				!!`${this.command?.reply || ''}`.trim()
+		},
 		recipeSummary() {
 			if (this.command?.intent !== 'recipe_request') return ''
 			const recipe = this.command?.recipe || {}
@@ -199,6 +265,12 @@ export default {
 			if (recipe.difficulty) parts.push(recipe.difficulty)
 			if (recipe.taste) parts.push(recipe.taste)
 			return parts.join(' · ') || '未指定额外条件'
+		},
+		safetyNote() {
+			if (this.command?.intent === 'inventory_read') return '以上结果来自你当前的真实库存'
+			if (this.command?.intent === 'expiry_read') return '临期结果按当前库存的预计过期日期计算'
+			if (this.command?.requiresConfirmation) return '确认无误后才会执行，取消不会修改库存'
+			return '当前先完成指令理解，后续将继续接入实际功能'
 		}
 	},
 	onLoad() {
@@ -208,10 +280,15 @@ export default {
 			if (Number.isFinite(top) && top > 0) this.safeTop = top
 		} catch (_) {}
 		this.initRecorder()
+		this.initAudioPlayer()
 		this.loadShelfLifeSettings()
 	},
 	onUnload() {
 		if (this.isRecording && this.recorderManager) this.recorderManager.stop()
+		if (this.audioContext) {
+			this.audioContext.stop()
+			this.audioContext.destroy()
+		}
 	},
 	methods: {
 		async loadShelfLifeSettings() {
@@ -225,9 +302,13 @@ export default {
 		},
 		resetActionState() {
 			this.pendingItems = []
+			this.pendingConsumeItems = []
+			this.inventoryResult = []
+			this.expiryResult = []
 			this.actionStatus = ''
 			this.actionMessage = ''
 			this.isSubmitting = false
+			this.isGeneratingRecipe = false
 		},
 		prepareCommand(command) {
 			this.resetActionState()
@@ -359,6 +440,386 @@ export default {
 				uni.hideLoading()
 			}
 		},
+		initAudioPlayer() {
+			if (typeof uni.createInnerAudioContext !== 'function') return
+			const audio = uni.createInnerAudioContext()
+			audio.autoplay = false
+			audio.onPlay(() => {
+				this.isSpeaking = true
+			})
+			audio.onEnded(() => {
+				this.isSpeaking = false
+			})
+			audio.onStop(() => {
+				this.isSpeaking = false
+			})
+			audio.onError(() => {
+				this.isSpeaking = false
+				this.isSynthesizing = false
+				uni.showToast({ title: '语音播放失败，请重试', icon: 'none' })
+			})
+			this.audioContext = audio
+		},
+		extractIngredientList(res) {
+			if (Array.isArray(res)) return res
+			if (Array.isArray(res?.data)) return res.data
+			if (Array.isArray(res?.data?.data)) return res.data.data
+			return []
+		},
+		normalizeIngredientName(value) {
+			return `${value || ''}`
+				.trim()
+				.toLowerCase()
+				.replace(/\s+/g, '')
+				.replace(/西红柿/g, '番茄')
+				.replace(/土豆/g, '马铃薯')
+		},
+		getInventoryQuery() {
+			const transcript = `${this.command?.transcript || this.transcript || ''}`
+			const rawTarget = `${this.command?.query?.target || ''}`
+				.replace(/^(冰箱里|库存里|冰箱|库存|冷藏区|冷冻区)/, '')
+				.replace(/(还有多少|还剩多少|剩多少|有多少|还有几个|还剩几个|有哪些|有什么)$/g, '')
+				.trim()
+			const genericTargets = ['食材', '东西', '库存', '冰箱', '冷藏', '冷冻']
+			return {
+				target: genericTargets.includes(rawTarget) ? '' : rawTarget,
+				location: `${this.command?.query?.location || ''}`.includes('冷冻') || transcript.includes('冷冻')
+					? '冷冻'
+					: (`${this.command?.query?.location || ''}`.includes('冷藏') || transcript.includes('冷藏') ? '冷藏' : '')
+			}
+		},
+		aggregateInventory(list) {
+			const result = new Map()
+			list.forEach((source) => {
+				const name = `${source?.name || ''}`.trim()
+				const unit = `${source?.unit || ''}`.trim()
+				const quantity = Number(source?.quantity)
+				if (!name || !Number.isFinite(quantity) || quantity <= 0) return
+				const key = `${this.normalizeIngredientName(name)}|${unit}`
+				const current = result.get(key) || {
+					name,
+					unit,
+					quantity: 0,
+					locations: []
+				}
+				current.quantity += quantity
+				const location = `${source?.location || ''}`.trim()
+				if (location && !current.locations.includes(location)) current.locations.push(location)
+				result.set(key, current)
+			})
+			return [...result.values()]
+		},
+		formatQuantity(value) {
+			const quantity = Number(value)
+			if (!Number.isFinite(quantity)) return '0'
+			return Number.isInteger(quantity) ? `${quantity}` : `${Number(quantity.toFixed(2))}`
+		},
+		async loadInventoryQuery() {
+			const query = this.getInventoryQuery()
+			try {
+				const res = await getIngredientList()
+				let list = this.extractIngredientList(res)
+				if (query.location) {
+					list = list.filter((item) => `${item?.location || ''}` === query.location)
+				}
+				if (query.target) {
+					const target = this.normalizeIngredientName(query.target)
+					list = list.filter((item) => {
+						const name = this.normalizeIngredientName(item?.name)
+						return name === target || name.includes(target) || target.includes(name)
+					})
+				}
+				this.inventoryResult = this.aggregateInventory(list)
+				if (!this.inventoryResult.length) {
+					const condition = query.target || (query.location ? `${query.location}区` : '冰箱')
+					this.command.reply = `目前没有找到${condition}的库存。`
+					await this.autoSpeakIfRequested()
+					return
+				}
+				if (query.target) {
+					const amounts = this.inventoryResult
+						.map((item) => `${this.formatQuantity(item.quantity)}${item.unit}`)
+						.join('、')
+					this.command.reply = `${query.target}目前共有${amounts}。`
+					await this.autoSpeakIfRequested()
+					return
+				}
+				const scope = query.location ? `${query.location}区` : '冰箱里'
+				this.command.reply = `${scope}目前共有${this.inventoryResult.length}种食材：`
+				await this.autoSpeakIfRequested()
+			} catch (error) {
+				this.inventoryResult = []
+				this.command.reply = `${error?.message || '库存读取失败，请稍后重试。'}`
+			}
+		},
+		getDaysLeft(expireDate) {
+			const date = new Date(expireDate)
+			if (!Number.isFinite(date.getTime())) return Number.POSITIVE_INFINITY
+			const today = new Date()
+			today.setHours(0, 0, 0, 0)
+			date.setHours(0, 0, 0, 0)
+			return Math.ceil((date.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
+		},
+		formatExpireDate(value) {
+			const date = new Date(value)
+			if (!Number.isFinite(date.getTime())) return '日期未知'
+			const month = `${date.getMonth() + 1}`.padStart(2, '0')
+			const day = `${date.getDate()}`.padStart(2, '0')
+			return `${month}月${day}日`
+		},
+		formatDaysLeft(days) {
+			if (days < 0) return `已过期${Math.abs(days)}天`
+			if (days === 0) return '今天到期'
+			return `还剩${days}天`
+		},
+		async loadExpiryQuery() {
+			try {
+				const res = await getIngredientList()
+				const target = this.normalizeIngredientName(this.command?.query?.target)
+				this.expiryResult = this.extractIngredientList(res)
+					.map((item) => ({ ...item, daysLeft: this.getDaysLeft(item?.expireDate) }))
+					.filter((item) => Number.isFinite(item.daysLeft) && item.daysLeft <= 3)
+					.filter((item) => {
+						if (!target) return true
+						const name = this.normalizeIngredientName(item?.name)
+						return name === target || name.includes(target) || target.includes(name)
+					})
+					.sort((a, b) => a.daysLeft - b.daysLeft)
+				if (!this.expiryResult.length) {
+					this.command.reply = target
+						? `目前没有找到${this.command?.query?.target}的临期或过期库存。`
+						: '目前没有3天内到期或已经过期的食材。'
+				} else {
+					const expiredCount = this.expiryResult.filter((item) => item.daysLeft < 0).length
+					this.command.reply = `发现${this.expiryResult.length}项需要留意的食材${expiredCount ? `，其中${expiredCount}项已过期` : ''}：`
+				}
+				await this.autoSpeakIfRequested()
+			} catch (error) {
+				this.expiryResult = []
+				this.command.reply = `${error?.message || '临期库存读取失败，请稍后重试。'}`
+			}
+		},
+		findInventoryMatches(list, name) {
+			const target = this.normalizeIngredientName(name)
+			return list.filter((item) => {
+				const current = this.normalizeIngredientName(item?.name)
+				return current === target || current.includes(target) || target.includes(current)
+			})
+		},
+		isEquivalentUnit(left, right) {
+			const a = `${left || ''}`.trim()
+			const b = `${right || ''}`.trim()
+			if (!a || !b || a === b) return true
+			const countUnits = ['个', '颗', '只', '枚']
+			return countUnits.includes(a) && countUnits.includes(b)
+		},
+		async prepareInventoryConsume() {
+			try {
+				const res = await getIngredientList()
+				const list = this.extractIngredientList(res)
+				const requests = Array.isArray(this.command?.items) ? this.command.items : []
+				this.pendingConsumeItems = requests.map((request) => {
+					const matches = this.findInventoryMatches(list, request?.name)
+						.sort((a, b) => {
+							const left = new Date(a?.expireDate).getTime()
+							const right = new Date(b?.expireDate).getTime()
+							return (Number.isFinite(left) ? left : Number.MAX_SAFE_INTEGER) -
+								(Number.isFinite(right) ? right : Number.MAX_SAFE_INTEGER)
+					})
+					const requestedUnit = `${request?.unit || ''}`.trim()
+					const compatibleMatches = requestedUnit
+						? matches.filter((item) => this.isEquivalentUnit(item?.unit, requestedUnit))
+						: matches
+					const unit = `${compatibleMatches[0]?.unit || requestedUnit || ''}`.trim()
+					const sources = compatibleMatches
+						.map((item) => ({
+							id: Number(item.id),
+							quantity: Number(item.quantity || 0)
+						}))
+						.filter((item) => item.id > 0 && item.quantity > 0)
+					const available = sources.reduce((sum, item) => sum + item.quantity, 0)
+					const quantity = Number(request?.quantity)
+					return {
+						name: `${request?.name || ''}`.trim(),
+						unit,
+						quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+						available,
+						sources
+					}
+				}).filter((item) => item.name)
+				const missing = this.pendingConsumeItems.filter((item) => !item.available)
+				if (!this.pendingConsumeItems.length) {
+					this.actionStatus = 'failed'
+					this.actionMessage = '没有识别到要出库的食材，请说清楚食材名称和数量。'
+				} else if (missing.length) {
+					this.actionStatus = 'failed'
+					this.actionMessage = `库存中没有找到：${missing.map((item) => item.name).join('、')}。`
+					this.pendingConsumeItems = []
+				}
+			} catch (error) {
+				this.actionStatus = 'failed'
+				this.actionMessage = `${error?.message || '库存读取失败，请稍后重试。'}`
+			}
+		},
+		changeConsumeQuantity(index, delta) {
+			const item = this.pendingConsumeItems[index]
+			if (!item) return
+			const current = Number(item.quantity || 0)
+			const next = Math.max(1, Math.min(Number(item.available || 1), current + delta))
+			item.quantity = Number.isInteger(next) ? next : Number(next.toFixed(2))
+		},
+		cancelInventoryConsume() {
+			if (this.isSubmitting) return
+			this.actionStatus = 'cancelled'
+			this.actionMessage = '好的，已取消这次出库，没有修改库存。'
+		},
+		buildConsumeAllocations() {
+			const allocations = []
+			this.pendingConsumeItems.forEach((item) => {
+				let remaining = Number(item.quantity)
+				item.sources.forEach((source) => {
+					if (remaining <= 0) return
+					const quantity = Math.min(remaining, Number(source.quantity || 0))
+					if (quantity > 0) allocations.push({ id: source.id, quantity })
+					remaining -= quantity
+				})
+			})
+			return allocations
+		},
+		async confirmInventoryConsume() {
+			if (!this.canConfirmInventoryConsume) {
+				uni.showToast({ title: '请检查出库数量', icon: 'none' })
+				return
+			}
+			this.isSubmitting = true
+			uni.showLoading({ title: '正在出库…' })
+			try {
+				await consumeIngredientsBatch(this.buildConsumeAllocations())
+				const summary = this.pendingConsumeItems
+					.map((item) => `${item.name}${this.formatQuantity(item.quantity)}${item.unit}`)
+					.join('、')
+				this.actionStatus = 'success'
+				this.actionMessage = `已成功出库：${summary}。`
+				uni.showToast({ title: '出库成功', icon: 'success' })
+			} catch (error) {
+				this.actionStatus = 'failed'
+				this.actionMessage = `${error?.message || '出库失败，请稍后重试。'}`
+				uni.showToast({ title: '出库失败', icon: 'none' })
+			} finally {
+				this.isSubmitting = false
+				uni.hideLoading()
+			}
+		},
+		normalizeRecipeIngredients(list) {
+			return (Array.isArray(list) ? list : [])
+				.filter((item) => item?.name)
+				.map((item) => ({
+					name: `${item.name}`.trim(),
+					quantity: Number(item.quantity || 1),
+					unit: `${item.unit || ''}`.trim()
+				}))
+		},
+		openRecipeResultPage(taskId) {
+			const targetUrl = `/pages/recipe/result?taskId=${encodeURIComponent(taskId)}`
+			const pages = getCurrentPages()
+			if (Array.isArray(pages) && pages.length >= 9) {
+				uni.redirectTo({ url: targetUrl })
+				return
+			}
+			uni.navigateTo({
+				url: targetUrl,
+				fail: () => uni.redirectTo({ url: targetUrl })
+			})
+		},
+		async startRecipeRequest() {
+			if (this.isGeneratingRecipe) return
+			this.isGeneratingRecipe = true
+			uni.showLoading({ title: '正在准备菜谱…' })
+			try {
+				const listRes = await getIngredientList()
+				const pantry = this.normalizeRecipeIngredients(this.extractIngredientList(listRes))
+				const requestedNames = Array.isArray(this.command?.recipe?.ingredients)
+					? this.command.recipe.ingredients.map((name) => `${name || ''}`.trim()).filter(Boolean)
+					: []
+				let ingredients = pantry
+				if (requestedNames.length) {
+					ingredients = requestedNames.map((name) => {
+						const match = this.findInventoryMatches(pantry, name)[0]
+						return match || { name, quantity: 1, unit: '' }
+					})
+				}
+				if (!ingredients.length) throw new Error('冰箱暂无可用于推荐的食材')
+				const taskRes = await createRecipeTask({
+					userId: this.userId,
+					ingredients,
+					tastePreference: this.command?.recipe?.taste || '家常',
+					cookingTime: Number(this.command?.recipe?.maxDuration || 30),
+					difficulty: this.command?.recipe?.difficulty || undefined,
+					count: 6
+				})
+				const taskId = `${taskRes?.data?.taskId || taskRes?.taskId || ''}`.trim()
+				if (!taskId) throw new Error('创建菜谱任务失败')
+				const batchId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+				uni.setStorageSync('latestGeneratedRecipes', [])
+				uni.setStorageSync('latestGeneratedBatchId', batchId)
+				uni.setStorageSync('latestRecipeProfileApplied', null)
+				uni.setStorageSync('latestPantryTags', ingredients.slice(0, 6).map((item) => item.name))
+				uni.setStorageSync('latestPantryIngredients', ingredients)
+				this.command.reply = '已经开始生成菜谱，正在为你打开推荐结果。'
+				this.openRecipeResultPage(taskId)
+			} catch (error) {
+				this.command.reply = `${error?.message || '菜谱推荐失败，请稍后重试。'}`
+				uni.showToast({ title: '菜谱推荐失败', icon: 'none' })
+			} finally {
+				this.isGeneratingRecipe = false
+				uni.hideLoading()
+			}
+		},
+		buildSpeechText() {
+			const parts = [`${this.command?.reply || ''}`.trim()]
+			if (this.command?.intent === 'inventory_read') {
+				this.inventoryResult.forEach((item) => {
+					parts.push(`${item.name}${this.formatQuantity(item.quantity)}${item.unit}，${item.locations.join('和')}`)
+				})
+			}
+			if (this.command?.intent === 'expiry_read') {
+				this.expiryResult.forEach((item) => {
+					parts.push(`${item.name}，${this.formatDaysLeft(item.daysLeft)}`)
+				})
+			}
+			return parts.filter(Boolean).join('。').slice(0, 600)
+		},
+		async autoSpeakIfRequested() {
+			const transcript = `${this.command?.transcript || this.transcript || ''}`
+			if (/(朗读|读一下|念一下|说一下)/.test(transcript)) {
+				await this.speakCurrentResult()
+			}
+		},
+		async speakCurrentResult() {
+			if (this.isSynthesizing) return
+			if (this.isSpeaking && this.audioContext) {
+				this.audioContext.stop()
+				return
+			}
+			if (!this.audioContext) {
+				uni.showToast({ title: '当前环境不支持语音播放', icon: 'none' })
+				return
+			}
+			const text = this.buildSpeechText()
+			if (!text) return
+			this.isSynthesizing = true
+			try {
+				const res = await synthesizeAssistantSpeech(text)
+				const audioPath = `${res?.data?.audioPath || res?.audioPath || ''}`.trim()
+				if (!audioPath) throw new Error('没有生成朗读音频')
+				this.audioContext.src = `${getActiveBaseUrl()}${audioPath}`
+				this.audioContext.play()
+			} catch (error) {
+				uni.showToast({ title: `${error?.message || '朗读失败，请重试'}`, icon: 'none' })
+			} finally {
+				this.isSynthesizing = false
+			}
+		},
 		initRecorder() {
 			if (typeof uni.getRecorderManager !== 'function') return
 			const manager = uni.getRecorderManager()
@@ -427,6 +888,10 @@ export default {
 			this.command = result?.data?.command || null
 			this.prepareCommand(this.command)
 			this.transcript = value
+			if (this.command?.intent === 'inventory_read') await this.loadInventoryQuery()
+			if (this.command?.intent === 'inventory_consume') await this.prepareInventoryConsume()
+			if (this.command?.intent === 'expiry_read') await this.loadExpiryQuery()
+			if (this.command?.intent === 'recipe_request') await this.startRecipeRequest()
 		},
 		async parseManualText() {
 			if (this.isUnderstanding) return
@@ -497,6 +962,15 @@ export default {
 .result-bubble { flex: 1; max-width: 540rpx; }
 .result-head { display: flex; align-items: center; margin-bottom: 10rpx; }
 .assistant-reply { position: relative; z-index: 1; display: block; color: #33423a; font-size: 11px; line-height: 1.65; }
+.inventory-result { position: relative; z-index: 1; margin-top: 12rpx; overflow: hidden; border: 1rpx solid #e1ebe5; border-radius: 12px; background: #f8fbf9; }
+.inventory-result-row { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 14rpx 16rpx; border-bottom: 1rpx solid #e8efeb; }
+.inventory-result-row:last-child { border-bottom: 0; }
+.inventory-result-main { min-width: 0; }
+.inventory-result-name { display: block; color: #314037; font-size: 11px; font-weight: 700; }
+.inventory-result-location { display: block; margin-top: 4rpx; color: #94a099; font-size: 8px; }
+.inventory-result-amount { flex-shrink: 0; color: #4d9e59; font-size: 11px; font-weight: 800; }
+.expiry-days { flex-shrink: 0; padding: 5rpx 9rpx; border-radius: 999rpx; color: #b66b31; background: #fff0e2; font-size: 9px; font-weight: 700; }
+.expiry-days.expired { color: #bd554b; background: #fdeceb; }
 .intent-pill { flex-shrink: 0; padding: 6rpx 12rpx; border-radius: 999rpx; font-size: 9px; font-weight: 700; }
 .intent-pill.green { color: #438d50; background: #eaf6ec; }
 .intent-pill.orange { color: #b76e35; background: #fff1e4; }
@@ -520,8 +994,16 @@ export default {
 .cancel-btn,.confirm-btn { height: 62rpx; line-height: 62rpx; margin: 0; padding: 0; border-radius: 11px; font-size: 10px; font-weight: 700; }
 .cancel-btn { color: #748078; background: #eef2ef; }
 .confirm-btn { color: #fff; background: #55b660; }
-.cancel-btn::after,.confirm-btn::after { border: 0; }
+.consume-confirm-btn { height: 62rpx; line-height: 62rpx; margin: 0; padding: 0; border-radius: 11px; color: #fff; background: #ef9b45; font-size: 10px; font-weight: 700; }
+.cancel-btn::after,.confirm-btn::after,.consume-confirm-btn::after { border: 0; }
 .confirm-btn[disabled] { color: #aab4ac; background: #edf1ee; }
+.consume-confirm-btn[disabled] { color: #b5aea8; background: #f2eeea; }
+.consume-item-head { display: flex; align-items: center; justify-content: space-between; gap: 14rpx; }
+.consume-name { display: block; color: #344139; font-size: 11px; font-weight: 800; }
+.consume-stock { display: block; margin-top: 5rpx; color: #929e96; font-size: 8px; }
+.consume-quantity { display: flex; align-items: center; flex-shrink: 0; overflow: hidden; border: 1rpx solid #eadfd6; border-radius: 10px; background: #fff; }
+.consume-step { width: 44rpx; height: 46rpx; display: flex; align-items: center; justify-content: center; color: #ce7d38; font-size: 14px; }
+.consume-input { width: 58rpx; height: 46rpx; color: #3c4841; font-size: 11px; font-weight: 700; text-align: center; }
 .field-label { display: block; color: #929c95; font-size: 9px; font-weight: 700; }
 .command-section { margin-top: 16rpx; }
 .item-list { margin-top: 8rpx; border: 1rpx solid #edf2ee; border-radius: 12px; overflow: hidden; }
@@ -532,6 +1014,8 @@ export default {
 .summary-text { display: block; margin-top: 8rpx; color: #59665e; font-size: 10px; line-height: 1.6; }
 .safety-note { display: flex; align-items: center; gap: 8rpx; margin-top: 14rpx; padding-top: 12rpx; border-top: 1rpx solid #edf2ee; color: #95a098; font-size: 9px; }
 .safety-dot { width: 10rpx; height: 10rpx; border-radius: 50%; background: #75bf7e; flex-shrink: 0; }
+.speak-action { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 7rpx; margin-top: 12rpx; padding: 8rpx 13rpx; border-radius: 999rpx; color: #527db3; background: #edf4fc; font-size: 9px; font-weight: 700; }
+.speak-icon { color: #5d86bd; font-size: 10px; }
 .execution-row { margin-top: 14rpx; }
 .execution-bubble { padding: 16rpx 18rpx; }
 .execution-bubble.success { border-color: #d8eadc; background: #f4fbf5; }

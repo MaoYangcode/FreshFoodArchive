@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { randomUUID } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
 
 type RecognizedIngredient = {
@@ -103,6 +104,7 @@ type AssistantCommand = {
   query: {
     target?: string
     scope?: string
+    location?: string
   }
   recipe: {
     ingredients: string[]
@@ -120,6 +122,12 @@ export class AiService {
   constructor(private readonly prisma: PrismaService) {}
   private readonly logger = new Logger(AiService.name)
   private readonly recipeTasks = new Map<string, RecipeGenerateTask>()
+  private readonly speechAudio = new Map<string, {
+    sourceUrl: string
+    expiresAt: number
+    buffer?: Buffer
+    contentType?: string
+  }>()
 
   private readonly apiKey = process.env.DASHSCOPE_API_KEY || ''
   private readonly endpoint = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
@@ -500,7 +508,7 @@ export class AiService {
           expireDate: '2026-07-28',
         },
       ],
-      query: { target: '鸡蛋', scope: 'all | target | expiring' },
+      query: { target: '鸡蛋', scope: 'all | target | expiring', location: '冷藏 | 冷冻' },
       recipe: { ingredients: ['番茄'], maxDuration: 20, difficulty: '简单', taste: '清淡' },
       reply: '准备向用户展示的简短确认语',
       confidence: 0.95,
@@ -513,6 +521,7 @@ export class AiService {
       '提取用户明确说出的食材、数量、单位、存放位置和日期。没有说出的字段不要猜测。',
       '“喝完了、吃完了、用完了”属于 inventory_consume，但数量可以留空，后续必须确认。',
       '“冰箱里有什么、还剩多少、朗读库存”属于 inventory_read。',
+      '库存查询如果明确说了冷藏区或冷冻区，在 query.location 中原样返回“冷藏”或“冷冻”。',
       '“有什么快过期、读一下临期食材”属于 expiry_read。',
       '菜谱请求要提取指定食材、最长用时、难度和口味。',
       'reply 使用简短自然的中文，说明你理解到了什么；不要声称已经完成入库、出库或删除。',
@@ -537,6 +546,56 @@ export class AiService {
       this.logger.warn(`assistant-command-parse fallback: ${error?.message || error || 'unknown'}`)
       return this.buildAssistantCommandFallback(transcript)
     }
+  }
+
+  async synthesizeSpeech(text: unknown) {
+    const value = `${text || ''}`.replace(/\s+/g, ' ').trim().slice(0, 600)
+    if (!value) throw new Error('朗读文字为空')
+    if (!this.apiKey) throw new Error('语音合成服务未配置')
+    const payload = await this.postDashScopeJson(
+      'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
+      {
+        model: process.env.AI_TTS_MODEL || 'qwen3-tts-flash',
+        input: {
+          text: value,
+          voice: process.env.AI_TTS_VOICE || 'Cherry',
+          language_type: 'Chinese',
+        },
+      },
+    )
+    const rawUrl = `${payload?.output?.audio?.url || ''}`.trim()
+    if (!rawUrl) throw new Error(payload?.message || '语音合成未返回音频')
+    for (const [key, audio] of this.speechAudio.entries()) {
+      if (audio.expiresAt <= Date.now()) this.speechAudio.delete(key)
+    }
+    const audioId = randomUUID()
+    const expiresAt = Date.now() + 10 * 60 * 1000
+    this.speechAudio.set(audioId, {
+      sourceUrl: rawUrl.replace(/^http:\/\//i, 'https://'),
+      expiresAt,
+    })
+    return { audioPath: `/ai/speech-audio/${audioId}`, expiresAt }
+  }
+
+  async getSpeechAudio(audioId: string) {
+    const key = `${audioId || ''}`.trim()
+    const current = this.speechAudio.get(key)
+    if (!current || current.expiresAt <= Date.now()) {
+      this.speechAudio.delete(key)
+      throw new Error('朗读音频已失效')
+    }
+    if (current.buffer) {
+      return {
+        buffer: current.buffer,
+        contentType: current.contentType || 'audio/wav',
+      }
+    }
+    const response = await fetch(current.sourceUrl)
+    if (!response.ok) throw new Error('朗读音频下载失败')
+    const buffer = Buffer.from(await response.arrayBuffer())
+    current.buffer = buffer
+    current.contentType = response.headers.get('content-type') || 'audio/wav'
+    return { buffer, contentType: current.contentType }
   }
 
   async generateRecipeList(payload: any): Promise<RecipeGenerateResult> {
@@ -1482,6 +1541,9 @@ export class AiService {
       query: {
         target: `${source?.query?.target || ''}`.trim() || undefined,
         scope: `${source?.query?.scope || ''}`.trim() || undefined,
+        location: `${source?.query?.location || ''}`.includes('冷冻')
+          ? '冷冻'
+          : (`${source?.query?.location || ''}`.includes('冷藏') ? '冷藏' : undefined),
       },
       recipe: {
         ingredients: recipeIngredients,
@@ -1518,7 +1580,20 @@ export class AiService {
     const inventoryTargetMatch = transcript.match(
       /(?:查一下|查查|查询|查看|告诉我)?\s*([^，。！？?\s]{1,12}?)(?:还有多少|还剩多少|剩多少|有多少)/,
     )
-    const inventoryTarget = `${inventoryTargetMatch?.[1] || ''}`
+    const inventoryTargetAfterMatch = transcript.match(
+      /(?:还有|还剩|剩下|有)\s*(?:多少|几个|几颗|几盒|几袋|几瓶|几份)\s*([^，。！？?\s]{1,12})/,
+    )
+    const inventoryTarget = `${inventoryTargetMatch?.[1] || inventoryTargetAfterMatch?.[1] || ''}`
+      .replace(/^(冰箱里|库存里|冰箱|库存)/, '')
+      .replace(/(呢|吗|呀|啊)$/, '')
+      .trim()
+    const inventoryLocation = transcript.includes('冷冻')
+      ? '冷冻'
+      : (transcript.includes('冷藏') ? '冷藏' : undefined)
+    const expiryTargetMatch = transcript.match(
+      /(?:查一下|查查|查询|查看|告诉我)?\s*([^，。！？?\s]{1,12}?)(?:什么时候过期|多久过期|快过期了吗|是否过期)/,
+    )
+    const expiryTarget = `${expiryTargetMatch?.[1] || ''}`
       .replace(/^(冰箱里|库存里|冰箱|库存)/, '')
       .trim()
     const recipeIngredientMatch = transcript.match(
@@ -1537,8 +1612,11 @@ export class AiService {
       transcript,
       items: intent === 'inventory_add' || intent === 'inventory_consume' ? items : [],
       query: {
-        target: intent === 'inventory_read' ? (inventoryTarget || undefined) : undefined,
+        target: intent === 'inventory_read'
+          ? (inventoryTarget || undefined)
+          : (intent === 'expiry_read' ? (expiryTarget || undefined) : undefined),
         scope: intent === 'expiry_read' ? 'expiring' : (intent === 'inventory_read' ? 'all' : undefined),
+        location: intent === 'inventory_read' ? inventoryLocation : undefined,
       },
       recipe: {
         ingredients: intent === 'recipe_request' ? recipeIngredients : [],
@@ -1559,13 +1637,13 @@ export class AiService {
   private detectAssistantIntent(text: string): AssistantIntent {
     const value = `${text || ''}`.replace(/\s+/g, '')
     if (!value) return 'unknown'
-    if (/(临期|快过期|即将过期|已经过期|过期食材)/.test(value)) return 'expiry_read'
+    if (/(临期|快过期|即将过期|已经过期|过期食材|什么时候过期|多久过期|是否过期)/.test(value)) return 'expiry_read'
     if (/(菜谱|做什么菜|吃什么|推荐.*菜|怎么做)/.test(value)) return 'recipe_request'
     if (/(取出|拿出|出库|用了|用掉|吃了|吃掉|喝了|喝掉|喝完|吃完|用完|减掉|扣掉)/.test(value)) {
       return 'inventory_consume'
     }
     if (/(入库|添加|新增|放进去|放进冰箱|买了|买回|存入)/.test(value)) return 'inventory_add'
-    if (/(库存|冰箱里有什么|还有什么|剩多少|有多少|朗读|读一下|告诉我.*食材)/.test(value)) {
+    if (/(库存|冰箱里有什么|还有什么|剩多少|有多少|还有几个|还剩几个|冷藏区|冷冻区|朗读|读一下|告诉我.*食材)/.test(value)) {
       return 'inventory_read'
     }
     return 'unknown'

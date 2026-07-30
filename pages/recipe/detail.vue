@@ -45,7 +45,12 @@
 			<view v-if="hasRecipeDetail" class="step-card">
 				<view class="step-head">
 					<text class="step-title">步骤</text>
-					<text class="step-meta">共{{ recipe.steps.length }}步</text>
+					<view class="step-head-actions">
+						<text class="step-meta">共{{ recipe.steps.length }}步</text>
+						<view class="read-step-btn" @click="toggleRecipeSpeech">
+							<text>{{ isRecipeSpeaking ? '停止朗读' : (isRecipeSynthesizing ? '生成中…' : '朗读步骤') }}</text>
+						</view>
+					</view>
 				</view>
 				<view class="step-list">
 					<view v-for="(step, idx) in recipe.steps" :key="idx" class="step-item">
@@ -94,6 +99,8 @@ import {
 import { getIngredientList } from '@/api/modules/ingredients'
 import { upsertBasketItems as upsertBasketItemsApi } from '@/api/modules/basket'
 import { getRecipeDetail } from '@/api/modules/recipes'
+import { synthesizeAssistantSpeech } from '@/api/modules/ai'
+import { getActiveBaseUrl } from '@/api/request'
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import NutritionIcon from '@/components/nutrition-icon.vue'
@@ -111,6 +118,9 @@ export default {
 			detailError: '',
 			completedCount: 0,
 			lastCompletedAt: '',
+			isRecipeSynthesizing: false,
+			isRecipeSpeaking: false,
+			recipeAudioContext: null,
 			pantryNames: [],
 			recipe: {
 				name: '番茄炒蛋',
@@ -178,6 +188,7 @@ export default {
 	},
 	onLoad(query) {
 		this.ensureShareMenu()
+		this.initRecipeAudio()
 		this.loadPantryNames()
 		this.fromFavorite = !!(query && query.fromFavorite === '1')
 		const cached = uni.getStorageSync('latestRecipeDetail')
@@ -188,6 +199,12 @@ export default {
 	},
 	onShow() {
 		this.ensureShareMenu()
+	},
+	onUnload() {
+		if (this.recipeAudioContext) {
+			this.recipeAudioContext.stop()
+			this.recipeAudioContext.destroy()
+		}
 	},
 	onShareAppMessage() {
 		const name = `${this.recipe?.name || ''}`.trim() || '家常菜'
@@ -203,6 +220,60 @@ export default {
 		}
 	},
 	methods: {
+		initRecipeAudio() {
+			if (typeof uni.createInnerAudioContext !== 'function') return
+			const audio = uni.createInnerAudioContext()
+			audio.autoplay = false
+			audio.onPlay(() => {
+				this.isRecipeSpeaking = true
+			})
+			audio.onEnded(() => {
+				this.isRecipeSpeaking = false
+			})
+			audio.onStop(() => {
+				this.isRecipeSpeaking = false
+			})
+			audio.onError(() => {
+				this.isRecipeSpeaking = false
+				this.isRecipeSynthesizing = false
+				uni.showToast({ title: '菜谱朗读失败，请重试', icon: 'none' })
+			})
+			this.recipeAudioContext = audio
+		},
+		buildRecipeSpeechText() {
+			const steps = (Array.isArray(this.recipe?.steps) ? this.recipe.steps : [])
+				.map((step, index) => `第${index + 1}步，${this.formatStepText(step)}`)
+			return [
+				`${this.recipe?.name || '这道菜'}。`,
+				`所需食材，${this.recipe?.ingredientsText || ''}。`,
+				...steps
+			].filter(Boolean).join('').slice(0, 600)
+		},
+		async toggleRecipeSpeech() {
+			if (this.isRecipeSynthesizing) return
+			if (this.isRecipeSpeaking && this.recipeAudioContext) {
+				this.recipeAudioContext.stop()
+				return
+			}
+			if (!this.recipeAudioContext) {
+				uni.showToast({ title: '当前环境不支持语音播放', icon: 'none' })
+				return
+			}
+			const text = this.buildRecipeSpeechText()
+			if (!text || !this.hasRecipeDetail) return
+			this.isRecipeSynthesizing = true
+			try {
+				const res = await synthesizeAssistantSpeech(text)
+				const audioPath = `${res?.data?.audioPath || res?.audioPath || ''}`.trim()
+				if (!audioPath) throw new Error('没有生成朗读音频')
+				this.recipeAudioContext.src = `${getActiveBaseUrl()}${audioPath}`
+				this.recipeAudioContext.play()
+			} catch (error) {
+				uni.showToast({ title: `${error?.message || '菜谱朗读失败，请重试'}`, icon: 'none' })
+			} finally {
+				this.isRecipeSynthesizing = false
+			}
+		},
 		formatIngredientItems(items) {
 			return (Array.isArray(items) ? items : [])
 				.map((item) => `${item?.name || ''}${item?.amount || ''}`.trim())
@@ -570,6 +641,8 @@ export default {
 .step-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18rpx; }
 .step-title { font-weight: 800; font-size: 15px; color: #202a22; }
 .step-meta { color: #8a958d; font-size: 10px; }
+.step-head-actions { display: flex; align-items: center; gap: 10rpx; }
+.read-step-btn { padding: 7rpx 12rpx; border-radius: 999rpx; color: #527db3; background: #edf4fc; font-size: 9px; font-weight: 700; }
 .step-list { padding-top: 2rpx; }
 .step-line { display: block; color: #536058; line-height: 1.72; font-size: 12px; }
 .step-item { position: relative; min-height: 54rpx; padding: 0 0 22rpx 44rpx; }

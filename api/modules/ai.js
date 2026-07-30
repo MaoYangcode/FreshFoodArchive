@@ -30,6 +30,15 @@ export function parseAssistantCommand(text) {
 	})
 }
 
+export function synthesizeAssistantSpeech(text) {
+	return request({
+		url: '/ai/synthesize-speech',
+		method: 'POST',
+		data: { text },
+		timeout: 30000
+	})
+}
+
 function uploadAiFile(apiPath, filePath) {
 	return new Promise((resolve, reject) => {
 		const token = `${getAuthToken() || ''}`.trim()

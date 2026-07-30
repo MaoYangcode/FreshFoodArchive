@@ -150,6 +150,59 @@ export class IngredientsService {
 
     return updatedIngredient
   }
+
+  async consumeBatch(userId: number, rawItems: unknown) {
+    const source = Array.isArray(rawItems) ? rawItems : []
+    if (!source.length || source.length > 50) {
+      throw new BadRequestException('出库记录数量应为1至50项')
+    }
+
+    const quantitiesById = new Map<number, number>()
+    source.forEach((raw: any, index) => {
+      const id = Number(raw?.id)
+      const quantity = Number(raw?.quantity)
+      if (!Number.isInteger(id) || id <= 0 || !Number.isFinite(quantity) || quantity <= 0) {
+        throw new BadRequestException(`第${index + 1}项出库信息无效`)
+      }
+      quantitiesById.set(id, (quantitiesById.get(id) || 0) + quantity)
+    })
+
+    const entries = [...quantitiesById.entries()].map(([id, quantity]) => ({ id, quantity }))
+    return this.prisma.$transaction(async (tx) => {
+      const stored = await tx.ingredient.findMany({
+        where: {
+          userId,
+          id: { in: entries.map((item) => item.id) },
+        },
+      })
+      const storedById = new Map(stored.map((item) => [item.id, item]))
+      for (const entry of entries) {
+        const ingredient = storedById.get(entry.id)
+        if (!ingredient) throw new NotFoundException('出库食材不存在')
+        if (ingredient.quantity < entry.quantity) {
+          throw new BadRequestException(`${ingredient.name}库存不足`)
+        }
+      }
+
+      const result: any[] = []
+      for (const entry of entries) {
+        const ingredient = storedById.get(entry.id)!
+        const updated = await tx.ingredient.update({
+          where: { id: entry.id },
+          data: { quantity: ingredient.quantity - entry.quantity },
+        })
+        await tx.takeoutRecord.create({
+          data: {
+            quantity: entry.quantity,
+            ingredientId: entry.id,
+          },
+        })
+        result.push(updated)
+      }
+      return result
+    })
+  }
+
   async getTakeoutRecords(userId: number) {
   const records = await this.prisma.takeoutRecord.findMany({
     where: {

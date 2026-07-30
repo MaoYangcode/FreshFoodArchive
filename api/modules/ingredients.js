@@ -48,6 +48,15 @@ export function consumeIngredient(id, payload) {
 	})
 }
 
+export function consumeIngredientsBatch(items = []) {
+	return request({
+		url: '/ingredients/consume-batch',
+		method: 'POST',
+		data: { items },
+		timeout: 15000
+	})
+}
+
 export function getTakeoutRecords() {
 	return request({
 		url: '/ingredients/takeout-records',

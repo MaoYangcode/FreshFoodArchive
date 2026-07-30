@@ -20,7 +20,8 @@ async function bootstrap() {
       return
     }
     const path = `${req?.path || req?.url || ''}`
-    const isPublicPath = path === '/' || path === '/iconfont.ttf' || path.startsWith('/nutrition-icons/') || path === '/auth/wechat-login'
+    const isPublicPath = path === '/' || path === '/iconfont.ttf' || path.startsWith('/nutrition-icons/') ||
+      path.startsWith('/ai/speech-audio/') || path === '/auth/wechat-login'
     if (isPublicPath) {
       next()
       return
