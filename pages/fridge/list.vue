@@ -1,7 +1,14 @@
 <template>
 	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }" @click.self="closeSwipe">
 		<view class="top" :style="{ paddingRight: `${navRightGap}px` }">
-			<text class="top-title">我的冰箱</text>
+			<view class="top-title-group">
+				<text class="top-title">我的冰箱</text>
+				<button class="stats-entry" aria-label="查看食材占比统计" @click.stop="openInventoryStats">
+					<view class="stats-entry-ring">
+						<view class="stats-entry-hole"></view>
+					</view>
+				</button>
+			</view>
 		</view>
 		<view class="location-wrap">
 			<view class="chips location-chips">
@@ -68,7 +75,7 @@
 
 		<view v-else :class="viewMode === 'list' ? 'card' : 'tiles-wrap'">
 			<view v-if="viewMode === 'list'">
-				<view v-for="item in filteredList" :key="item.id" class="swipe-item">
+				<view v-for="item in filteredList" :key="`${item.id}-${item.expireDate}`" class="swipe-item">
 					<view class="swipe-action" @click.stop="openConsumeDialog(item)">已取出</view>
 					<view
 						class="row swipe-content"
@@ -94,12 +101,12 @@
 								<text>{{ item.location }}</text>
 							</view>
 						</view>
-						<text class="tag" :class="getTagClass(item.expireDate)">{{ getTagText(item.expireDate) }}</text>
+						<text class="tag" :style="getTagStyle(item.expireDate)">{{ getTagText(item.expireDate) }}</text>
 					</view>
 				</view>
 			</view>
 			<view v-else class="grid">
-				<view v-for="item in filteredList" :key="`tile-${item.id}`" class="tile" @click.stop="goEdit(item)">
+				<view v-for="item in filteredList" :key="`tile-${item.id}-${item.expireDate}`" class="tile" @click.stop="goEdit(item)">
 					<view class="tile-inner">
 						<text class="qty-badge">{{ formatQty(item) }}</text>
 						<view class="tile-ico">
@@ -121,6 +128,53 @@
 				</view>
 			</view>
 		</view>
+		<view
+			v-if="inventoryStatsVisible"
+			class="inventory-stats-mask"
+			@click="closeInventoryStats"
+			@touchmove.stop.prevent
+		>
+			<view class="inventory-stats-card" @click.stop>
+				<view class="inventory-stats-head">
+					<view>
+						<text class="inventory-stats-title">食材占比统计</text>
+					</view>
+					<button class="inventory-stats-close" aria-label="关闭" @click="closeInventoryStats">×</button>
+				</view>
+
+				<view v-if="inventoryTypeTotal > 0" class="inventory-stats-content">
+					<view class="inventory-chart-wrap">
+						<view class="inventory-chart" :style="inventoryChartStyle"></view>
+						<view class="inventory-chart-center">
+							<text class="inventory-chart-total">{{ inventoryTypeTotal }}</text>
+							<text class="inventory-chart-unit">项食材</text>
+						</view>
+					</view>
+					<view class="inventory-chart-legend">
+						<view
+							v-for="item in inventoryCategoryOverview"
+							:key="item.name"
+							class="inventory-legend-row"
+						>
+							<view class="inventory-legend-name-wrap">
+								<text class="inventory-legend-dot" :style="{ backgroundColor: item.color }"></text>
+								<text class="inventory-legend-name">{{ formatStatsCategory(item.name) }}</text>
+							</view>
+							<view class="inventory-legend-value-wrap">
+								<text class="inventory-legend-percent">{{ item.percentText }}</text>
+								<text class="inventory-legend-count">{{ item.count }}项</text>
+							</view>
+						</view>
+					</view>
+				</view>
+				<view v-else class="inventory-stats-empty">
+					<IngredientIcon name="冰箱" category="其他" :size="58" />
+					<text class="inventory-stats-empty-title">暂无库存数据</text>
+					<text class="inventory-stats-empty-text">添加食材后即可查看类别占比</text>
+				</view>
+			</view>
+		</view>
+
 		<view v-if="consumeDialogVisible" class="consume-mask" @click="closeConsumeDialog">
 			<view class="consume-card" @click.stop>
 				<text class="consume-title">食材取出数量</text>
@@ -218,6 +272,7 @@ export default {
 			consumeDialogVisible: false,
 			consumeQty: 1,
 			pendingConsumeItem: null,
+			inventoryStatsVisible: false,
 			lastQtyLimitToastAt: 0,
 			lastNavigateAt: 0
 		}
@@ -258,6 +313,29 @@ export default {
 		}
 	},
 	computed: {
+		inventoryCategoryOverview() {
+			return this.buildInventoryCategoryOverview(this.list)
+		},
+		inventoryTypeTotal() {
+			return this.inventoryCategoryOverview.reduce((sum, item) => sum + item.count, 0)
+		},
+		inventoryChartStyle() {
+			const items = this.inventoryCategoryOverview
+			if (!items.length) return { background: '#edf1ee' }
+			const gap = items.length > 1 ? 0.55 : 0
+			let cursor = 0
+			const segments = []
+			items.forEach((item) => {
+				const end = cursor + item.percent * 100
+				const colorEnd = Math.max(cursor, end - gap)
+				segments.push(`${item.color} ${cursor.toFixed(2)}% ${colorEnd.toFixed(2)}%`)
+				if (gap > 0) segments.push(`#ffffff ${colorEnd.toFixed(2)}% ${end.toFixed(2)}%`)
+				cursor = end
+			})
+			return {
+				background: `conic-gradient(${segments.join(', ')})`
+			}
+		},
 		categoryCounts() {
 			const rawKeyword = `${this.keyword || ''}`
 			const keywordText = rawKeyword.trim().toLowerCase()
@@ -416,6 +494,60 @@ export default {
 				uni.setStorageSync(FRIDGE_LIST_CACHE_KEY, Array.isArray(list) ? list : [])
 			} catch (_) {}
 		},
+		buildInventoryCategoryOverview(list) {
+			const counts = {}
+			;(Array.isArray(list) ? list : []).forEach((item) => {
+				const category = `${item?.category || '其他'}`.trim() || '其他'
+				counts[category] = (counts[category] || 0) + 1
+			})
+			const total = (Array.isArray(list) ? list : []).length
+			const categoryOrder = ['蔬菜', '水果', '蛋奶', '肉类', '海鲜', '饮料', '调味品', '其他']
+			const sorted = Object.entries(counts)
+				.map(([name, count]) => ({ name, count }))
+				.sort((a, b) => {
+					if (b.count !== a.count) return b.count - a.count
+					const left = categoryOrder.indexOf(a.name)
+					const right = categoryOrder.indexOf(b.name)
+					return (left < 0 ? categoryOrder.length : left) - (right < 0 ? categoryOrder.length : right)
+				})
+			let visible = sorted
+			if (sorted.length > 5) {
+				const top = sorted.slice(0, 4).map((item) => ({ ...item }))
+				const remainder = sorted.slice(4).reduce((sum, item) => sum + item.count, 0)
+				const other = top.find((item) => item.name === '其他')
+				if (other) {
+					other.count += remainder
+					visible = top
+				} else {
+					visible = [...top, { name: '其他', count: remainder }]
+				}
+			}
+			const primaryColors = ['#4388E8', '#65BE55', '#F5B927', '#EF7B31']
+			let primaryColorIndex = 0
+			return visible.map((item, index) => {
+				const percent = total > 0 ? item.count / total : 0
+				const color =
+					item.name === '其他'
+						? '#8246B7'
+						: primaryColors[primaryColorIndex++] || (index === 4 ? '#8246B7' : '#4388E8')
+				return {
+					...item,
+					percent,
+					percentText: `${(percent * 100).toFixed(1)}%`,
+					color
+				}
+			})
+		},
+		formatStatsCategory(category) {
+			return category === '其他' ? '其他' : `${category}类`
+		},
+		openInventoryStats() {
+			this.closeSwipe()
+			this.inventoryStatsVisible = true
+		},
+		closeInventoryStats() {
+			this.inventoryStatsVisible = false
+		},
 	
 		getEmoji(category) {
 			const map = {
@@ -445,11 +577,11 @@ export default {
 			this.viewMode = this.viewMode === 'list' ? 'tiles' : 'list'
 		},
 	
-		getTagClass(expireDate) {
+		getTagStyle(expireDate) {
 			const days = this.getDays(expireDate)
-			if (days <= 0) return 'bad'
-			if (days <= 2) return 'warn'
-			return 'ok'
+			if (days <= 0) return { backgroundColor: '#fde9e9', color: '#ce5454' }
+			if (days <= 2) return { backgroundColor: '#fff0db', color: '#c97e1e' }
+			return { backgroundColor: '#e9f8ec', color: '#3f9f4d' }
 		},
 	
 		getTagText(expireDate) {
@@ -716,6 +848,55 @@ export default {
 	font-size: 20px;
 	font-weight: 700;
 	color: #1a1f24;
+}
+
+.top-title-group {
+	display: inline-flex;
+	align-items: center;
+	gap: 12rpx;
+}
+
+.stats-entry {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 52rpx;
+	height: 52rpx;
+	margin: 0;
+	padding: 0;
+	border: 1rpx solid #e2ebe5;
+	border-radius: 50%;
+	background: #fff;
+	box-shadow: 0 4rpx 12rpx rgba(45, 97, 57, .09);
+}
+
+.stats-entry::after,
+.inventory-stats-close::after {
+	border: none;
+}
+
+.stats-entry-ring {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 30rpx;
+	height: 30rpx;
+	border-radius: 50%;
+	background: conic-gradient(
+		#4388e8 0 34%,
+		#65be55 34% 61%,
+		#f5b927 61% 79%,
+		#ef7b31 79% 91%,
+		#8246b7 91% 100%
+	);
+}
+
+.stats-entry-hole {
+	width: 15rpx;
+	height: 15rpx;
+	border-radius: 50%;
+	background: #fff;
 }
 
 .capsule {
@@ -1167,23 +1348,199 @@ export default {
 	font-weight: 600;
 }
 
-.ok {
-	background: #e9f8ec;
-	color: #3f9f4d;
-}
-
-.warn {
-	background: #fff0db;
-	color: #c97e1e;
-}
-
-.bad {
-	background: #fde9e9;
-	color: #ce5454;
-}
-
 .status {
 	user-select: none;
+}
+
+.inventory-stats-mask {
+	position: fixed;
+	left: 0;
+	right: 0;
+	top: 0;
+	bottom: 0;
+	z-index: 999;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 24px;
+	background: rgba(24, 35, 29, .48);
+	backdrop-filter: blur(3px);
+}
+
+.inventory-stats-card {
+	width: 100%;
+	max-width: 660rpx;
+	padding: 20px 18px 16px;
+	border: 1rpx solid rgba(76, 174, 87, .16);
+	border-radius: 22px;
+	background: #fff;
+	box-shadow: 0 24rpx 58rpx rgba(20, 42, 27, .24);
+	box-sizing: border-box;
+}
+
+.inventory-stats-head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16rpx;
+}
+
+.inventory-stats-title {
+	display: block;
+}
+
+.inventory-stats-title {
+	color: #1f2d24;
+	font-size: 19px;
+	font-weight: 800;
+}
+
+.inventory-stats-close {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	width: 52rpx;
+	height: 52rpx;
+	margin: 0;
+	padding: 0 0 3rpx;
+	border: none;
+	border-radius: 50%;
+	background: #f2f6f3;
+	color: #7e8c83;
+	font-size: 19px;
+	font-weight: 400;
+	line-height: 1;
+}
+
+.inventory-stats-content {
+	display: grid;
+	grid-template-columns: 148px minmax(0, 1fr);
+	align-items: center;
+	gap: 20rpx;
+	padding: 18px 0 8px;
+}
+
+.inventory-chart-wrap {
+	position: relative;
+	width: 148px;
+	height: 148px;
+}
+
+.inventory-chart {
+	width: 148px;
+	height: 148px;
+	border-radius: 50%;
+}
+
+.inventory-chart-center {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	width: 180rpx;
+	height: 180rpx;
+	border-radius: 50%;
+	background: #fff;
+	transform: translate(-50%, -50%);
+	pointer-events: none;
+}
+
+.inventory-chart-total {
+	color: #26342b;
+	font-size: 27px;
+	font-weight: 800;
+	line-height: 1;
+}
+
+.inventory-chart-unit {
+	margin-top: 8rpx;
+	color: #8b978f;
+	font-size: 9px;
+}
+
+.inventory-chart-legend {
+	display: flex;
+	flex-direction: column;
+	gap: 17rpx;
+	min-width: 0;
+}
+
+.inventory-legend-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10rpx;
+	min-width: 0;
+}
+
+.inventory-legend-name-wrap,
+.inventory-legend-value-wrap {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.inventory-legend-name-wrap {
+	gap: 9rpx;
+}
+
+.inventory-legend-value-wrap {
+	justify-content: flex-end;
+	gap: 7rpx;
+	flex-shrink: 0;
+}
+
+.inventory-legend-dot {
+	width: 16rpx;
+	height: 16rpx;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.inventory-legend-name {
+	overflow: hidden;
+	color: #405047;
+	font-size: 11px;
+	font-weight: 700;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.inventory-legend-percent {
+	color: #27352d;
+	font-size: 11px;
+	font-weight: 800;
+}
+
+.inventory-legend-count {
+	color: #9aa49e;
+	font-size: 8px;
+}
+
+.inventory-stats-empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	min-height: 300rpx;
+	padding-top: 20rpx;
+}
+
+.inventory-stats-empty-title {
+	margin-top: 18rpx;
+	color: #405047;
+	font-size: 14px;
+	font-weight: 700;
+}
+
+.inventory-stats-empty-text {
+	margin-top: 8rpx;
+	color: #98a29c;
+	font-size: 10px;
 }
 
 .consume-mask {

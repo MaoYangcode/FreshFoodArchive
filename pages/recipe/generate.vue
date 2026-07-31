@@ -4,8 +4,17 @@
 			<text class="top-title">菜谱推荐</text>
 		</view>
 		<view class="recipe-screen">
+			<view class="recipe-cover-badge">
+				<text class="recipe-cover-icon">&#xe623;</text>
+			</view>
 			<view class="recipe-inner recipe-hero">
+				<text class="menu-kicker">TODAY'S MENU</text>
 				<text class="title">菜谱推荐</text>
+				<view class="menu-divider">
+					<view class="menu-divider-line"></view>
+					<text class="menu-divider-mark">◆</text>
+					<view class="menu-divider-line"></view>
+				</view>
 				<text class="meta">基于冰箱现有食材推荐</text>
 				<view class="magic">
 					<text class="magic-iconfont">&#xe699;</text>
@@ -232,18 +241,76 @@ export default {
 }
 
 .recipe-screen {
+	position: relative;
+	margin-top: 68rpx;
 	background: #fff;
-	border: 1rpx solid #eef0f1;
-	border-radius: 18px;
+	border: 1rpx solid #e8ece8;
+	border-radius: 20px;
 	padding: 12px;
-	box-shadow: 0 8rpx 20rpx rgba(18, 37, 63, 0.05);
+	box-shadow: 0 12rpx 28rpx rgba(38, 61, 43, 0.08);
+}
+
+.recipe-cover-badge {
+	position: absolute;
+	left: 50%;
+	top: -34rpx;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 82rpx;
+	height: 68rpx;
+	border: 1rpx solid #d6e8d8;
+	border-radius: 15px 15px 10px 10px;
+	background: #f1faf2;
+	box-shadow: 0 7rpx 15rpx rgba(64, 126, 72, .13);
+	transform: translateX(-50%);
+}
+
+.recipe-cover-icon {
+	color: #4cae57;
+	font-family: "iconfont" !important;
+	font-size: 30px;
+	font-style: normal;
+	font-weight: 400;
+	line-height: 1;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
 .recipe-inner {
-	background: #fff;
-	border: 1rpx solid #eef3f1;
+	position: relative;
+	overflow: hidden;
+	background: #fffdf8;
+	border: 1rpx solid #dfe9df;
 	border-radius: 16px;
-	box-shadow: 0 8rpx 16rpx rgba(33, 60, 38, 0.05);
+	box-shadow: inset 0 0 0 7rpx #f8faf5, 0 8rpx 16rpx rgba(33, 60, 38, 0.05);
+}
+
+.recipe-inner::before,
+.recipe-inner::after {
+	content: '';
+	position: absolute;
+	width: 66rpx;
+	height: 66rpx;
+	border-color: rgba(76, 174, 87, .2);
+	pointer-events: none;
+}
+
+.recipe-inner::before {
+	left: 22rpx;
+	top: 22rpx;
+	border-left: 2rpx solid rgba(76, 174, 87, .2);
+	border-top: 2rpx solid rgba(76, 174, 87, .2);
+	border-radius: 12rpx 0 0;
+}
+
+.recipe-inner::after {
+	right: 22rpx;
+	bottom: 22rpx;
+	border-right: 2rpx solid rgba(76, 174, 87, .2);
+	border-bottom: 2rpx solid rgba(76, 174, 87, .2);
+	border-radius: 0 0 12rpx;
 }
 
 .recipe-hero {
@@ -251,21 +318,50 @@ export default {
 	display: grid;
 	align-content: center;
 	justify-items: center;
-	padding: 18rpx 16rpx 22rpx;
+	padding: 46rpx 22rpx 28rpx;
 	text-align: center;
 }
 
+.menu-kicker {
+	color: #91a497;
+	font-size: 9px;
+	font-weight: 800;
+	letter-spacing: 4rpx;
+}
+
 .title {
+	margin-top: 8rpx;
 	font-size: 20px;
 	font-weight: 800;
 	color: #1d252f;
 	letter-spacing: 1rpx;
 }
 
+.menu-divider {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12rpx;
+	width: 220rpx;
+	margin-top: 13rpx;
+}
+
+.menu-divider-line {
+	flex: 1;
+	height: 1rpx;
+	background: #d8e5d9;
+}
+
+.menu-divider-mark {
+	color: #6bbb73;
+	font-size: 7px;
+	line-height: 1;
+}
+
 .meta {
 	font-size: 13px;
 	color: #6b7670;
-	margin-top: 12rpx;
+	margin-top: 10rpx;
 	letter-spacing: 0.6rpx;
 	line-height: 1.7;
 }
