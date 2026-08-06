@@ -81,10 +81,12 @@ describe('AiService recipe RAG loop', () => {
   })
 
   it('always asks the model to generate final steps from knowledge references', async () => {
-    const modelCall = jest.spyOn(service as any, 'callDashScope').mockResolvedValue(JSON.stringify({ recipe: detail() }))
+    const modelCall = jest.spyOn(service as any, 'callDashScope').mockResolvedValue(JSON.stringify({
+      recipe: { steps: detail().steps, tips: detail().tips },
+    }))
     const result = await service.generateRecipeSteps({
       userId: 1,
-      recipe: { knowledgeId: 'recipe_0001', name: '番茄炒蛋' },
+      recipe: { knowledgeId: 'recipe_0001', name: '番茄炒蛋', ingredients: detail().ingredients },
     })
 
     expect(result.steps).toHaveLength(4)
@@ -92,6 +94,9 @@ describe('AiService recipe RAG loop', () => {
     expect(result.retrievalSource?.startsWith('rag-model:')).toBe(true)
     expect(modelCall).toHaveBeenCalledTimes(1)
     expect(modelCall.mock.calls[0][1][1].content).toContain('最终版本')
+    expect(modelCall.mock.calls[0][1][1].content).toContain('只生成 steps 与 tips')
+    expect((modelCall.mock.calls[0][1][1].content.match(/\[参考\d+\]/g) || []).length).toBeLessThanOrEqual(3)
+    expect(modelCall.mock.calls[0][4]).toBe(1800)
   })
 
   it('regenerates recommendation summaries when quantities or units are missing', async () => {

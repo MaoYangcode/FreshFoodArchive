@@ -915,6 +915,7 @@ export class AiService {
   }
 
   async generateRecipeSteps(payload: any): Promise<GeneratedRecipe> {
+    const startedAt = Date.now()
     const summary = payload?.recipe && typeof payload.recipe === 'object' ? payload.recipe : payload || {}
     const name = `${summary?.name || ''}`.trim()
     if (!name) throw new Error('菜谱名称为空')
@@ -923,14 +924,21 @@ export class AiService {
       || this.recipeKnowledge.findByIdOrName(name)
     const userId = Math.max(Number(payload?.userId || 1), 1)
     const profile = await this.loadUserProfileForRecipe(userId)
-    const ingredients = Array.isArray(summary?.ingredients) ? summary.ingredients : []
+    const summaryIngredients = Array.isArray(summary?.ingredients) ? summary.ingredients : []
+    const ingredients = summaryIngredients.length
+      ? summaryIngredients
+      : (knowledgeRecipe?.ingredients || []).map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
+        }))
     const referenceIngredientNames = ingredients.map((item: any) => `${item?.name || ''}`.trim()).filter(Boolean)
     if (!referenceIngredientNames.length && knowledgeRecipe) {
       referenceIngredientNames.push(...knowledgeRecipe.ingredients.map((item) => item.name).filter(Boolean))
     }
     const searchedHits = await this.recipeKnowledge.search({
       ingredients: referenceIngredientNames,
-      limit: 5,
+      limit: 4,
       maxDuration: Number(summary?.duration || 30),
       avoidances: profile.avoidances,
     })
@@ -950,19 +958,20 @@ export class AiService {
       referenceHits.push(hit)
       seenReferenceIds.add(hit.recipe.id)
     }
-    const knowledgeReferenceText = this.buildKnowledgeReferenceContext(referenceHits, 5, true)
+    const knowledgeReferenceText = this.buildKnowledgeReferenceContext(referenceHits, 3, true, 5)
+    const retrievalMs = Date.now() - startedAt
     const ingredientText = ingredients
       .map((item: any) => `${item?.name || ''}${item?.quantity ?? ''}${item?.unit || ''}`.trim())
       .filter(Boolean)
       .join('、')
-    const schema = '{"recipe":{"name":"菜名","duration":15,"difficulty":"简单","servings":2,"ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["具体可执行步骤1","具体可执行步骤2","具体可执行步骤3"],"tips":"烹饪提示"}}'
+    const schema = '{"recipe":{"steps":["具体可执行步骤1","具体可执行步骤2","具体可执行步骤3"],"tips":"烹饪提示"}}'
 
     if (!this.apiKey) throw new Error('DASHSCOPE_API_KEY 未配置，无法生成最终菜谱')
     let qualityFeedback = ''
     let lastIssues: string[] = []
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const prompt = [
-        '你是家庭烹饪与营养分析助手。仅返回 JSON，不要附带解释文本。',
+        '你是家庭烹饪步骤助手。仅返回 JSON，不要附带解释文本。',
         `请为菜谱“${name}”生成一份可以直接照做的最终版本。`,
         '知识库内容仅作为事实与烹饪思路参考，最终内容必须由你重新组织和补全，禁止直接照抄残缺步骤。',
         '知识库检索参考：',
@@ -973,10 +982,8 @@ export class AiService {
         `饮食偏好（尽量贴合）：${profile.dietPreferences.length ? profile.dietPreferences.join('、') : '无特别偏好'}`,
         `可用厨具：${profile.note || '常见家用厨具'}`,
         `忌口食材（绝对不能出现）：${profile.avoidances.length ? profile.avoidances.join('、') : '无'}`,
-        ingredientText
-          ? '必须严格沿用“列表摘要食材”中的食材名称、用量和单位，不得增加、删除、替换或修改；你的任务是生成与这些食材一致的完整步骤。'
-          : '',
-        '必须输出完整食材，每项都有大于0的数字用量和明确单位；所有食材都必须在步骤中实际使用。',
+        '食材清单已由系统锁定并会自动拼接，JSON 中不要重复输出菜名、食材、份数、用时和难度，只生成 steps 与 tips。',
+        '所有锁定食材都必须在步骤中实际使用，不得增加、删除或替换食材。',
         '步骤数量按实际操作组织，家常菜通常5至9步；连续的小动作应合并，不要为了增加步数拆开洗、擦、取出、静置、装盘等自然衔接动作。',
         '食材总量已经在食材清单中给出，步骤中不要机械重复食材总数量；只有分次使用时才写该次用量。',
         '只保留真正影响成败的关键数字，例如火候、烤箱温度、合理的时间范围和必要的切配厚度；成熟程度优先写颜色、软硬、香气、沸腾状态等直观判断。',
@@ -989,6 +996,7 @@ export class AiService {
         `JSON 结构：${schema}`,
       ].filter(Boolean).join('\n')
 
+      const modelStartedAt = Date.now()
       const content = await this.callDashScope(
         this.textModel,
         [
@@ -997,27 +1005,24 @@ export class AiService {
         ],
         true,
         attempt === 0 ? 0.2 : 0.1,
-        2600,
+        1800,
       )
       const parsed = this.parseJson(content)
       const list = this.pickRecipeArray(parsed)
       const detailSource = parsed?.recipe || list[0] || parsed
-      const returnedIngredients = Array.isArray(detailSource?.ingredients) && detailSource.ingredients.length
-        ? detailSource.ingredients
-        : ingredients
       const recipe = this.normalizeRecipe({
         ...summary,
         ...(detailSource || {}),
         id: summary?.id || detailSource?.id,
         name,
-        ingredients: ingredients.length ? ingredients : returnedIngredients,
+        ingredients,
       }, 0, false)
       lastIssues = this.getRecipeDetailQualityIssues(recipe, false)
       if (this.recipeContainsAvoidance(recipe, profile.avoidances)) lastIssues.push('包含用户忌口食材')
       if (!lastIssues.length) {
         recipe.detailReady = false
         recipe.retrievalSource = `rag-model:${referenceHits[0]?.retrievalMode || 'no-reference'}`
-        this.logger.log(`recipe-steps-quality-pass name=${name}, attempt=${attempt + 1}, references=${referenceHits.length}`)
+        this.logger.log(`recipe-steps-quality-pass name=${name}, attempt=${attempt + 1}, references=${Math.min(referenceHits.length, 3)}, promptChars=${prompt.length}, retrievalMs=${retrievalMs}, modelMs=${Date.now() - modelStartedAt}, totalMs=${Date.now() - startedAt}`)
         return recipe
       }
       qualityFeedback = [...new Set(lastIssues)].join('；')
@@ -1077,7 +1082,7 @@ export class AiService {
     return this.recipeKnowledge.getStatus()
   }
 
-  private buildKnowledgeReferenceContext(hits: RecipeKnowledgeHit[], limit: number, includeSteps: boolean) {
+  private buildKnowledgeReferenceContext(hits: RecipeKnowledgeHit[], limit: number, includeSteps: boolean, stepLimit = 6) {
     return (Array.isArray(hits) ? hits : []).slice(0, Math.max(1, limit)).map((hit, index) => {
       const recipe = hit.recipe
       const ingredients = recipe.ingredients
@@ -1085,7 +1090,7 @@ export class AiService {
         .filter(Boolean)
         .join('、')
       const stepText = includeSteps
-        ? recipe.steps.slice(0, 8).map((step) => step.description).filter(Boolean).join('；')
+        ? recipe.steps.slice(0, Math.max(1, stepLimit)).map((step) => step.description).filter(Boolean).join('；')
         : ''
       return [
         `[参考${index + 1}] ${recipe.name}`,
