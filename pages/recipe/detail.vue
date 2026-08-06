@@ -38,7 +38,7 @@
 					<text class="detail-loading-meta">同时估算每人份营养数据，请稍候…</text>
 				</view>
 			</view>
-			<view v-else-if="detailError" class="detail-error-card">
+			<view v-else-if="detailError && !hasRecipeDetail" class="detail-error-card">
 				<text class="detail-error-text">{{ detailError }}</text>
 				<button class="detail-retry-btn" @click="retryLoadDetail">重新生成</button>
 			</view>
@@ -327,7 +327,9 @@ export default {
 			} catch (_) {}
 		},
 		isDetailComplete(recipe) {
-			return !!recipe && Array.isArray(recipe.steps) && recipe.steps.length > 0 && !!recipe.nutrition
+			return !!recipe &&
+				Array.isArray(recipe.steps) && recipe.steps.length > 0 &&
+				Array.isArray(recipe.ingredients) && recipe.ingredients.length > 0
 		},
 		async ensureRecipeDetail(force = false) {
 			if (this.detailLoading) return
@@ -353,15 +355,18 @@ export default {
 					}
 				const res = await getRecipeDetail({ recipe: summary })
 				const detail = res?.data?.recipe || res?.recipe
-				if (!this.isDetailComplete(detail)) throw new Error('详情内容不完整')
 				const summaryIngredients = Array.isArray(summary?.ingredients) ? summary.ingredients : []
-				const resolvedDetail = summaryIngredients.length ? { ...detail, ingredients: summaryIngredients } : detail
+				const detailIngredients = Array.isArray(detail?.ingredients) ? detail.ingredients : []
+				const resolvedDetail = detailIngredients.length
+					? detail
+					: { ...(detail || {}), ingredients: summaryIngredients }
+				if (!this.isDetailComplete(resolvedDetail)) throw new Error('详细做法加载失败，请重试')
 				this.applyRecipeFromRaw(resolvedDetail)
 				this.writeDetailCache(resolvedDetail)
 				uni.setStorageSync('latestRecipeDetail', resolvedDetail)
 			} catch (error) {
 				const message = `${error?.message || error?.msg || error?.data?.message || ''}`.trim()
-				this.detailError = message || '详细做法生成失败，请重试'
+				this.detailError = this.hasRecipeDetail ? '' : (message || '详细做法暂时无法加载，请重试')
 			} finally {
 				this.detailLoading = false
 			}
@@ -381,7 +386,9 @@ export default {
 			const ingredientText = Array.isArray(raw?.ingredients)
 				? raw.ingredients.map((x) => `${x?.name || ''}${x?.quantity ?? ''}${x?.unit || ''}`.trim()).filter(Boolean).join('、')
 				: ''
-			const stepList = Array.isArray(raw?.steps) ? raw.steps.map((x) => `${x || ''}`.trim()).filter(Boolean) : []
+			const stepList = Array.isArray(raw?.steps)
+				? raw.steps.map((x) => typeof x === 'string' ? x : `${x?.description || x?.title || ''}`).map((x) => x.trim()).filter(Boolean)
+				: []
 			this.recipe = {
 				...this.recipe,
 				name: raw?.name || this.recipe.name,

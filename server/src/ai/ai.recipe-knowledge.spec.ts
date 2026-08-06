@@ -39,6 +39,17 @@ describe('AiService recipe knowledge loop', () => {
     expect(detail.detailReady).toBe(true)
   })
 
+  it('returns stored cooking details when nutrition estimates are unavailable', async () => {
+    const detail = await service.generateRecipeDetail({
+      userId: 1,
+      recipe: { knowledgeId: 'recipe_0320', name: '西葫芦炒鸡蛋' },
+    })
+    expect(detail.ingredients.length).toBeGreaterThan(0)
+    expect(detail.steps.length).toBeGreaterThan(1)
+    expect(detail.detailReady).toBe(true)
+    expect(detail.nutrition).toBeUndefined()
+  })
+
   it('completes the asynchronous recommendation task from knowledge data', async () => {
     const task = service.createRecipeGenerateTask({
       userId: 1,

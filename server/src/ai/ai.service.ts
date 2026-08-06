@@ -1084,7 +1084,7 @@ export class AiService {
       tips: summaryOnly ? '' : recipe.tips.join('；'),
       servings: summaryOnly ? undefined : recipe.servings,
       nutrition: summaryOnly ? undefined : nutrition,
-      detailReady: true,
+      detailReady: !summaryOnly && recipe.steps.length > 0,
       retrievalSource: 'knowledge-base',
     }
   }
