@@ -117,7 +117,8 @@ import IngredientIcon from '@/components/ingredient-icon.vue'
 import NutritionIcon from '@/components/nutrition-icon.vue'
 import { toSmartBasketItem } from '@/utils/smart-purchase'
 
-const RECIPE_DETAIL_CACHE_PREFIX = 'FFA_RECIPE_DETAIL_V3_'
+const RECIPE_DETAIL_QUALITY_VERSION = 4
+const RECIPE_DETAIL_CACHE_PREFIX = `FFA_RECIPE_DETAIL_V${RECIPE_DETAIL_QUALITY_VERSION}_`
 
 export default {
 	components: { BottomNav, IngredientIcon, NutritionIcon },
@@ -390,7 +391,7 @@ export default {
 					uni.setStorageSync('latestRecipeDetail', cached)
 					return
 				}
-				if (this.isDetailComplete(this.recipe?.raw)) return
+				if (this.isDetailComplete(this.recipe?.raw) && Number(this.recipe?.raw?.detailQualityVersion) === RECIPE_DETAIL_QUALITY_VERSION) return
 			}
 			const summary = this.recipe?.raw && typeof this.recipe.raw === 'object'
 				? this.recipe.raw
@@ -401,6 +402,13 @@ export default {
 					servings: this.recipe.servings,
 					ingredients: this.pickRecipeIngredientItems()
 				}
+			if (this.hasRecipeDetail || this.hasNutrition) {
+				this.applyRecipeFromRaw({
+					...summary,
+					steps: [],
+					nutrition: null
+				})
+			}
 			this.stepsLoading = true
 			this.nutritionLoading = true
 			this.stepsError = ''
@@ -459,7 +467,8 @@ export default {
 				if (requestId !== this.detailRequestId) return
 				const completed = {
 					...(this.recipe?.raw || {}),
-					nutrition: this.pendingNutrition
+					nutrition: this.pendingNutrition,
+					detailQualityVersion: RECIPE_DETAIL_QUALITY_VERSION
 				}
 				this.pendingNutrition = null
 				this.nutritionLoading = false
