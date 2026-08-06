@@ -69,8 +69,18 @@ export type RecipeKnowledgeHit = {
   score: number
   matchedIngredients: string[]
   missingIngredients: string[]
-  retrievalMode: 'neo4j-vector' | 'neo4j-graph' | 'local-hybrid'
+  retrievalMode: 'neo4j-hybrid' | 'neo4j-vector' | 'neo4j-graph' | 'neo4j-fulltext' | 'local-hybrid'
 }
+
+type NormalizedSearchOptions = RecipeKnowledgeSearchOptions & {
+  limit: number
+  ingredients: string[]
+  avoidances: string[]
+  excludeNames: string[]
+}
+
+type Neo4jCandidate = { id: string; recipeJson: string; score: number }
+type CacheEntry<T> = { value: T; expiresAt: number }
 
 @Injectable()
 export class RecipeKnowledgeService implements OnModuleDestroy {
@@ -79,6 +89,9 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
   private readonly recipesByKey = new Map<string, RecipeKnowledgeDocument>()
   private driver: Driver | null = null
   private neo4jUnavailableLogged = false
+  private readonly searchCache = new Map<string, CacheEntry<RecipeKnowledgeHit[]>>()
+  private readonly searchInFlight = new Map<string, Promise<RecipeKnowledgeHit[]>>()
+  private readonly embeddingCache = new Map<string, CacheEntry<number[]>>()
 
   private readonly neo4jUri = `${process.env.NEO4J_URI || ''}`.trim()
   private readonly neo4jUser = `${process.env.NEO4J_USER || 'neo4j'}`.trim()
@@ -88,6 +101,10 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
   private readonly embeddingModel = `${process.env.DASHSCOPE_EMBEDDING_MODEL || 'text-embedding-v4'}`.trim()
   private readonly embeddingDimensions = Math.max(64, Math.min(2048, Number(process.env.DASHSCOPE_EMBEDDING_DIMENSIONS || 1024)))
   private readonly apiKey = `${process.env.DASHSCOPE_API_KEY || ''}`.trim()
+  private readonly searchCacheTtlMs = Math.max(10_000, Number(process.env.RECIPE_SEARCH_CACHE_TTL_MS || 300_000))
+  private readonly embeddingCacheTtlMs = Math.max(60_000, Number(process.env.RECIPE_EMBEDDING_CACHE_TTL_MS || 3_600_000))
+  private readonly cacheMaxEntries = Math.max(50, Math.min(5_000, Number(process.env.RECIPE_SEARCH_CACHE_MAX_ENTRIES || 500)))
+  private readonly routeTimeoutMs = Math.max(2_000, Number(process.env.RECIPE_RETRIEVAL_ROUTE_TIMEOUT_MS || 8_000))
 
   constructor() {
     this.recipes = this.loadRecipes()
@@ -101,6 +118,9 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
   }
 
   async onModuleDestroy() {
+    this.searchCache.clear()
+    this.searchInFlight.clear()
+    this.embeddingCache.clear()
     await this.driver?.close()
   }
 
@@ -111,6 +131,8 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
       vectorConfigured: Boolean(this.apiKey),
       embeddingModel: this.embeddingModel,
       embeddingDimensions: this.embeddingDimensions,
+      searchCacheEntries: this.searchCache.size,
+      embeddingCacheEntries: this.embeddingCache.size,
       fallbackMode: 'local-hybrid',
     }
   }
@@ -129,10 +151,36 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
     }
     if (!normalized.ingredients.length) return []
 
+    const cacheKey = this.buildSearchCacheKey(normalized)
+    const cached = this.getCached(this.searchCache, cacheKey)
+    if (cached) {
+      this.logger.log(`recipe-retrieval-cache hit=1, results=${cached.length}`)
+      return this.cloneHits(cached)
+    }
+    const current = this.searchInFlight.get(cacheKey)
+    if (current) return this.cloneHits(await current)
+
+    const task = this.searchUncached(normalized)
+      .then((hits) => {
+        const degraded = hits[0]?.retrievalMode === 'local-hybrid' && Boolean(this.neo4jUri && this.neo4jPassword)
+        this.setCached(this.searchCache, cacheKey, hits, degraded ? Math.min(this.searchCacheTtlMs, 30_000) : this.searchCacheTtlMs)
+        return hits
+      })
+      .finally(() => this.searchInFlight.delete(cacheKey))
+    this.searchInFlight.set(cacheKey, task)
+    return this.cloneHits(await task)
+  }
+
+  private async searchUncached(options: NormalizedSearchOptions) {
+    const startedAt = Date.now()
     if (this.neo4jUri && this.neo4jPassword) {
       try {
-        const graphHits = await this.searchNeo4j(normalized)
-        if (graphHits.length) return graphHits.slice(0, normalized.limit)
+        const hits = await this.searchNeo4j(options)
+        if (hits.length) {
+          this.neo4jUnavailableLogged = false
+          this.logger.log(`recipe-retrieval mode=${hits[0].retrievalMode}, results=${hits.length}, cache=miss, totalMs=${Date.now() - startedAt}`)
+          return hits.slice(0, options.limit)
+        }
       } catch (error: any) {
         if (!this.neo4jUnavailableLogged) {
           this.logger.warn(`Neo4j 检索不可用，已降级到本地知识库：${error?.message || error}`)
@@ -140,7 +188,9 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
         }
       }
     }
-    return this.rankRecipes(this.recipes, normalized, new Map(), 'local-hybrid').slice(0, normalized.limit)
+    const hits = this.rankRecipes(this.recipes, options, new Map(), 'local-hybrid').slice(0, options.limit)
+    this.logger.log(`recipe-retrieval mode=local-hybrid, results=${hits.length}, cache=miss, totalMs=${Date.now() - startedAt}`)
+    return hits
   }
 
   private loadRecipes() {
@@ -159,48 +209,127 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
     return this.driver
   }
 
-  private async searchNeo4j(options: RecipeKnowledgeSearchOptions & { limit: number }) {
+  private async searchNeo4j(options: NormalizedSearchOptions) {
     const driver = this.getDriver()
     const terms = options.ingredients.map((value) => this.normalizeIngredient(value)).filter(Boolean)
     const candidateLimit = Math.min(Math.max(options.limit * 6, 30), 100)
-    const semanticScores = new Map<string, number>()
-    let recipeJsonValues: string[] = []
+    const queryText = `可用食材：${options.ingredients.join('、')}；口味：${options.taste || '家常'}；时长：${options.maxDuration || '不限'}分钟；难度：${options.difficulty || '不限'}`
+    const routes = await Promise.allSettled([
+      this.apiKey ? this.withTimeout(this.searchNeo4jVector(driver, queryText, candidateLimit), 'vector') : Promise.resolve([]),
+      this.withTimeout(this.searchNeo4jGraph(driver, terms, options, candidateLimit), 'graph'),
+      this.withTimeout(this.searchNeo4jFulltext(driver, [...options.ingredients, options.taste || ''].filter(Boolean), candidateLimit), 'fulltext'),
+    ])
+    const names = ['vector', 'graph', 'fulltext'] as const
+    const values = routes.map((route, index) => {
+      if (route.status === 'fulfilled') return route.value
+      this.logger.warn(`Neo4j ${names[index]} 召回失败：${route.reason?.message || route.reason}`)
+      return []
+    })
+    const nonEmptyRouteCount = values.filter((items) => items.length > 0).length
+    this.logger.log(`recipe-retrieval-routes vector=${values[0].length}, graph=${values[1].length}, fulltext=${values[2].length}`)
+    if (!nonEmptyRouteCount) return []
 
-    if (this.apiKey) {
-      const queryText = `可用食材：${options.ingredients.join('、')}；口味：${options.taste || '家常'}；时长：${options.maxDuration || '不限'}分钟；难度：${options.difficulty || '不限'}`
-      const [embedding] = await this.createEmbeddings([queryText])
-      const result = await driver.executeQuery(
-        `CALL db.index.vector.queryNodes('recipe_embedding_index', $limit, $embedding)
-         YIELD node, score
-         RETURN node.id AS id, node.fullRecipeJson AS recipeJson, score
-         ORDER BY score DESC`,
-        { limit: neo4j.int(candidateLimit), embedding },
-        { database: this.neo4jDatabase },
-      )
-      for (const record of result.records) {
-        const id = `${record.get('id') || ''}`
-        const value = `${record.get('recipeJson') || ''}`
-        if (value) recipeJsonValues.push(value)
-        semanticScores.set(id, Number(record.get('score') || 0))
+    const routeWeights = [0.5, 0.3, 0.2]
+    const maxRrf = values.reduce((sum, items, index) => sum + (items.length ? routeWeights[index] / 61 : 0), 0)
+    const fused = new Map<string, { recipeJson: string; rrf: number }>()
+    values.forEach((items, routeIndex) => {
+      items.forEach((item, rank) => {
+        if (!item.id || !item.recipeJson) return
+        const current = fused.get(item.id) || { recipeJson: item.recipeJson, rrf: 0 }
+        current.recipeJson ||= item.recipeJson
+        current.rrf += routeWeights[routeIndex] / (60 + rank + 1)
+        fused.set(item.id, current)
+      })
+    })
+    const fusionScores = new Map<string, number>()
+    const candidates: RecipeKnowledgeDocument[] = []
+    for (const [id, item] of fused) {
+      try {
+        const recipe = JSON.parse(item.recipeJson) as RecipeKnowledgeDocument
+        candidates.push(recipe)
+        fusionScores.set(id, maxRrf > 0 ? Math.min(1, item.rrf / maxRrf) : 0)
+      } catch {
+        this.logger.warn(`Neo4j 候选数据无法解析：${id}`)
       }
     }
+    const mode: RecipeKnowledgeHit['retrievalMode'] = nonEmptyRouteCount > 1
+      ? 'neo4j-hybrid'
+      : values[0].length ? 'neo4j-vector' : values[1].length ? 'neo4j-graph' : 'neo4j-fulltext'
+    return this.rankRecipes(candidates, options, fusionScores, mode)
+  }
 
-    if (!recipeJsonValues.length) {
-      const result = await driver.executeQuery(
-        `MATCH (recipe:Recipe)
-         WHERE any(term IN $terms WHERE any(name IN recipe.ingredientNames
-           WHERE toLower(name) CONTAINS term OR term CONTAINS toLower(name)))
-         RETURN recipe.fullRecipeJson AS recipeJson
-         LIMIT $limit`,
-        { terms, limit: neo4j.int(candidateLimit) },
-        { database: this.neo4jDatabase },
-      )
-      recipeJsonValues = result.records.map((record) => `${record.get('recipeJson') || ''}`).filter(Boolean)
-    }
+  private async searchNeo4jVector(driver: Driver, queryText: string, limit: number): Promise<Neo4jCandidate[]> {
+    const embedding = await this.createQueryEmbedding(queryText)
+    const result = await driver.executeQuery(
+      `CALL db.index.vector.queryNodes('recipe_embedding_index', $limit, $embedding)
+       YIELD node, score
+       RETURN node.id AS id, node.fullRecipeJson AS recipeJson, score
+       ORDER BY score DESC`,
+      { limit: neo4j.int(limit), embedding },
+      { database: this.neo4jDatabase },
+    )
+    return this.recordsToCandidates(result.records)
+  }
 
-    const candidates = recipeJsonValues.map((value) => JSON.parse(value) as RecipeKnowledgeDocument)
-    const mode = semanticScores.size ? 'neo4j-vector' : 'neo4j-graph'
-    return this.rankRecipes(candidates, options, semanticScores, mode)
+  private async searchNeo4jGraph(driver: Driver, terms: string[], options: NormalizedSearchOptions, limit: number): Promise<Neo4jCandidate[]> {
+    const result = await driver.executeQuery(
+      `MATCH (recipe:Recipe)-[:USES]->(ingredient:Ingredient)
+       WITH recipe, collect(DISTINCT toLower(ingredient.normalizedName)) AS ingredientNames
+       WITH recipe, size([term IN $terms WHERE any(name IN ingredientNames
+         WHERE name CONTAINS term OR term CONTAINS name)]) AS matchedCount, ingredientNames
+       WHERE matchedCount > 0
+         AND ($maxDuration <= 0 OR recipe.durationMinutes <= $maxDuration)
+         AND none(blocked IN $avoidances WHERE any(name IN ingredientNames
+           WHERE name CONTAINS blocked OR blocked CONTAINS name))
+         AND none(excluded IN $excludeNames WHERE toLower(recipe.name) = excluded)
+       RETURN recipe.id AS id, recipe.fullRecipeJson AS recipeJson, toFloat(matchedCount) AS score
+       ORDER BY matchedCount DESC, recipe.qualityScore DESC, recipe.durationMinutes ASC
+       LIMIT $limit`,
+      {
+        terms,
+        maxDuration: Number(options.maxDuration || 0),
+        avoidances: options.avoidances.map((value) => this.normalizeIngredient(value)),
+        excludeNames: options.excludeNames.map((value) => this.normalizeText(value)),
+        limit: neo4j.int(limit),
+      },
+      { database: this.neo4jDatabase },
+    )
+    return this.recordsToCandidates(result.records)
+  }
+
+  private async searchNeo4jFulltext(driver: Driver, values: string[], limit: number): Promise<Neo4jCandidate[]> {
+    const query = this.uniqueStrings(values)
+      .map((value) => this.normalizeText(value).replace(/[+\-&|!(){}\[\]^"~*?:\\/]/gu, ''))
+      .filter(Boolean)
+      .map((value) => `"${value}"`)
+      .join(' OR ')
+    if (!query) return []
+    const result = await driver.executeQuery(
+      `CALL db.index.fulltext.queryNodes('recipe_fulltext_index', $query, {limit: $limit})
+       YIELD node, score
+       RETURN node.id AS id, node.fullRecipeJson AS recipeJson, score
+       ORDER BY score DESC`,
+      { query, limit: neo4j.int(limit) },
+      { database: this.neo4jDatabase },
+    )
+    return this.recordsToCandidates(result.records)
+  }
+
+  private recordsToCandidates(records: any[]): Neo4jCandidate[] {
+    return records.map((record) => ({
+      id: `${record.get('id') || ''}`,
+      recipeJson: `${record.get('recipeJson') || ''}`,
+      score: Number(record.get('score') || 0),
+    })).filter((item) => item.id && item.recipeJson)
+  }
+
+  private async createQueryEmbedding(queryText: string) {
+    const cacheKey = `${this.embeddingModel}:${this.embeddingDimensions}:${queryText}`
+    const cached = this.getCached(this.embeddingCache, cacheKey)
+    if (cached) return [...cached]
+    const [embedding] = await this.createEmbeddings([queryText])
+    this.setCached(this.embeddingCache, cacheKey, embedding, this.embeddingCacheTtlMs)
+    return embedding
   }
 
   private async createEmbeddings(texts: string[]) {
@@ -240,8 +369,10 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
         recipe.name,
         ...(recipe.aliases || []),
         ...(recipe.ingredients || []).flatMap((item) => [item.name, item.normalizedName]),
+        ...(recipe.allergens || []),
       ].join(' '))
       if (avoidances.some((value) => value && searchable.includes(value))) continue
+      if (maxDuration && recipe.durationMinutes > maxDuration) continue
 
       const matchedPantry = pantry.filter((value) => (recipe.ingredients || []).some((item) => this.ingredientMatches(value, item.normalizedName || item.name)))
       if (!matchedPantry.length) continue
@@ -251,13 +382,16 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
       const missingIngredients = (recipe.ingredients || [])
         .filter((item) => item.required && item.role !== '调味料' && !pantry.some((value) => this.ingredientMatches(value, item.normalizedName || item.name)))
         .map((item) => item.name)
-      const coverage = matchedPantry.length / pantry.length
+      const pantryCoverage = matchedPantry.length / pantry.length
+      const requiredIngredients = (recipe.ingredients || []).filter((item) => item.required && item.role !== '调味料')
+      const requiredMatchedCount = requiredIngredients.length - missingIngredients.length
+      const recipeCoverage = requiredIngredients.length ? Math.max(0, requiredMatchedCount / requiredIngredients.length) : 1
       const timeScore = maxDuration ? Math.max(0, 1 - Math.max(0, recipe.durationMinutes - maxDuration) / Math.max(maxDuration, 1)) : 1
       const difficultyScore = difficulty ? (recipe.difficulty === difficulty ? 1 : 0.4) : 1
       const tasteScore = taste && (recipe.taste || []).some((value) => this.normalizeText(value).includes(taste)) ? 1 : taste ? 0.3 : 1
       const semanticScore = semanticScores.get(recipe.id) ?? 0.55
-      const missingPenalty = Math.min(missingIngredients.length * 0.025, 0.15)
-      const total = coverage * 0.48 + semanticScore * 0.22 + timeScore * 0.1 + difficultyScore * 0.06 + tasteScore * 0.04 + Number(recipe.quality?.score || 0.8) * 0.1 - missingPenalty
+      const missingPenalty = Math.min(missingIngredients.length * 0.03, 0.18)
+      const total = pantryCoverage * 0.28 + recipeCoverage * 0.2 + semanticScore * 0.2 + timeScore * 0.1 + difficultyScore * 0.05 + tasteScore * 0.04 + Number(recipe.quality?.score || 0.8) * 0.13 - missingPenalty
       hits.push({
         recipe,
         score: Math.max(0, Math.min(100, Math.round(total * 100))),
@@ -292,6 +426,64 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
 
   private normalizeText(value: unknown) {
     return `${value || ''}`.trim().toLowerCase().replace(/[\s，。、“”‘’'"（）()【】\[\]_-]+/gu, '')
+  }
+
+  private buildSearchCacheKey(options: NormalizedSearchOptions) {
+    return JSON.stringify({
+      ingredients: [...options.ingredients].map((value) => this.normalizeIngredient(value)).sort(),
+      maxDuration: Number(options.maxDuration || 0),
+      difficulty: `${options.difficulty || ''}`,
+      taste: this.normalizeText(options.taste),
+      avoidances: [...options.avoidances].map((value) => this.normalizeIngredient(value)).sort(),
+      excludeNames: [...options.excludeNames].map((value) => this.normalizeText(value)).sort(),
+      limit: options.limit,
+      model: this.embeddingModel,
+      dimensions: this.embeddingDimensions,
+    })
+  }
+
+  private getCached<T>(cache: Map<string, CacheEntry<T>>, key: string): T | null {
+    const entry = cache.get(key)
+    if (!entry) return null
+    if (entry.expiresAt <= Date.now()) {
+      cache.delete(key)
+      return null
+    }
+    cache.delete(key)
+    cache.set(key, entry)
+    return entry.value
+  }
+
+  private setCached<T>(cache: Map<string, CacheEntry<T>>, key: string, value: T, ttlMs: number) {
+    cache.delete(key)
+    cache.set(key, { value, expiresAt: Date.now() + ttlMs })
+    while (cache.size > this.cacheMaxEntries) {
+      const oldestKey = cache.keys().next().value
+      if (oldestKey === undefined) break
+      cache.delete(oldestKey)
+    }
+  }
+
+  private cloneHits(hits: RecipeKnowledgeHit[]) {
+    return hits.map((hit) => ({
+      ...hit,
+      matchedIngredients: [...hit.matchedIngredients],
+      missingIngredients: [...hit.missingIngredients],
+    }))
+  }
+
+  private async withTimeout<T>(promise: Promise<T>, route: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`${route} 召回超时`)), this.routeTimeoutMs)
+        }),
+      ])
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
   }
 
   private uniqueStrings(values: unknown[]) {
