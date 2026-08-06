@@ -205,7 +205,6 @@ npm run start:dev
 | `WECHAT_MINI_APP_SECRET` | 微信小程序 AppSecret | 是 |
 | `AUTH_TOKEN_SECRET` | 登录令牌签名密钥 | 是 |
 | `AI_RECOGNIZE_FALLBACK_TO_MOCK` | AI 识别异常时是否启用模拟结果 | 否 |
-| `AI_RECIPE_ENABLE_RETRY` | 菜谱不足时是否追加一次生成 | 否 |
 | `DASHSCOPE_EMBEDDING_MODEL` | 菜谱向量模型，默认 `text-embedding-v4` | 否 |
 | `DASHSCOPE_EMBEDDING_DIMENSIONS` | 向量维度，默认 `1024` | 否 |
 | `NEO4J_URI` | Neo4j Bolt 地址；不配置时自动使用本地 JSON 检索 | 否 |

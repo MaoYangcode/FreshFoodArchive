@@ -106,7 +106,7 @@ import IngredientIcon from '@/components/ingredient-icon.vue'
 import NutritionIcon from '@/components/nutrition-icon.vue'
 import { toSmartBasketItem } from '@/utils/smart-purchase'
 
-const RECIPE_DETAIL_CACHE_PREFIX = 'FFA_RECIPE_DETAIL_V2_'
+const RECIPE_DETAIL_CACHE_PREFIX = 'FFA_RECIPE_DETAIL_V3_'
 
 export default {
 	components: { BottomNav, IngredientIcon, NutritionIcon },
@@ -331,11 +331,14 @@ export default {
 		},
 		isDetailComplete(recipe) {
 			const nutrition = recipe?.nutrition
+			const steps = Array.isArray(recipe?.steps) ? recipe.steps.map((step) => `${step || ''}`.trim()).filter(Boolean) : []
+			const forbiddenStep = /本步骤操作要求|完成后进入下一步|详情内容不完整|按菜式需要|准备并清洗所有食材|二选一|如何判断|方法[一二三四]|\*\*|\bshimmer\b|\b\d+\s*s\b/iu
 			const nutritionValues = nutrition
 				? [nutrition.calories, nutrition.protein, nutrition.fat, nutrition.carbohydrates, nutrition.fiber, nutrition.sodium]
 				: []
 			return !!recipe &&
-				Array.isArray(recipe.steps) && recipe.steps.length > 0 &&
+				steps.length >= 3 && steps.length <= 14 &&
+				!steps.some((step) => forbiddenStep.test(step) || step.length < 10) &&
 				Array.isArray(recipe.ingredients) && recipe.ingredients.length > 0 &&
 				nutritionValues.length === 6 &&
 				nutritionValues.every((value) => Number.isFinite(Number(value)) && Number(value) >= 0) &&

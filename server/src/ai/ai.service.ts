@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common'
 import { randomUUID } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
 import {
-  RecipeKnowledgeDocument,
   RecipeKnowledgeHit,
   RecipeKnowledgeService,
 } from '../recipe-knowledge/recipe-knowledge.service'
@@ -149,7 +148,6 @@ export class AiService {
   private readonly visionModel = process.env.DASHSCOPE_VISION_MODEL || 'qwen3.6-flash'
   private readonly textModel = process.env.DASHSCOPE_TEXT_MODEL || 'qwen2.5-14b-instruct'
   private readonly asrModel = process.env.DASHSCOPE_ASR_MODEL || 'qwen3-asr-flash'
-  private readonly recipeRetryEnabled = `${process.env.AI_RECIPE_ENABLE_RETRY || ''}`.trim() === '1'
   private readonly allowMockFallback =
     `${process.env.AI_RECOGNIZE_FALLBACK_TO_MOCK || ''}`.trim() === '1'
   private readonly validCategories = new Set(['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'])
@@ -248,27 +246,7 @@ export class AiService {
     task.updatedAt = Date.now()
 
     const totalCount = task.totalCount
-    const knowledgeResult = await this.generateRecipeList({
-      ...(payload || {}),
-      count: totalCount,
-      summaryOnly: true,
-      knowledgeOnly: true,
-    })
-    for (const recipe of knowledgeResult.recipes || []) {
-      task.recipes.push(recipe)
-      if (task.recipes.length >= totalCount) break
-    }
-    task.doneCount = task.recipes.length
-    task.profileApplied = knowledgeResult.profileApplied
-    task.updatedAt = Date.now()
-    if (task.recipes.length >= totalCount) {
-      task.status = 'done'
-      task.message = '菜谱推荐完成'
-      this.logger.log(`recipe-task-knowledge-hit taskId=${taskId}, returned=${task.recipes.length}`)
-      return
-    }
-
-    const batchSizes = this.makeRecipeBatchSizes(totalCount - task.recipes.length, 2)
+    const batchSizes = this.makeRecipeBatchSizes(totalCount, 2)
     const batchFocus = ['快炒、凉拌、快手菜', '炖焖、汤羹、蒸煮菜', '主食、馅料、烤煎菜']
     const maxConcurrency = 2
     let cursor = 0
@@ -640,7 +618,6 @@ export class AiService {
     const requestNonce = `${payload?.requestNonce || ''}`.trim()
     const batchFocus = `${payload?.batchFocus || ''}`.trim()
     const summaryOnly = payload?.summaryOnly === true
-    const knowledgeOnly = payload?.knowledgeOnly === true
     const allowRecipeMockFallback = payload?.allowMockFallback !== false
     const userId = Math.max(Number(payload?.userId || 1), 1)
     const profile = await this.loadUserProfileForRecipe(userId)
@@ -673,30 +650,14 @@ export class AiService {
       avoidances,
       excludeNames,
     })
-    const knowledgeRecipes = this.filterRecipesByAvoidances(
-      knowledgeHits.map((hit) => this.knowledgeHitToGeneratedRecipe(hit, summaryOnly)),
-      avoidances,
-    ).slice(0, count)
-    if (knowledgeRecipes.length >= count) {
-      profileApplied.generatedCount = count
-      this.logger.log(`recipe-knowledge-hit returned=${count}, mode=${knowledgeHits[0]?.retrievalMode || 'local-hybrid'}`)
-      return { recipes: knowledgeRecipes.slice(0, count), profileApplied }
-    }
-    if (knowledgeOnly) {
-      profileApplied.generatedCount = knowledgeRecipes.length
-      return { recipes: knowledgeRecipes, profileApplied }
-    }
+    const knowledgeReferenceText = this.buildKnowledgeReferenceContext(knowledgeHits, summaryOnly ? 10 : 5, !summaryOnly)
     if (!this.apiKey) {
       if (!allowRecipeMockFallback) {
-        if (knowledgeRecipes.length) {
-          profileApplied.generatedCount = knowledgeRecipes.length
-          return { recipes: knowledgeRecipes, profileApplied }
-        }
         throw new Error('DASHSCOPE_API_KEY 未配置')
       }
       const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
         .map((item, idx) => this.normalizeRecipe(item, idx, summaryOnly))
-      const combined = this.dedupeRecipesByName([...knowledgeRecipes, ...mocked]).slice(0, count)
+      const combined = this.dedupeRecipesByName(mocked).slice(0, count)
       profileApplied.generatedCount = combined.length
       profileApplied.removedByAvoidanceCount = Math.max(count - combined.length, 0)
       profileApplied.reducedByAvoidance = profileApplied.removedByAvoidanceCount > 0
@@ -741,6 +702,8 @@ export class AiService {
       batchFocus ? `本批菜式方向：${batchFocus}` : '',
       `本次生成随机标识：${requestNonce || 'none'}`,
       `食材：${ingredientText}`,
+      '以下内容来自知识库检索，只能作为菜式事实和烹饪思路参考；不得原样复制其中残缺、模板化或不自然的步骤：',
+      knowledgeReferenceText || '未检索到可用参考，请按可靠的家庭烹饪常识生成。',
       singleIngredientGuidance,
       '菜谱合理性要求（必须遵守）：',
       '1) 菜名必须是常见家常菜，不要生造菜名，不要出现明显违和组合（如“苹果炒土豆”）。',
@@ -778,15 +741,11 @@ export class AiService {
         `DashScope generate-recipe failed, fallback to mock: ${err?.message || err || 'unknown error'}; ingredientCount=${pantryNames.length}, singleIngredient=${isSingleIngredientMode}, profileMs=${profileMs}, dashScopeMs=${dashScopeMs}, totalMs=${Date.now() - startedAt}`,
       )
       if (!allowRecipeMockFallback) {
-        if (knowledgeRecipes.length) {
-          profileApplied.generatedCount = knowledgeRecipes.length
-          return { recipes: knowledgeRecipes, profileApplied }
-        }
         throw new Error(err?.message || '菜谱生成服务调用失败')
       }
       const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
         .map((item, idx) => this.normalizeRecipe(item, idx, summaryOnly))
-      const combined = this.dedupeRecipesByName([...knowledgeRecipes, ...mocked]).slice(0, count)
+      const combined = this.dedupeRecipesByName(mocked).slice(0, count)
       profileApplied.generatedCount = combined.length
       profileApplied.removedByAvoidanceCount = Math.max(count - combined.length, 0)
       profileApplied.reducedByAvoidance = profileApplied.removedByAvoidanceCount > 0
@@ -799,7 +758,7 @@ export class AiService {
     const recipeSource = list.length ? list : fallbackRecipes
     let recipes = recipeSource
       .map((item: any, idx: number) => this.normalizeRecipe(item, idx, summaryOnly))
-      .filter((x: GeneratedRecipe) => !!x.name && (summaryOnly || x.steps.length > 0))
+      .filter((x: GeneratedRecipe) => this.isRecipeListItemComplete(x, summaryOnly))
     recipes = this.dedupeRecipesByName(recipes)
     const recipesBeforeExclude = recipes.slice()
     if (excludeNames.length) {
@@ -825,7 +784,7 @@ export class AiService {
     )
     let removedByAvoidanceCount = Math.max(beforeFilterCount - recipes.length, 0)
 
-    const shouldRetry = (this.recipeRetryEnabled || excludeNames.length > 0) && recipes.length < count
+    const shouldRetry = recipes.length < count
     if (shouldRetry) {
       const remain = count - recipes.length
       const retryPrompt = [
@@ -842,6 +801,8 @@ export class AiService {
         '规则：任何菜谱名称、食材列表、步骤、tips 中都不允许出现忌口食材或其同义表述。',
         `期望总烹饪时长（分钟）：${cookingTime}`,
         `食材：${ingredientText}`,
+        '以下知识库检索内容仅供参考，不得照抄残缺或模板化表达：',
+        knowledgeReferenceText || '无可用知识库参考。',
         `本次生成随机标识：${requestNonce || Date.now()}`,
         singleIngredientGuidance,
         '菜谱合理性要求（必须遵守）：',
@@ -885,7 +846,7 @@ export class AiService {
       const retryList = this.pickRecipeArray(retryParsed)
       const retryNormalized = retryList
         .map((item: any, idx: number) => this.normalizeRecipe(item, recipes.length + idx, summaryOnly))
-        .filter((x: GeneratedRecipe) => !!x.name && (summaryOnly || x.steps.length > 0))
+        .filter((x: GeneratedRecipe) => this.isRecipeListItemComplete(x, summaryOnly))
       const retryDeduped = this.dedupeRecipesByName(retryNormalized)
       const retryRecipes = this.filterRecipesByAvoidances(retryDeduped, avoidances)
       removedByAvoidanceCount += Math.max(retryDeduped.length - retryRecipes.length, 0)
@@ -923,7 +884,11 @@ export class AiService {
         .map((item, idx) => this.normalizeRecipe(item, idx, summaryOnly))
       finalRecipes = mocked.slice(0, count)
     }
-    finalRecipes = this.dedupeRecipesByName([...knowledgeRecipes, ...finalRecipes]).slice(0, count)
+    const retrievalMode = knowledgeHits[0]?.retrievalMode || 'no-reference'
+    finalRecipes = this.dedupeRecipesByName(finalRecipes).slice(0, count).map((recipe) => ({
+      ...recipe,
+      retrievalSource: `rag-model:${retrievalMode}`,
+    }))
     profileApplied.generatedCount = finalRecipes.length
     profileApplied.removedByAvoidanceCount = removedByAvoidanceCount
     profileApplied.reducedByAvoidance = finalRecipes.length < count && removedByAvoidanceCount > 0
@@ -940,88 +905,106 @@ export class AiService {
 
     const knowledgeRecipe = this.recipeKnowledge.findByIdOrName(summary?.knowledgeId || summary?.id || name)
       || this.recipeKnowledge.findByIdOrName(name)
-    if (knowledgeRecipe) {
-      const detail = this.knowledgeRecipeToGeneratedRecipe(knowledgeRecipe, false)
-      detail.nutrition = await this.ensureRecipeNutrition(detail, knowledgeRecipe)
-      if (!this.isRecipeDetailComplete(detail)) throw new Error('菜谱详情生成失败，请重试')
-      detail.detailReady = true
-      return detail
-    }
-
     const userId = Math.max(Number(payload?.userId || 1), 1)
     const profile = await this.loadUserProfileForRecipe(userId)
     const ingredients = Array.isArray(summary?.ingredients) ? summary.ingredients : []
+    const referenceIngredientNames = ingredients.map((item: any) => `${item?.name || ''}`.trim()).filter(Boolean)
+    if (!referenceIngredientNames.length && knowledgeRecipe) {
+      referenceIngredientNames.push(...knowledgeRecipe.ingredients.map((item) => item.name).filter(Boolean))
+    }
+    const searchedHits = await this.recipeKnowledge.search({
+      ingredients: referenceIngredientNames,
+      limit: 5,
+      maxDuration: Number(summary?.duration || 30),
+      avoidances: profile.avoidances,
+    })
+    const referenceHits: RecipeKnowledgeHit[] = []
+    if (knowledgeRecipe) {
+      referenceHits.push({
+        recipe: knowledgeRecipe,
+        score: 100,
+        matchedIngredients: referenceIngredientNames,
+        missingIngredients: [],
+        retrievalMode: searchedHits[0]?.retrievalMode || 'local-hybrid',
+      })
+    }
+    const seenReferenceIds = new Set(referenceHits.map((hit) => hit.recipe.id))
+    for (const hit of searchedHits) {
+      if (seenReferenceIds.has(hit.recipe.id)) continue
+      referenceHits.push(hit)
+      seenReferenceIds.add(hit.recipe.id)
+    }
+    const knowledgeReferenceText = this.buildKnowledgeReferenceContext(referenceHits, 5, true)
     const ingredientText = ingredients
       .map((item: any) => `${item?.name || ''}${item?.quantity ?? ''}${item?.unit || ''}`.trim())
       .filter(Boolean)
       .join('、')
-    const schema = '{"recipe":{"name":"菜名","duration":15,"difficulty":"简单","servings":2,"ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["具体步骤1","具体步骤2"],"tips":"烹饪提示","nutrition":{"calories":286,"protein":18.6,"fat":12.8,"carbohydrates":24.7,"fiber":3.2,"sodium":560,"analysis":"每人份营养特点简述"}}}'
+    const schema = '{"recipe":{"name":"菜名","duration":15,"difficulty":"简单","servings":2,"ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["具体可执行步骤1","具体可执行步骤2","具体可执行步骤3"],"tips":"烹饪提示","nutrition":{"calories":286,"protein":18.6,"fat":12.8,"carbohydrates":24.7,"fiber":3.2,"sodium":560,"analysis":"每人份营养特点简述"}}}'
 
-    if (!this.apiKey) {
-      if (!this.allowMockFallback) throw new Error('DASHSCOPE_API_KEY 未配置')
-      return this.normalizeRecipe({
+    if (!this.apiKey) throw new Error('DASHSCOPE_API_KEY 未配置，无法生成最终菜谱')
+    let qualityFeedback = ''
+    let lastIssues: string[] = []
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const prompt = [
+        '你是家庭烹饪与营养分析助手。仅返回 JSON，不要附带解释文本。',
+        `请为菜谱“${name}”生成一份可以直接照做的最终版本。`,
+        '知识库内容仅作为事实与烹饪思路参考，最终内容必须由你重新组织和补全，禁止直接照抄残缺步骤。',
+        '知识库检索参考：',
+        knowledgeReferenceText || '未检索到直接参考，请使用可靠的家庭烹饪常识。',
+        `列表摘要食材：${ingredientText || '请结合知识库参考补全合理食材'}`,
+        `预计用时：${Math.max(Number(summary?.duration || 15), 1)} 分钟`,
+        `难度：${summary?.difficulty || '简单'}`,
+        `饮食偏好（尽量贴合）：${profile.dietPreferences.length ? profile.dietPreferences.join('、') : '无特别偏好'}`,
+        `可用厨具：${profile.note || '常见家用厨具'}`,
+        `忌口食材（绝对不能出现）：${profile.avoidances.length ? profile.avoidances.join('、') : '无'}`,
+        '必须输出完整食材，每项都有大于0的数字用量和明确单位；所有食材都必须在步骤中实际使用。',
+        '步骤控制在3至14步，每一步必须写清动作，并按需要写明火力、时间、状态判断或温度。',
+        '禁止出现“本步骤操作要求”“完成后进入下一步”“按菜式需要”“二选一”、问句、章节标题和英文秒数 S。',
+        '不得使用空泛占位步骤；不得把“准备食材”“加入调味料”单独作为没有具体内容的一步。',
+        '所有文字使用简体中文；时间写“秒/分钟”，温度可使用℃。',
+        '营养数据按每人份估算，必须包含热量、蛋白质、脂肪、碳水化合物、膳食纤维、钠和一句营养分析。',
+        qualityFeedback ? `上一次结果未通过校验，必须修正：${qualityFeedback}` : '',
+        `JSON 结构：${schema}`,
+      ].filter(Boolean).join('\n')
+
+      const content = await this.callDashScope(
+        this.textModel,
+        [
+          { role: 'system', content: '你是结构化 JSON 菜谱详情生成助手，必须通过完整性和可执行性校验。' },
+          { role: 'user', content: prompt },
+        ],
+        true,
+        attempt === 0 ? 0.2 : 0.1,
+        2600,
+      )
+      const parsed = this.parseJson(content)
+      const list = this.pickRecipeArray(parsed)
+      const detailSource = parsed?.recipe || list[0] || parsed
+      const returnedIngredients = Array.isArray(detailSource?.ingredients) && detailSource.ingredients.length
+        ? detailSource.ingredients
+        : ingredients
+      const recipe = this.normalizeRecipe({
         ...summary,
-        servings: 2,
-        steps: ['准备并清洗所有食材。', '按菜式需要依次烹饪，调味后出锅。'],
-        tips: '根据个人口味调整调味料用量。',
-        nutrition: {
-          calories: 280,
-          protein: 16,
-          fat: 12,
-          carbohydrates: 28,
-          fiber: 4,
-          sodium: 520,
-          analysis: '包含蛋白质和膳食纤维，建议搭配多样化蔬菜。',
-        },
+        ...(detailSource || {}),
+        id: summary?.id || detailSource?.id,
+        name,
+        ingredients: returnedIngredients,
       }, 0, false)
+      if (!recipe.nutrition && this.getRecipeDetailQualityIssues(recipe, false).length === 0) {
+        recipe.nutrition = await this.ensureRecipeNutrition(recipe)
+      }
+      lastIssues = this.getRecipeDetailQualityIssues(recipe, true)
+      if (this.recipeContainsAvoidance(recipe, profile.avoidances)) lastIssues.push('包含用户忌口食材')
+      if (!lastIssues.length) {
+        recipe.detailReady = true
+        recipe.retrievalSource = `rag-model:${referenceHits[0]?.retrievalMode || 'no-reference'}`
+        this.logger.log(`recipe-detail-quality-pass name=${name}, attempt=${attempt + 1}, references=${referenceHits.length}`)
+        return recipe
+      }
+      qualityFeedback = [...new Set(lastIssues)].join('；')
+      this.logger.warn(`recipe-detail-quality-retry name=${name}, attempt=${attempt + 1}, issues=${qualityFeedback}`)
     }
-
-    const prompt = [
-      '你是家庭烹饪与营养分析助手。仅返回 JSON，不要附带解释文本。',
-      `请为菜谱“${name}”补全可直接照做的详细做法和每人份营养估算。`,
-      `列表摘要食材：${ingredientText || '请按这道菜的常见做法补全'}`,
-      `预计用时：${Math.max(Number(summary?.duration || 15), 1)} 分钟`,
-      `难度：${summary?.difficulty || '简单'}`,
-      `饮食偏好（尽量贴合）：${profile.dietPreferences.length ? profile.dietPreferences.join('、') : '无特别偏好'}`,
-      `可用厨具：${profile.note || '常见家用厨具'}`,
-      `忌口食材（绝对不能出现）：${profile.avoidances.length ? profile.avoidances.join('、') : '无'}`,
-      '食材数量和单位必须明确，步骤必须具体，包含必要的火候和时间信息。',
-      '必须严格沿用列表摘要中的食材，不得增加、删除或替换食材；所有文字必须使用简体中文，不得夹杂英文单词。',
-      '描述油温时使用“油面微微发亮”“微微冒烟”等明确中文，不得使用 shimmer 等英文表达。',
-      '营养数据按每人份估算，数值使用数字；热量单位 kcal，蛋白质/脂肪/碳水/膳食纤维单位 g，钠单位 mg。',
-      '营养分析保持一句话，不要宣称治疗疾病或提供医学结论。',
-      `JSON 结构：${schema}`,
-    ].join('\n')
-
-    const content = await this.callDashScope(
-      this.textModel,
-      [
-        { role: 'system', content: '你是结构化 JSON 菜谱详情生成助手。' },
-        { role: 'user', content: prompt },
-      ],
-      true,
-      0.2,
-      2200,
-    )
-    const parsed = this.parseJson(content)
-    const list = this.pickRecipeArray(parsed)
-    const detailSource = parsed?.recipe || list[0] || parsed
-    const returnedIngredients = ingredients.length
-      ? ingredients
-      : (Array.isArray(detailSource?.ingredients) ? detailSource.ingredients : [])
-    const recipe = this.normalizeRecipe({
-      ...summary,
-      ...(detailSource || {}),
-      id: summary?.id || detailSource?.id,
-      name,
-      ingredients: returnedIngredients,
-    }, 0, false)
-    if (!recipe.steps.length) throw new Error('菜谱详细步骤生成失败，请重试')
-    if (this.recipeContainsAvoidance(recipe, profile.avoidances)) throw new Error('生成内容包含忌口食材，请重试')
-    recipe.nutrition = await this.ensureRecipeNutrition(recipe)
-    if (!this.isRecipeDetailComplete(recipe)) throw new Error('菜谱详情生成失败，请重试')
-    recipe.detailReady = true
-    return recipe
+    throw new Error(`菜谱详情未通过质量校验：${[...new Set(lastIssues)].join('；') || '未知问题'}`)
   }
 
   private normalizeRecipe(item: any, idx: number, summaryOnly = false): GeneratedRecipe {
@@ -1058,72 +1041,85 @@ export class AiService {
     return this.recipeKnowledge.getStatus()
   }
 
-  private knowledgeHitToGeneratedRecipe(hit: RecipeKnowledgeHit, summaryOnly: boolean) {
-    return {
-      ...this.knowledgeRecipeToGeneratedRecipe(hit.recipe, summaryOnly),
-      matchScore: hit.score,
-      retrievalSource: hit.retrievalMode,
-      matchedIngredients: hit.matchedIngredients,
-      missingIngredients: hit.missingIngredients,
-    }
+  private buildKnowledgeReferenceContext(hits: RecipeKnowledgeHit[], limit: number, includeSteps: boolean) {
+    return (Array.isArray(hits) ? hits : []).slice(0, Math.max(1, limit)).map((hit, index) => {
+      const recipe = hit.recipe
+      const ingredients = recipe.ingredients
+        .map((item) => `${item.name}${item.rawAmount || `${item.quantity ?? ''}${item.unit || ''}`}`.trim())
+        .filter(Boolean)
+        .join('、')
+      const stepText = includeSteps
+        ? recipe.steps.slice(0, 8).map((step) => step.description).filter(Boolean).join('；')
+        : ''
+      return [
+        `[参考${index + 1}] ${recipe.name}`,
+        `菜系/做法：${recipe.cuisine || '家常'}/${recipe.methods.join('、') || '常见做法'}`,
+        `用时/份数：${recipe.durationMinutes}分钟/${recipe.servings}人份`,
+        `食材：${ingredients}`,
+        includeSteps ? `原始做法线索：${stepText}` : '',
+        `检索匹配：${hit.matchedIngredients.join('、') || '语义相关'}`,
+      ].filter(Boolean).join('；')
+    }).join('\n')
   }
 
-  private knowledgeRecipeToGeneratedRecipe(recipe: RecipeKnowledgeDocument, summaryOnly: boolean): GeneratedRecipe {
-    const nutrition = recipe.nutritionPerServing
-      ? {
-          calories: recipe.nutritionPerServing.calories,
-          protein: recipe.nutritionPerServing.protein,
-          fat: recipe.nutritionPerServing.fat,
-          carbohydrates: recipe.nutritionPerServing.carbohydrates,
-          fiber: recipe.nutritionPerServing.fiber,
-          sodium: recipe.nutritionPerServing.sodium,
-          analysis: recipe.nutritionPerServing.estimated ? '每人份估算值，仅用于日常饮食参考。' : '每人份营养数据。',
-        }
-      : undefined
-    return {
-      id: recipe.id,
-      knowledgeId: recipe.id,
-      name: recipe.name,
-      duration: recipe.durationMinutes,
-      difficulty: recipe.difficulty,
-      matchScore: 85,
-      coverImage: '',
-      ingredients: recipe.ingredients.map((item) => ({
-        name: item.name,
-        quantity: item.quantity === null ? undefined : item.quantity,
-        unit: item.unit,
-      })),
-      steps: summaryOnly ? [] : recipe.steps.map((step) => step.description),
-      tips: summaryOnly ? '' : recipe.tips.join('；'),
-      servings: summaryOnly ? undefined : recipe.servings,
-      nutrition: summaryOnly ? undefined : nutrition,
-      detailReady: !summaryOnly && recipe.steps.length > 0 && !!nutrition,
-      retrievalSource: 'knowledge-base',
+  private isRecipeListItemComplete(recipe: GeneratedRecipe, summaryOnly: boolean) {
+    if (!recipe?.name || !Number.isFinite(recipe.duration) || recipe.duration <= 0) return false
+    if (!Array.isArray(recipe.ingredients) || !recipe.ingredients.length) return false
+    const ingredientsComplete = recipe.ingredients.every((item) =>
+      Boolean(item?.name && item?.unit && Number.isFinite(Number(item?.quantity)) && Number(item.quantity) > 0),
+    )
+    if (!ingredientsComplete) return false
+    if (summaryOnly) return true
+    return this.getRecipeDetailQualityIssues(recipe, false).length === 0
+  }
+
+  private getRecipeDetailQualityIssues(recipe: GeneratedRecipe, requireNutrition = true) {
+    const issues: string[] = []
+    if (!recipe?.name) issues.push('缺少菜名')
+    if (!Array.isArray(recipe?.ingredients) || !recipe.ingredients.length) {
+      issues.push('缺少食材')
+    } else {
+      const invalidIngredients = recipe.ingredients.filter((item) =>
+        !item?.name || !item?.unit || !Number.isFinite(Number(item?.quantity)) || Number(item.quantity) <= 0,
+      )
+      if (invalidIngredients.length) issues.push('食材用量或单位不完整')
     }
+    const steps = Array.isArray(recipe?.steps) ? recipe.steps.map((step) => `${step || ''}`.trim()).filter(Boolean) : []
+    if (steps.length < 3) issues.push('步骤少于3步')
+    if (steps.length > 14) issues.push('步骤过度拆分')
+    const forbidden = /本步骤操作要求|完成后进入下一步|详情内容不完整|按菜式需要|准备并清洗所有食材|二选一|如何判断|方法[一二三四]|\*\*|\bshimmer\b|\b\d+\s*s\b/iu
+    if (steps.some((step) => forbidden.test(step))) issues.push('包含模板话术、问句或异常单位')
+    if (steps.some((step) => step.length < 10)) issues.push('存在过短步骤')
+    const stepText = this.normalizeTextForCompare(steps.join(' '))
+    const unusedIngredients = (recipe.ingredients || []).filter((item) => {
+      const ingredient = this.normalizeTextForCompare(item.name)
+      const simplified = ingredient
+        .replace(/^(新鲜|纯|适量)/u, '')
+        .replace(/^食用(?=油|盐)/u, '')
+        .replace(/(片|丝|块|丁|段|末)$/u, '')
+      return ingredient && !stepText.includes(ingredient) && (!simplified || !stepText.includes(simplified))
+    })
+    if (unusedIngredients.length) issues.push(`步骤未使用食材：${unusedIngredients.slice(0, 4).map((item) => item.name).join('、')}`)
+    if (requireNutrition) {
+      const nutrition = recipe?.nutrition
+      const values = nutrition
+        ? [nutrition.calories, nutrition.protein, nutrition.fat, nutrition.carbohydrates, nutrition.fiber, nutrition.sodium]
+        : []
+      if (!nutrition || values.length !== 6 || values.some((value) => !Number.isFinite(Number(value)) || Number(value) < 0)) {
+        issues.push('六项营养数据不完整')
+      } else if (Number(nutrition.calories) <= 0 || !`${nutrition.analysis || ''}`.trim()) {
+        issues.push('营养热量或分析缺失')
+      }
+    }
+    return issues
   }
 
   private isRecipeDetailComplete(recipe: GeneratedRecipe) {
-    const nutrition = recipe?.nutrition
-    const nutritionValues = nutrition
-      ? [nutrition.calories, nutrition.protein, nutrition.fat, nutrition.carbohydrates, nutrition.fiber, nutrition.sodium]
-      : []
-    return Boolean(
-      recipe &&
-      Array.isArray(recipe.ingredients) && recipe.ingredients.length > 0 &&
-      Array.isArray(recipe.steps) && recipe.steps.length > 0 &&
-      nutrition && nutritionValues.length === 6 &&
-      nutritionValues.every((value) => Number.isFinite(Number(value)) && Number(value) >= 0) &&
-      Number(nutrition.calories) > 0 && `${nutrition.analysis || ''}`.trim(),
-    )
+    return this.getRecipeDetailQualityIssues(recipe, true).length === 0
   }
 
-  private async ensureRecipeNutrition(recipe: GeneratedRecipe, knowledgeRecipe?: RecipeKnowledgeDocument) {
+  private async ensureRecipeNutrition(recipe: GeneratedRecipe) {
     if (this.isRecipeDetailComplete({ ...recipe, nutrition: recipe.nutrition })) return recipe.nutrition
-    if (knowledgeRecipe) {
-      const stored = await this.recipeKnowledge.getRecipeNutrition(knowledgeRecipe)
-      const normalizedStored = this.normalizeRecipeNutrition(stored)
-      if (normalizedStored && this.isRecipeDetailComplete({ ...recipe, nutrition: normalizedStored })) return normalizedStored
-    }
     if (!this.apiKey) throw new Error('营养数据正在补充，请稍后重试')
 
     const ingredientText = recipe.ingredients
@@ -1159,8 +1155,7 @@ export class AiService {
         if (!nutrition || !this.isRecipeDetailComplete({ ...recipe, nutrition })) {
           throw new Error('营养估算字段缺失')
         }
-        if (knowledgeRecipe) await this.recipeKnowledge.saveRecipeNutrition(knowledgeRecipe.id, nutrition)
-        this.logger.log(`recipe-nutrition-ready recipe=${knowledgeRecipe?.id || recipe.id}, generated=${knowledgeRecipe?.nutritionPerServing ? 0 : 1}`)
+        this.logger.log(`recipe-nutrition-ready recipe=${recipe.id}, generated=1`)
         return nutrition
       } catch (error) {
         lastError = error
