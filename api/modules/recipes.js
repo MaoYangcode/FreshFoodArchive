@@ -37,6 +37,24 @@ export function getRecipeDetail(payload) {
 	})
 }
 
+export function getRecipeSteps(payload) {
+	return request({
+		url: '/ai/generate-recipe-steps',
+		method: 'POST',
+		data: payload,
+		timeout: 90000
+	})
+}
+
+export function getRecipeNutrition(payload) {
+	return request({
+		url: '/ai/generate-recipe-nutrition',
+		method: 'POST',
+		data: payload,
+		timeout: 90000
+	})
+}
+
 export function getFavoriteRecipes() {
 	return request({
 		url: '/api/favorites/recipes',

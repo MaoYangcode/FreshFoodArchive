@@ -17,7 +17,7 @@
 				</view>
 				<button v-if="fromFavorite && favorited" class="head-unfavorite-btn" @click="unfavorite">取消收藏</button>
 			</view>
-			<view v-if="isRecipeContentReady" class="recipe-banner">
+			<view v-if="hasIngredientSection" class="recipe-banner">
 				<view class="banner-title-row">
 					<text class="banner-title">所需食材</text>
 					<text class="banner-count" :class="{ missing: missingIngredientCount > 0 }">{{ missingIngredientCount > 0 ? `还需${missingIngredientCount}种` : '食材齐全' }}</text>
@@ -31,18 +31,18 @@
 					<text class="ingredient-group-text">{{ formatIngredientItems(missingIngredientItems) }}</text>
 				</view>
 			</view>
-			<view v-if="detailLoading" class="detail-loading-card">
+			<view v-if="stepsLoading" class="detail-loading-card">
 				<view class="detail-loading-dot"></view>
 				<view>
-					<text class="detail-loading-title">正在补全菜谱详情</text>
-					<text class="detail-loading-meta">正在校验食材、步骤和每人份营养数据，请稍候…</text>
+					<text class="detail-loading-title">正在生成详细步骤</text>
+					<text class="detail-loading-meta">正在结合知识库校验火候、时间和食材使用…</text>
 				</view>
 			</view>
-			<view v-else-if="detailError" class="detail-error-card">
-				<text class="detail-error-text">{{ detailError }}</text>
+			<view v-else-if="stepsError" class="detail-error-card">
+				<text class="detail-error-text">{{ stepsError }}</text>
 				<button class="detail-retry-btn" @click="retryLoadDetail">重新生成</button>
 			</view>
-			<view v-if="isRecipeContentReady" class="step-card">
+			<view v-if="hasRecipeDetail" class="step-card">
 				<view class="step-head">
 					<text class="step-title">步骤</text>
 					<view class="step-head-actions">
@@ -59,7 +59,18 @@
 					</view>
 				</view>
 			</view>
-			<view v-if="isRecipeContentReady" class="nutrition-card">
+			<view v-if="hasRecipeDetail && nutritionLoading" class="detail-loading-card">
+				<view class="detail-loading-dot"></view>
+				<view>
+					<text class="detail-loading-title">正在估算营养成分</text>
+					<text class="detail-loading-meta">正在计算每人份六项营养数据，请稍候…</text>
+				</view>
+			</view>
+			<view v-if="hasRecipeDetail && nutritionError" class="detail-error-card">
+				<text class="detail-error-text">{{ nutritionError }}</text>
+				<button class="detail-retry-btn" @click="retryLoadDetail">重新生成</button>
+			</view>
+			<view v-if="hasRecipeDetail && hasNutrition" class="nutrition-card">
 				<view class="nutrition-head">
 					<text class="nutrition-title">营养元素</text>
 					<text class="nutrition-serving">每人份估算</text>
@@ -98,7 +109,7 @@ import {
 } from '@/store/app-store'
 import { getIngredientList } from '@/api/modules/ingredients'
 import { upsertBasketItems as upsertBasketItemsApi } from '@/api/modules/basket'
-import { getRecipeDetail } from '@/api/modules/recipes'
+import { getRecipeNutrition, getRecipeSteps } from '@/api/modules/recipes'
 import { synthesizeAssistantSpeech } from '@/api/modules/ai'
 import { configureSpeechAudio, playSpeechAudio } from '@/utils/speech-audio'
 import BottomNav from '@/components/bottom-nav.vue'
@@ -114,8 +125,13 @@ export default {
 		return {
 			fromFavorite: false,
 			favorited: false,
-			detailLoading: false,
-			detailError: '',
+			stepsLoading: false,
+			nutritionLoading: false,
+			stepsError: '',
+			nutritionError: '',
+			pendingNutrition: null,
+			nutritionRevealTimer: null,
+			detailRequestId: 0,
 			completedCount: 0,
 			lastCompletedAt: '',
 			isRecipeSynthesizing: false,
@@ -147,6 +163,9 @@ export default {
 		},
 		isRecipeContentReady() {
 			return this.hasRecipeDetail && this.hasNutrition && this.ingredientDisplayItems.length > 0
+		},
+		hasIngredientSection() {
+			return this.ingredientDisplayItems.length > 0
 		},
 		availableIngredientItems() {
 			return this.ingredientDisplayItems.filter((item) => !item.isMissing)
@@ -204,6 +223,8 @@ export default {
 		this.ensureShareMenu()
 	},
 	onUnload() {
+		this.detailRequestId += 1
+		if (this.nutritionRevealTimer) clearTimeout(this.nutritionRevealTimer)
 		if (this.recipeAudioContext) {
 			this.recipeAudioContext.stop()
 			this.recipeAudioContext.destroy()
@@ -344,8 +365,24 @@ export default {
 				nutritionValues.every((value) => Number.isFinite(Number(value)) && Number(value) >= 0) &&
 				Number(nutrition?.calories) > 0 && !!`${nutrition?.analysis || ''}`.trim()
 		},
+		isStepsComplete(recipe) {
+			const steps = Array.isArray(recipe?.steps) ? recipe.steps.map((step) => `${step || ''}`.trim()).filter(Boolean) : []
+			const forbiddenStep = /本步骤操作要求|完成后进入下一步|详情内容不完整|按菜式需要|准备并清洗所有食材|二选一|如何判断|方法[一二三四]|\*\*|\bshimmer\b|\b\d+\s*s\b/iu
+			return !!recipe &&
+				Array.isArray(recipe.ingredients) && recipe.ingredients.length > 0 &&
+				steps.length >= 3 && steps.length <= 14 &&
+				!steps.some((step) => forbiddenStep.test(step) || step.length < 10)
+		},
+		isNutritionComplete(nutrition) {
+			const values = nutrition
+				? [nutrition.calories, nutrition.protein, nutrition.fat, nutrition.carbohydrates, nutrition.fiber, nutrition.sodium]
+				: []
+			return values.length === 6 &&
+				values.every((value) => Number.isFinite(Number(value)) && Number(value) >= 0) &&
+				Number(nutrition?.calories) > 0 && !!`${nutrition?.analysis || ''}`.trim()
+		},
 		async ensureRecipeDetail(force = false) {
-			if (this.detailLoading) return
+			if ((this.stepsLoading || this.nutritionLoading) && !force) return
 			if (!force) {
 				const cached = this.readDetailCache()
 				if (this.isDetailComplete(cached)) {
@@ -355,34 +392,83 @@ export default {
 				}
 				if (this.isDetailComplete(this.recipe?.raw)) return
 			}
-			this.detailLoading = true
-			this.detailError = ''
-			try {
-				const summary = this.recipe?.raw && typeof this.recipe.raw === 'object'
-					? this.recipe.raw
-					: {
-						name: this.recipe.name,
-						duration: this.recipe.duration,
-						difficulty: this.recipe.difficulty,
-						ingredients: this.pickRecipeIngredientItems()
+			const summary = this.recipe?.raw && typeof this.recipe.raw === 'object'
+				? this.recipe.raw
+				: {
+					name: this.recipe.name,
+					duration: this.recipe.duration,
+					difficulty: this.recipe.difficulty,
+					servings: this.recipe.servings,
+					ingredients: this.pickRecipeIngredientItems()
+				}
+			this.stepsLoading = true
+			this.nutritionLoading = true
+			this.stepsError = ''
+			this.nutritionError = ''
+			this.pendingNutrition = null
+			if (this.nutritionRevealTimer) clearTimeout(this.nutritionRevealTimer)
+			const requestId = ++this.detailRequestId
+
+			const stepsRequest = getRecipeSteps({ recipe: summary })
+				.then((res) => {
+					if (requestId !== this.detailRequestId) return
+					const detail = res?.data?.recipe || res?.recipe
+					if (!this.isStepsComplete(detail)) throw new Error('菜谱步骤生成失败，请重试')
+					const summaryIngredients = Array.isArray(summary?.ingredients) ? summary.ingredients : []
+					const resolved = {
+						...(detail || {}),
+						ingredients: summaryIngredients.length ? summaryIngredients : detail.ingredients,
+						nutrition: this.recipe?.nutrition || null
 					}
-				const res = await getRecipeDetail({ recipe: summary })
-				const detail = res?.data?.recipe || res?.recipe
-				const summaryIngredients = Array.isArray(summary?.ingredients) ? summary.ingredients : []
-				const detailIngredients = Array.isArray(detail?.ingredients) ? detail.ingredients : []
-				const resolvedDetail = detailIngredients.length
-					? detail
-					: { ...(detail || {}), ingredients: summaryIngredients }
-				if (!this.isDetailComplete(resolvedDetail)) throw new Error('菜谱详情生成失败，请重试')
-				this.applyRecipeFromRaw(resolvedDetail)
-				this.writeDetailCache(resolvedDetail)
-				uni.setStorageSync('latestRecipeDetail', resolvedDetail)
-			} catch (error) {
-				const message = `${error?.message || error?.msg || error?.data?.message || ''}`.trim()
-				this.detailError = message || '菜谱详情暂时无法加载，请重试'
-			} finally {
-				this.detailLoading = false
-			}
+					this.applyRecipeFromRaw(resolved)
+					this.revealPendingNutrition()
+				})
+				.catch((error) => {
+					if (requestId !== this.detailRequestId) return
+					this.stepsError = this.errorMessage(error, '菜谱步骤暂时无法加载，请重试')
+				})
+				.finally(() => {
+					if (requestId !== this.detailRequestId) return
+					this.stepsLoading = false
+				})
+
+			const nutritionRequest = getRecipeNutrition({ recipe: summary })
+				.then((res) => {
+					if (requestId !== this.detailRequestId) return
+					const nutrition = res?.data?.nutrition || res?.nutrition
+					if (!this.isNutritionComplete(nutrition)) throw new Error('营养数据生成失败，请重试')
+					this.pendingNutrition = nutrition
+					this.revealPendingNutrition()
+				})
+				.catch((error) => {
+					if (requestId !== this.detailRequestId) return
+					this.nutritionError = this.errorMessage(error, '营养数据暂时无法加载，请重试')
+					this.nutritionLoading = false
+				})
+
+			await Promise.allSettled([stepsRequest, nutritionRequest])
+		},
+		errorMessage(error, fallback) {
+			return `${error?.message || error?.msg || error?.data?.message || ''}`.trim() || fallback
+		},
+		revealPendingNutrition() {
+			if (!this.hasRecipeDetail || !this.pendingNutrition || !this.isNutritionComplete(this.pendingNutrition)) return
+			if (this.nutritionRevealTimer) clearTimeout(this.nutritionRevealTimer)
+			const requestId = this.detailRequestId
+			this.nutritionRevealTimer = setTimeout(() => {
+				if (requestId !== this.detailRequestId) return
+				const completed = {
+					...(this.recipe?.raw || {}),
+					nutrition: this.pendingNutrition
+				}
+				this.pendingNutrition = null
+				this.nutritionLoading = false
+				this.applyRecipeFromRaw(completed)
+				if (this.isDetailComplete(completed)) {
+					this.writeDetailCache(completed)
+					uni.setStorageSync('latestRecipeDetail', completed)
+				}
+			}, 180)
 		},
 		retryLoadDetail() {
 			this.ensureRecipeDetail(true)

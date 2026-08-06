@@ -135,6 +135,32 @@ export class AiController {
     }
   }
 
+  @Post('generate-recipe-steps')
+  async generateRecipeSteps(@Req() req: any, @Body() body: any) {
+    try {
+      const recipe = await this.aiService.generateRecipeSteps({
+        ...(body || {}),
+        userId: Number(req?.userId || 1),
+      })
+      return { code: 0, message: 'ok', data: { recipe } }
+    } catch (error: any) {
+      return { code: 10026, message: error?.message || '菜谱步骤生成失败', data: null }
+    }
+  }
+
+  @Post('generate-recipe-nutrition')
+  async generateRecipeNutrition(@Req() req: any, @Body() body: any) {
+    try {
+      const nutrition = await this.aiService.generateRecipeNutrition({
+        ...(body || {}),
+        userId: Number(req?.userId || 1),
+      })
+      return { code: 0, message: 'ok', data: { nutrition } }
+    } catch (error: any) {
+      return { code: 10027, message: error?.message || '营养数据生成失败', data: null }
+    }
+  }
+
   @Get('generate-recipe-task/:taskId')
   getGenerateRecipeTask(@Param('taskId') taskId: string) {
     const task = this.aiService.getRecipeGenerateTask(taskId)

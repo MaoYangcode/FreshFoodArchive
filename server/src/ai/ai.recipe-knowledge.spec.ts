@@ -80,16 +80,15 @@ describe('AiService recipe RAG loop', () => {
     expect(modelCall.mock.calls[0][1][1].content).toContain('知识库检索')
   })
 
-  it('always asks the model to generate the final detail from knowledge references', async () => {
+  it('always asks the model to generate final steps from knowledge references', async () => {
     const modelCall = jest.spyOn(service as any, 'callDashScope').mockResolvedValue(JSON.stringify({ recipe: detail() }))
-    const result = await service.generateRecipeDetail({
+    const result = await service.generateRecipeSteps({
       userId: 1,
       recipe: { knowledgeId: 'recipe_0001', name: '番茄炒蛋' },
     })
 
     expect(result.steps).toHaveLength(4)
-    expect(result.nutrition?.calories).toBe(328)
-    expect(result.detailReady).toBe(true)
+    expect(result.detailReady).toBe(false)
     expect(result.retrievalSource?.startsWith('rag-model:')).toBe(true)
     expect(modelCall).toHaveBeenCalledTimes(1)
     expect(modelCall.mock.calls[0][1][1].content).toContain('最终版本')
@@ -150,13 +149,42 @@ describe('AiService recipe RAG loop', () => {
       .mockResolvedValueOnce(JSON.stringify({ recipe: bad }))
       .mockResolvedValueOnce(JSON.stringify({ recipe: good }))
 
-    const result = await service.generateRecipeDetail({
+    const result = await service.generateRecipeSteps({
       userId: 1,
       recipe: summary('拔丝土豆', [{ name: '土豆', quantity: 400, unit: '克' }]),
     })
 
     expect(modelCall).toHaveBeenCalledTimes(2)
     expect(result.steps.join('')).not.toContain('本步骤操作要求')
+    expect(result.detailReady).toBe(false)
+  })
+
+  it('generates steps and nutrition concurrently before returning a complete detail', async () => {
+    let stepsFinishedAt = 0
+    let nutritionFinishedAt = 0
+    const modelCall = jest.spyOn(service as any, 'callDashScope').mockImplementation(async (_model, messages) => {
+      const prompt = `${messages?.[1]?.content || ''}`
+      if (prompt.includes('估算每人份营养数据')) {
+        await new Promise((resolve) => setTimeout(resolve, 15))
+        nutritionFinishedAt = Date.now()
+        return JSON.stringify({ nutrition })
+      }
+      await new Promise((resolve) => setTimeout(resolve, 15))
+      stepsFinishedAt = Date.now()
+      return JSON.stringify({ recipe: detail() })
+    })
+
+    const result = await service.generateRecipeDetail({
+      userId: 1,
+      recipe: summary('番茄炒蛋', detail().ingredients),
+    })
+
+    expect(modelCall).toHaveBeenCalledTimes(2)
+    expect(stepsFinishedAt).toBeGreaterThan(0)
+    expect(nutritionFinishedAt).toBeGreaterThan(0)
+    expect(Math.abs(stepsFinishedAt - nutritionFinishedAt)).toBeLessThan(25)
+    expect(result.steps).toHaveLength(4)
+    expect(result.nutrition?.calories).toBe(328)
     expect(result.detailReady).toBe(true)
   })
 

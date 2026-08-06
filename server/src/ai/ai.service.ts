@@ -899,6 +899,22 @@ export class AiService {
   }
 
   async generateRecipeDetail(payload: any): Promise<GeneratedRecipe> {
+    const [stepsDetail, nutrition] = await Promise.all([
+      this.generateRecipeSteps(payload),
+      this.generateRecipeNutrition(payload),
+    ])
+    const detail: GeneratedRecipe = {
+      ...stepsDetail,
+      nutrition,
+      detailReady: true,
+    }
+    const issues = this.getRecipeDetailQualityIssues(detail, true)
+    if (issues.length) throw new Error(`菜谱详情未通过质量校验：${issues.join('；')}`)
+    this.logger.log(`recipe-detail-quality-pass name=${detail.name}, source=parallel-sections`)
+    return detail
+  }
+
+  async generateRecipeSteps(payload: any): Promise<GeneratedRecipe> {
     const summary = payload?.recipe && typeof payload.recipe === 'object' ? payload.recipe : payload || {}
     const name = `${summary?.name || ''}`.trim()
     if (!name) throw new Error('菜谱名称为空')
@@ -939,7 +955,7 @@ export class AiService {
       .map((item: any) => `${item?.name || ''}${item?.quantity ?? ''}${item?.unit || ''}`.trim())
       .filter(Boolean)
       .join('、')
-    const schema = '{"recipe":{"name":"菜名","duration":15,"difficulty":"简单","servings":2,"ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["具体可执行步骤1","具体可执行步骤2","具体可执行步骤3"],"tips":"烹饪提示","nutrition":{"calories":286,"protein":18.6,"fat":12.8,"carbohydrates":24.7,"fiber":3.2,"sodium":560,"analysis":"每人份营养特点简述"}}}'
+    const schema = '{"recipe":{"name":"菜名","duration":15,"difficulty":"简单","servings":2,"ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["具体可执行步骤1","具体可执行步骤2","具体可执行步骤3"],"tips":"烹饪提示"}}'
 
     if (!this.apiKey) throw new Error('DASHSCOPE_API_KEY 未配置，无法生成最终菜谱')
     let qualityFeedback = ''
@@ -957,12 +973,14 @@ export class AiService {
         `饮食偏好（尽量贴合）：${profile.dietPreferences.length ? profile.dietPreferences.join('、') : '无特别偏好'}`,
         `可用厨具：${profile.note || '常见家用厨具'}`,
         `忌口食材（绝对不能出现）：${profile.avoidances.length ? profile.avoidances.join('、') : '无'}`,
+        ingredientText
+          ? '必须严格沿用“列表摘要食材”中的食材名称、用量和单位，不得增加、删除、替换或修改；你的任务是生成与这些食材一致的完整步骤。'
+          : '',
         '必须输出完整食材，每项都有大于0的数字用量和明确单位；所有食材都必须在步骤中实际使用。',
         '步骤控制在3至14步，每一步必须写清动作，并按需要写明火力、时间、状态判断或温度。',
         '禁止出现“本步骤操作要求”“完成后进入下一步”“按菜式需要”“二选一”、问句、章节标题和英文秒数 S。',
         '不得使用空泛占位步骤；不得把“准备食材”“加入调味料”单独作为没有具体内容的一步。',
         '所有文字使用简体中文；时间写“秒/分钟”，温度可使用℃。',
-        '营养数据按每人份估算，必须包含热量、蛋白质、脂肪、碳水化合物、膳食纤维、钠和一句营养分析。',
         qualityFeedback ? `上一次结果未通过校验，必须修正：${qualityFeedback}` : '',
         `JSON 结构：${schema}`,
       ].filter(Boolean).join('\n')
@@ -988,23 +1006,37 @@ export class AiService {
         ...(detailSource || {}),
         id: summary?.id || detailSource?.id,
         name,
-        ingredients: returnedIngredients,
+        ingredients: ingredients.length ? ingredients : returnedIngredients,
       }, 0, false)
-      if (!recipe.nutrition && this.getRecipeDetailQualityIssues(recipe, false).length === 0) {
-        recipe.nutrition = await this.ensureRecipeNutrition(recipe)
-      }
-      lastIssues = this.getRecipeDetailQualityIssues(recipe, true)
+      lastIssues = this.getRecipeDetailQualityIssues(recipe, false)
       if (this.recipeContainsAvoidance(recipe, profile.avoidances)) lastIssues.push('包含用户忌口食材')
       if (!lastIssues.length) {
-        recipe.detailReady = true
+        recipe.detailReady = false
         recipe.retrievalSource = `rag-model:${referenceHits[0]?.retrievalMode || 'no-reference'}`
-        this.logger.log(`recipe-detail-quality-pass name=${name}, attempt=${attempt + 1}, references=${referenceHits.length}`)
+        this.logger.log(`recipe-steps-quality-pass name=${name}, attempt=${attempt + 1}, references=${referenceHits.length}`)
         return recipe
       }
       qualityFeedback = [...new Set(lastIssues)].join('；')
-      this.logger.warn(`recipe-detail-quality-retry name=${name}, attempt=${attempt + 1}, issues=${qualityFeedback}`)
+      this.logger.warn(`recipe-steps-quality-retry name=${name}, attempt=${attempt + 1}, issues=${qualityFeedback}`)
     }
-    throw new Error(`菜谱详情未通过质量校验：${[...new Set(lastIssues)].join('；') || '未知问题'}`)
+    throw new Error(`菜谱步骤未通过质量校验：${[...new Set(lastIssues)].join('；') || '未知问题'}`)
+  }
+
+  async generateRecipeNutrition(payload: any): Promise<RecipeNutrition> {
+    const summary = payload?.recipe && typeof payload.recipe === 'object' ? payload.recipe : payload || {}
+    const name = `${summary?.name || ''}`.trim()
+    const ingredients = Array.isArray(summary?.ingredients) ? summary.ingredients : []
+    if (!name || !ingredients.length) throw new Error('菜谱名称或食材为空，无法估算营养')
+    const recipe = this.normalizeRecipe({
+      ...summary,
+      name,
+      ingredients,
+      servings: Math.max(1, Number(summary?.servings || 2)),
+      steps: [],
+    }, 0, false)
+    const nutrition = await this.ensureRecipeNutrition(recipe)
+    if (!nutrition || !this.isRecipeNutritionComplete(nutrition)) throw new Error('营养数据生成失败，请重试')
+    return nutrition
   }
 
   private normalizeRecipe(item: any, idx: number, summaryOnly = false): GeneratedRecipe {
@@ -1118,8 +1150,22 @@ export class AiService {
     return this.getRecipeDetailQualityIssues(recipe, true).length === 0
   }
 
+  private isRecipeNutritionComplete(nutrition: RecipeNutrition | undefined) {
+    if (!nutrition) return false
+    const values = [
+      nutrition.calories,
+      nutrition.protein,
+      nutrition.fat,
+      nutrition.carbohydrates,
+      nutrition.fiber,
+      nutrition.sodium,
+    ]
+    return values.every((value) => Number.isFinite(Number(value)) && Number(value) >= 0) &&
+      Number(nutrition.calories) > 0 && Boolean(`${nutrition.analysis || ''}`.trim())
+  }
+
   private async ensureRecipeNutrition(recipe: GeneratedRecipe) {
-    if (this.isRecipeDetailComplete({ ...recipe, nutrition: recipe.nutrition })) return recipe.nutrition
+    if (this.isRecipeNutritionComplete(recipe.nutrition)) return recipe.nutrition
     if (!this.apiKey) throw new Error('营养数据正在补充，请稍后重试')
 
     const ingredientText = recipe.ingredients
@@ -1152,7 +1198,7 @@ export class AiService {
         )
         const parsed = this.parseJson(content)
         const nutrition = this.normalizeRecipeNutrition(parsed?.nutrition || parsed)
-        if (!nutrition || !this.isRecipeDetailComplete({ ...recipe, nutrition })) {
+        if (!nutrition || !this.isRecipeNutritionComplete(nutrition)) {
           throw new Error('营养估算字段缺失')
         }
         this.logger.log(`recipe-nutrition-ready recipe=${recipe.id}, generated=1`)
