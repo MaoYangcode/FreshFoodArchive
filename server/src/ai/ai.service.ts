@@ -14,6 +14,12 @@ type RecognizedIngredient = {
   unit?: string
 }
 
+type RecipePlan = {
+  dishType: string
+  cookingMethod: string
+  requiredIngredients: string[]
+}
+
 type GeneratedRecipe = {
   id: string
   name: string
@@ -31,6 +37,7 @@ type GeneratedRecipe = {
   retrievalSource?: string
   matchedIngredients?: string[]
   missingIngredients?: string[]
+  plan?: RecipePlan
 }
 
 type RecipeNutrition = {
@@ -686,8 +693,8 @@ export class AiService {
         ].join('\n')
 
     const outputSchema = summaryOnly
-      ? '{"recipes":[{"id":"ai_001","name":"菜名","duration":15,"difficulty":"简单","ingredients":[{"name":"番茄","quantity":2,"unit":"个"}]}]}'
-      : '{"recipes":[{"id":"ai_001","name":"菜名","duration":15,"difficulty":"简单","matchScore":95,"coverImage":"","ingredients":[{"name":"番茄","quantity":2,"unit":"个"}],"steps":["步骤1","步骤2"],"tips":"可选"}]}'
+      ? '{"recipes":[{"id":"ai_001","name":"茄丁焖面","duration":30,"difficulty":"简单","plan":{"dishType":"面食","cookingMethod":"焖","requiredIngredients":["面条","茄子"]},"ingredients":[{"name":"面条","quantity":240,"unit":"克"},{"name":"茄子","quantity":2,"unit":"个"}]}]}'
+      : '{"recipes":[{"id":"ai_001","name":"番茄炒蛋","duration":15,"difficulty":"简单","plan":{"dishType":"家常菜","cookingMethod":"炒","requiredIngredients":["番茄","鸡蛋"]},"matchScore":95,"coverImage":"","ingredients":[{"name":"番茄","quantity":2,"unit":"个"},{"name":"鸡蛋","quantity":3,"unit":"个"}],"steps":["步骤1","步骤2"],"tips":"可选"}]}'
     const prompt = [
       '你是家庭烹饪助手。仅返回 JSON，不要附带解释文本。',
       '请根据给定食材生成菜谱候选列表。',
@@ -713,6 +720,7 @@ export class AiService {
       '5) 同一批结果要尽量多样：优先覆盖不同库存食材，不要多数菜都围绕同一个主食材。',
       '6) 菜名和做法不得语义重复，例如“白菜猪肉饺子”和“白菜猪肉馅饺子”属于同一道菜，只能保留一个。',
       '7) 菜名中的核心主食和主料必须出现在 ingredients 中，例如“焖面”必须有面条，“炒饭”必须有米饭，“饺子”必须有饺子皮或面粉；不得出现菜名有、食材却没有的情况。',
+      '8) 先填写 plan 锁定菜品类型、主要烹饪方式和成立这道菜不可缺少的核心食材；plan.requiredIngredients 中每一项必须出现在 ingredients 中。',
       'JSON 结构：',
       outputSchema,
       'difficulty 仅可取：简单、中等、困难。',
@@ -757,9 +765,9 @@ export class AiService {
     const list = this.pickRecipeArray(parsed)
     const fallbackRecipes = !list.length ? this.parseRecipeArrayFallback(content) : []
     const recipeSource = list.length ? list : fallbackRecipes
-    let recipes = recipeSource
+    const normalizedCandidates = recipeSource
       .map((item: any, idx: number) => this.normalizeRecipe(item, idx, summaryOnly))
-      .filter((x: GeneratedRecipe) => this.isRecipeListItemComplete(x, summaryOnly))
+    let recipes = await this.repairRecipeCandidates(normalizedCandidates, summaryOnly, knowledgeReferenceText)
     recipes = this.dedupeRecipesByName(recipes)
     const recipesBeforeExclude = recipes.slice()
     if (excludeNames.length) {
@@ -814,6 +822,7 @@ export class AiService {
         '5) 同一批结果要尽量多样：优先覆盖不同库存食材，不要多数菜都围绕同一个主食材。',
         '6) 菜名和做法不得语义重复，例如“白菜猪肉饺子”和“白菜猪肉馅饺子”属于同一道菜，只能保留一个。',
         '7) 菜名中的核心主食和主料必须出现在 ingredients 中，例如“焖面”必须有面条，“炒饭”必须有米饭，“饺子”必须有饺子皮或面粉；不得出现菜名有、食材却没有的情况。',
+        '8) 先填写 plan 锁定菜品类型、主要烹饪方式和成立这道菜不可缺少的核心食材；plan.requiredIngredients 中每一项必须出现在 ingredients 中。',
         'JSON 结构：',
         outputSchema,
         'difficulty 仅可取：简单、中等、困难。',
@@ -846,9 +855,9 @@ export class AiService {
       }
       const retryParsed = this.parseJson(retryContent)
       const retryList = this.pickRecipeArray(retryParsed)
-      const retryNormalized = retryList
+      const retryCandidates = retryList
         .map((item: any, idx: number) => this.normalizeRecipe(item, recipes.length + idx, summaryOnly))
-        .filter((x: GeneratedRecipe) => this.isRecipeListItemComplete(x, summaryOnly))
+      const retryNormalized = await this.repairRecipeCandidates(retryCandidates, summaryOnly, knowledgeReferenceText)
       const retryDeduped = this.dedupeRecipesByName(retryNormalized)
       const retryRecipes = this.filterRecipesByAvoidances(retryDeduped, avoidances)
       removedByAvoidanceCount += Math.max(retryDeduped.length - retryRecipes.length, 0)
@@ -934,6 +943,7 @@ export class AiService {
           quantity: item.quantity,
           unit: item.unit,
         }))
+    const plan = this.normalizeRecipePlan(summary?.plan, name, ingredients)
     const referenceIngredientNames = ingredients.map((item: any) => `${item?.name || ''}`.trim()).filter(Boolean)
     if (!referenceIngredientNames.length && knowledgeRecipe) {
       referenceIngredientNames.push(...knowledgeRecipe.ingredients.map((item) => item.name).filter(Boolean))
@@ -979,6 +989,7 @@ export class AiService {
         '知识库检索参考：',
         knowledgeReferenceText || '未检索到直接参考，请使用可靠的家庭烹饪常识。',
         `列表摘要食材：${ingredientText || '请结合知识库参考补全合理食材'}`,
+        `已锁定菜谱计划：菜品类型=${plan.dishType}；主要做法=${plan.cookingMethod}；核心食材=${plan.requiredIngredients.join('、') || '以食材清单为准'}`,
         `预计用时：${Math.max(Number(summary?.duration || 15), 1)} 分钟`,
         `难度：${summary?.difficulty || '简单'}`,
         `饮食偏好（尽量贴合）：${profile.dietPreferences.length ? profile.dietPreferences.join('、') : '无特别偏好'}`,
@@ -1018,6 +1029,7 @@ export class AiService {
         id: summary?.id || detailSource?.id,
         name,
         ingredients,
+        plan,
       }, 0, false)
       lastIssues = this.getRecipeDetailQualityIssues(recipe, false)
       if (this.recipeContainsAvoidance(recipe, profile.avoidances)) lastIssues.push('包含用户忌口食材')
@@ -1054,30 +1066,74 @@ export class AiService {
     const steps = Array.isArray(item?.steps)
       ? item.steps.map((s: any) => `${s || ''}`.trim()).filter(Boolean)
       : []
+    const name = `${item?.name || ''}`.trim()
+    const ingredients = Array.isArray(item?.ingredients)
+      ? item.ingredients
+          .map((x: any) => ({
+            name: `${x?.name || ''}`.trim(),
+            quantity: Number.isFinite(Number(x?.quantity)) ? Number(x.quantity) : undefined,
+            unit: `${x?.unit || ''}`.trim(),
+          }))
+          .filter((x: any) => !!x.name)
+      : []
     return {
       id: `${item?.id || `ai_${idx + 1}`}`,
-      name: `${item?.name || ''}`.trim(),
+      name,
       duration: Math.max(Number(item?.duration || 15), 1),
       difficulty: ['简单', '中等', '困难'].includes(`${item?.difficulty || ''}`)
         ? `${item.difficulty}`
         : '简单',
       matchScore: summaryOnly ? undefined : Math.max(0, Math.min(100, Number(item?.matchScore || 85))),
       coverImage: `${item?.coverImage || ''}`,
-      ingredients: Array.isArray(item?.ingredients)
-        ? item.ingredients
-            .map((x: any) => ({
-              name: `${x?.name || ''}`.trim(),
-              quantity: Number.isFinite(Number(x?.quantity)) ? Number(x.quantity) : undefined,
-              unit: `${x?.unit || ''}`.trim(),
-            }))
-            .filter((x: any) => !!x.name)
-        : [],
+      ingredients,
       steps: summaryOnly ? [] : steps,
       tips: summaryOnly ? '' : `${item?.tips || ''}`.trim(),
       servings: summaryOnly ? undefined : Math.max(1, Math.min(12, Number(item?.servings || 2))),
       nutrition: summaryOnly ? undefined : this.normalizeRecipeNutrition(item?.nutrition),
       detailReady: !summaryOnly && steps.length > 0,
+      plan: this.normalizeRecipePlan(item?.plan, name, ingredients),
     }
+  }
+
+  private normalizeRecipePlan(source: any, name: string, ingredients: GeneratedRecipe['ingredients']): RecipePlan {
+    const suppliedRequired = this.normalizeStringArray(source?.requiredIngredients || source?.required_ingredients)
+    const nameRequirements = this.getRecipeNameRequirements(name)
+    const ingredientNames = ingredients.map((item) => `${item?.name || ''}`.trim()).filter(Boolean)
+    const nameRequired = nameRequirements.map((requirement) => {
+      return ingredientNames.find((ingredient) => requirement.ingredient.test(this.normalizeTextForCompare(ingredient)))
+        || requirement.preferred
+    })
+    const normalizedName = this.normalizeIngredientTextForMatch(name)
+    const namedIngredients = ingredientNames.filter((ingredient) => {
+      const key = this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(ingredient))
+      return key.length >= 1 && normalizedName.includes(key)
+    })
+    const nonSeasonings = ingredientNames.filter((ingredient) => !this.isRecipeSeasoning(ingredient))
+    const inferredCore = namedIngredients.length ? namedIngredients : nonSeasonings.slice(0, 2)
+    const requiredIngredients = [...new Set([...suppliedRequired, ...nameRequired, ...inferredCore])].filter(Boolean).slice(0, 6)
+    return {
+      dishType: `${source?.dishType || source?.dish_type || this.inferRecipeDishType(name)}`.trim() || '家常菜',
+      cookingMethod: `${source?.cookingMethod || source?.cooking_method || this.inferRecipeCookingMethod(name)}`.trim() || '家常烹饪',
+      requiredIngredients,
+    }
+  }
+
+  private inferRecipeDishType(name: string) {
+    if (/面|粉丝|米粉|粉条/u.test(name)) return '面食'
+    if (/饭|饭团/u.test(name)) return '米饭主食'
+    if (/粥/u.test(name)) return '粥品'
+    if (/饺子|馄饨|包子|锅贴|馅饼/u.test(name)) return '面点'
+    if (/汤|羹/u.test(name)) return '汤羹'
+    return '家常菜'
+  }
+
+  private inferRecipeCookingMethod(name: string) {
+    const methods = ['炒', '焖', '炖', '煎', '烤', '蒸', '煮', '拌', '炸', '烧']
+    return methods.find((method) => name.includes(method)) || (/汤|粥/u.test(name) ? '煮' : '家常烹饪')
+  }
+
+  private isRecipeSeasoning(name: string) {
+    return /油|盐|糖|酱油|生抽|老抽|醋|料酒|胡椒|淀粉|鸡精|味精|香料|葱|姜|蒜/u.test(`${name || ''}`)
   }
 
   getRecipeKnowledgeStatus() {
@@ -1105,14 +1161,99 @@ export class AiService {
     }).join('\n')
   }
 
-  private isRecipeListItemComplete(recipe: GeneratedRecipe, summaryOnly: boolean) {
-    if (!recipe?.name || !Number.isFinite(recipe.duration) || recipe.duration <= 0) return false
-    if (!Array.isArray(recipe.ingredients) || !recipe.ingredients.length) return false
-    const ingredientsComplete = recipe.ingredients.every((item) =>
-      Boolean(item?.name && item?.unit && Number.isFinite(Number(item?.quantity)) && Number(item.quantity) > 0),
+  private async repairRecipeCandidates(
+    candidates: GeneratedRecipe[],
+    summaryOnly: boolean,
+    knowledgeReferenceText: string,
+  ) {
+    const repaired = await Promise.all((Array.isArray(candidates) ? candidates : []).map(async (recipe) => {
+      const issues = this.getRecipeSummaryQualityIssues(recipe)
+      if (!issues.length) return recipe
+      if (!recipe.name || !this.apiKey) return null
+      try {
+        return await this.repairRecipeSummary(recipe, issues, summaryOnly, knowledgeReferenceText)
+      } catch (error: any) {
+        this.logger.warn(`recipe-summary-local-repair-failed name=${recipe.name}, issues=${issues.join('；')}, error=${error?.message || error}`)
+        return null
+      }
+    }))
+    return repaired
+      .filter((recipe): recipe is GeneratedRecipe => Boolean(recipe))
+      .filter((recipe) => this.isRecipeListItemComplete(recipe, summaryOnly))
+  }
+
+  private async repairRecipeSummary(
+    recipe: GeneratedRecipe,
+    issues: string[],
+    summaryOnly: boolean,
+    knowledgeReferenceText: string,
+  ) {
+    const plan = this.normalizeRecipePlan(recipe.plan, recipe.name, recipe.ingredients)
+    const prompt = [
+      '你是菜谱摘要局部修复助手。仅返回 JSON，不要解释。',
+      '只修复当前这一道菜的 plan 和 ingredients，不得改菜名、用时、难度，也不得生成其他菜谱。',
+      `固定菜名：${recipe.name}`,
+      `固定用时：${recipe.duration}分钟`,
+      `固定难度：${recipe.difficulty}`,
+      `当前计划：${JSON.stringify(plan)}`,
+      `当前食材：${JSON.stringify(recipe.ingredients)}`,
+      `必须修复的问题：${issues.join('；')}`,
+      'plan.requiredIngredients 中的每项核心食材都必须出现在 ingredients 中，并具有合理的正数 quantity 和明确 unit。',
+      '不要删除原有合理食材；只补充或修正让这道菜成立所必需的食材及用量。',
+      '知识库参考（仅用于核对事实）：',
+      `${knowledgeReferenceText || '无直接参考，按可靠家庭烹饪常识修复。'}`.slice(0, 2600),
+      '严格返回：{"recipe":{"plan":{"dishType":"面食","cookingMethod":"焖","requiredIngredients":["面条","茄子"]},"ingredients":[{"name":"面条","quantity":240,"unit":"克"},{"name":"茄子","quantity":2,"unit":"个"}]}}',
+    ].join('\n')
+    const content = await this.callDashScope(
+      this.textModel,
+      [
+        { role: 'system', content: '你只负责局部修复单道菜的计划和食材，不得重写整份菜谱。' },
+        { role: 'user', content: prompt },
+      ],
+      true,
+      0.1,
+      800,
     )
-    if (!ingredientsComplete) return false
-    if (this.getRecipeNameIngredientIssues(recipe).length) return false
+    const parsed = this.parseJson(content)
+    const list = this.pickRecipeArray(parsed)
+    const source = parsed?.recipe || list[0] || parsed
+    const repaired = this.normalizeRecipe({
+      ...recipe,
+      ingredients: source?.ingredients,
+      plan: source?.plan || plan,
+      id: recipe.id,
+      name: recipe.name,
+      duration: recipe.duration,
+      difficulty: recipe.difficulty,
+      steps: recipe.steps,
+      tips: recipe.tips,
+      nutrition: recipe.nutrition,
+    }, 0, summaryOnly)
+    const remainingIssues = this.getRecipeSummaryQualityIssues(repaired)
+    if (remainingIssues.length) throw new Error(`局部修复后仍不完整：${remainingIssues.join('；')}`)
+    this.logger.log(`recipe-summary-local-repair-pass name=${recipe.name}, repaired=${issues.join('；')}`)
+    return repaired
+  }
+
+  private getRecipeSummaryQualityIssues(recipe: GeneratedRecipe) {
+    const issues: string[] = []
+    if (!recipe?.name) issues.push('缺少菜名')
+    if (!Number.isFinite(recipe?.duration) || recipe.duration <= 0) issues.push('用时无效')
+    if (!Array.isArray(recipe?.ingredients) || !recipe.ingredients.length) {
+      issues.push('缺少食材')
+    } else {
+      const invalidIngredients = recipe.ingredients.filter((item) =>
+        !item?.name || !item?.unit || !Number.isFinite(Number(item?.quantity)) || Number(item.quantity) <= 0,
+      )
+      if (invalidIngredients.length) issues.push('食材用量或单位不完整')
+    }
+    issues.push(...this.getRecipeNameIngredientIssues(recipe))
+    issues.push(...this.getRecipePlanIssues(recipe))
+    return [...new Set(issues)]
+  }
+
+  private isRecipeListItemComplete(recipe: GeneratedRecipe, summaryOnly: boolean) {
+    if (this.getRecipeSummaryQualityIssues(recipe).length) return false
     if (summaryOnly) return true
     return this.getRecipeDetailQualityIssues(recipe, false).length === 0
   }
@@ -1129,6 +1270,7 @@ export class AiService {
       if (invalidIngredients.length) issues.push('食材用量或单位不完整')
     }
     issues.push(...this.getRecipeNameIngredientIssues(recipe))
+    issues.push(...this.getRecipePlanIssues(recipe))
     const steps = Array.isArray(recipe?.steps) ? recipe.steps.map((step) => `${step || ''}`.trim()).filter(Boolean) : []
     if (steps.length < 3) issues.push('步骤少于3步')
     if (steps.length > 14) issues.push('步骤过度拆分')
@@ -1138,6 +1280,22 @@ export class AiService {
     if (steps.some((step) => mechanicalPrecision.test(step))) issues.push('包含无必要的机械化精确数字')
     if (steps.some((step) => step.length < 10)) issues.push('存在过短步骤')
     const stepText = this.normalizeTextForCompare(steps.join(' '))
+    const plannedMethod = `${recipe?.plan?.cookingMethod || ''}`.trim()
+    const methodChecks = [
+      { method: /炒/u, step: /炒|翻炒/u },
+      { method: /焖/u, step: /焖|加盖.{0,8}(?:煮|烧)|盖上锅盖/u },
+      { method: /炖/u, step: /炖|小火.{0,8}(?:煮|烧)/u },
+      { method: /煎/u, step: /煎/u },
+      { method: /烤/u, step: /烤/u },
+      { method: /蒸/u, step: /蒸/u },
+      { method: /煮/u, step: /煮|烧开|沸腾/u },
+      { method: /拌/u, step: /拌/u },
+      { method: /炸/u, step: /炸/u },
+    ]
+    const plannedMethodCheck = methodChecks.find((item) => item.method.test(plannedMethod))
+    if (plannedMethodCheck && !plannedMethodCheck.step.test(stepText)) {
+      issues.push(`步骤未体现计划做法：${plannedMethod}`)
+    }
     const unusedIngredients = (recipe.ingredients || []).filter((item) => {
       const ingredient = this.normalizeTextForCompare(item.name)
       const simplified = ingredient
@@ -1161,24 +1319,44 @@ export class AiService {
     return issues
   }
 
+  private getRecipeNameRequirements(nameValue: unknown) {
+    const name = this.normalizeTextForCompare(nameValue)
+    const requirements = [
+      { dish: /焖面|炒面|拌面|汤面|面条|拉面|刀削面|乌冬面|意大利面|意面/u, ingredient: /面条|挂面|鲜面|切面|拉面|刀削面|乌冬面|意大利面|意面|面粉/u, label: '面条或面粉', preferred: '面条' },
+      { dish: /盖饭|炒饭|焖饭|烩饭|拌饭|饭团|煲仔饭/u, ingredient: /米饭|大米|糙米|小米/u, label: '米饭或大米', preferred: '米饭' },
+      { dish: /粥/u, ingredient: /大米|糙米|小米|燕麦|米饭/u, label: '米或谷物', preferred: '大米' },
+      { dish: /饺子|馄饨|包子|锅贴|馅饼/u, ingredient: /面粉|饺子皮|馄饨皮|包子皮|面皮/u, label: '面粉或面皮', preferred: '面粉' },
+      { dish: /酸辣粉|炒粉|汤粉|米粉|粉丝/u, ingredient: /粉条|米粉|粉丝|河粉|红薯粉/u, label: '粉条或米粉', preferred: '米粉' },
+      { dish: /年糕/u, ingredient: /年糕/u, label: '年糕', preferred: '年糕' },
+      { dish: /豆腐/u, ingredient: /豆腐/u, label: '豆腐', preferred: '豆腐' },
+    ]
+    return requirements.filter((rule) => rule.dish.test(name))
+  }
+
   private getRecipeNameIngredientIssues(recipe: GeneratedRecipe) {
     const name = this.normalizeTextForCompare(recipe?.name)
     const ingredientText = this.normalizeTextForCompare(
       (Array.isArray(recipe?.ingredients) ? recipe.ingredients : []).map((item) => item?.name || '').join('、'),
     )
     if (!name || !ingredientText) return []
-    const requirements = [
-      { dish: /焖面|炒面|拌面|汤面|面条|拉面|刀削面|乌冬面|意大利面|意面/u, ingredient: /面条|挂面|鲜面|切面|拉面|刀削面|乌冬面|意大利面|意面|面粉/u, label: '面条或面粉' },
-      { dish: /盖饭|炒饭|焖饭|烩饭|拌饭|饭团|煲仔饭/u, ingredient: /米饭|大米|糙米|小米/u, label: '米饭或大米' },
-      { dish: /粥/u, ingredient: /大米|糙米|小米|燕麦|米饭/u, label: '米或谷物' },
-      { dish: /饺子|馄饨|包子|锅贴|馅饼/u, ingredient: /面粉|饺子皮|馄饨皮|包子皮|面皮/u, label: '面粉或面皮' },
-      { dish: /酸辣粉|炒粉|汤粉|米粉|粉丝/u, ingredient: /粉条|米粉|粉丝|河粉|红薯粉/u, label: '粉条或米粉' },
-      { dish: /年糕/u, ingredient: /年糕/u, label: '年糕' },
-      { dish: /豆腐/u, ingredient: /豆腐/u, label: '豆腐' },
-    ]
-    return requirements
-      .filter((rule) => rule.dish.test(name) && !rule.ingredient.test(ingredientText))
+    return this.getRecipeNameRequirements(name)
+      .filter((rule) => !rule.ingredient.test(ingredientText))
       .map((rule) => `菜名与食材不一致：缺少${rule.label}`)
+  }
+
+  private getRecipePlanIssues(recipe: GeneratedRecipe) {
+    const plan = recipe?.plan
+    if (!plan?.dishType || !plan?.cookingMethod) return ['菜谱计划不完整']
+    const required = this.normalizeStringArray(plan.requiredIngredients)
+    if (!required.length) return ['菜谱计划缺少核心食材']
+    const ingredientKeys = (recipe.ingredients || []).map((item) =>
+      this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name)),
+    ).filter(Boolean)
+    const missing = required.filter((name) => {
+      const key = this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(name))
+      return key && !ingredientKeys.some((ingredient) => ingredient === key || ingredient.includes(key) || key.includes(ingredient))
+    })
+    return missing.length ? [`菜谱计划核心食材缺失：${missing.slice(0, 4).join('、')}`] : []
   }
 
   private isRecipeDetailComplete(recipe: GeneratedRecipe) {

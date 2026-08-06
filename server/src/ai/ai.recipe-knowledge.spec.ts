@@ -95,6 +95,7 @@ describe('AiService recipe RAG loop', () => {
     expect(modelCall).toHaveBeenCalledTimes(1)
     expect(modelCall.mock.calls[0][1][1].content).toContain('最终版本')
     expect(modelCall.mock.calls[0][1][1].content).toContain('只生成 steps 与 tips')
+    expect(modelCall.mock.calls[0][1][1].content).toContain('已锁定菜谱计划')
     expect((modelCall.mock.calls[0][1][1].content.match(/\[参考\d+\]/g) || []).length).toBeLessThanOrEqual(3)
     expect(modelCall.mock.calls[0][4]).toBe(1800)
   })
@@ -155,6 +156,47 @@ describe('AiService recipe RAG loop', () => {
     expect(modelCall).toHaveBeenCalledTimes(2)
     expect(result.recipes).toHaveLength(1)
     expect(result.recipes[0].ingredients.some((item) => /面/u.test(item.name))).toBe(true)
+    expect(result.recipes[0].plan?.requiredIngredients.some((item) => /面/u.test(item))).toBe(true)
+    expect(modelCall.mock.calls[1][1][1].content).toContain('局部修复')
+    expect(modelCall.mock.calls[1][1][1].content).toContain('固定菜名：茄丁焖面')
+  })
+
+  it('repairs a missing core ingredient declared by the recipe plan', async () => {
+    const planned = {
+      ...summary('宫保鸡丁', [
+        { name: '鸡胸肉', quantity: 300, unit: '克' },
+        { name: '干辣椒', quantity: 8, unit: '克' },
+      ]),
+      plan: {
+        dishType: '家常菜',
+        cookingMethod: '炒',
+        requiredIngredients: ['鸡胸肉', '花生米'],
+      },
+    }
+    const modelCall = jest.spyOn(service as any, 'callDashScope')
+      .mockResolvedValueOnce(JSON.stringify({ recipes: [planned] }))
+      .mockResolvedValueOnce(JSON.stringify({
+        recipe: {
+          plan: planned.plan,
+          ingredients: [
+            ...planned.ingredients,
+            { name: '花生米', quantity: 50, unit: '克' },
+          ],
+        },
+      }))
+
+    const result = await service.generateRecipeList({
+      userId: 1,
+      ingredients: [{ name: '鸡胸肉' }, { name: '干辣椒' }],
+      cookingTime: 30,
+      count: 1,
+      summaryOnly: true,
+      allowMockFallback: false,
+    })
+
+    expect(modelCall).toHaveBeenCalledTimes(2)
+    expect(result.recipes[0].name).toBe('宫保鸡丁')
+    expect(result.recipes[0].ingredients.some((item) => item.name === '花生米')).toBe(true)
   })
 
   it('rejects template steps and retries before returning the detail', async () => {
