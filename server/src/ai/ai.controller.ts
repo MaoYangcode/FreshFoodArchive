@@ -144,6 +144,11 @@ export class AiController {
     return { code: 0, message: 'ok', data: task }
   }
 
+  @Get('recipe-knowledge-status')
+  getRecipeKnowledgeStatus() {
+    return { code: 0, message: 'ok', data: this.aiService.getRecipeKnowledgeStatus() }
+  }
+
   @Post('recognize-audio')
   @UseInterceptors(
     FileInterceptor('file', {

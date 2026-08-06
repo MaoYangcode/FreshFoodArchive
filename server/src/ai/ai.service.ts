@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { randomUUID } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
+import { RecipeKnowledgeDocument, RecipeKnowledgeHit, RecipeKnowledgeService } from '../recipe-knowledge/recipe-knowledge.service'
 
 type RecognizedIngredient = {
   name: string
@@ -23,6 +24,10 @@ type GeneratedRecipe = {
   servings?: number
   nutrition?: RecipeNutrition
   detailReady?: boolean
+  knowledgeId?: string
+  retrievalSource?: string
+  matchedIngredients?: string[]
+  missingIngredients?: string[]
 }
 
 type RecipeNutrition = {
@@ -119,7 +124,10 @@ type AssistantCommand = {
 
 @Injectable()
 export class AiService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly recipeKnowledge: RecipeKnowledgeService,
+  ) {}
   private readonly logger = new Logger(AiService.name)
   private readonly recipeTasks = new Map<string, RecipeGenerateTask>()
   private readonly speechAudio = new Map<string, {
@@ -236,7 +244,27 @@ export class AiService {
     task.updatedAt = Date.now()
 
     const totalCount = task.totalCount
-    const batchSizes = this.makeRecipeBatchSizes(totalCount, 2)
+    const knowledgeResult = await this.generateRecipeList({
+      ...(payload || {}),
+      count: totalCount,
+      summaryOnly: true,
+      knowledgeOnly: true,
+    })
+    for (const recipe of knowledgeResult.recipes || []) {
+      task.recipes.push(recipe)
+      if (task.recipes.length >= totalCount) break
+    }
+    task.doneCount = task.recipes.length
+    task.profileApplied = knowledgeResult.profileApplied
+    task.updatedAt = Date.now()
+    if (task.recipes.length >= totalCount) {
+      task.status = 'done'
+      task.message = '菜谱推荐完成'
+      this.logger.log(`recipe-task-knowledge-hit taskId=${taskId}, returned=${task.recipes.length}`)
+      return
+    }
+
+    const batchSizes = this.makeRecipeBatchSizes(totalCount - task.recipes.length, 2)
     const batchFocus = ['快炒、凉拌、快手菜', '炖焖、汤羹、蒸煮菜', '主食、馅料、烤煎菜']
     const maxConcurrency = 2
     let cursor = 0
@@ -608,6 +636,7 @@ export class AiService {
     const requestNonce = `${payload?.requestNonce || ''}`.trim()
     const batchFocus = `${payload?.batchFocus || ''}`.trim()
     const summaryOnly = payload?.summaryOnly === true
+    const knowledgeOnly = payload?.knowledgeOnly === true
     const allowRecipeMockFallback = payload?.allowMockFallback !== false
     const userId = Math.max(Number(payload?.userId || 1), 1)
     const profile = await this.loadUserProfileForRecipe(userId)
@@ -629,14 +658,45 @@ export class AiService {
     }
 
     if (!ingredients.length) return { recipes: [], profileApplied }
+    const pantryNames = ingredients
+      .map((x: any) => `${x?.name || ''}`.trim())
+      .filter(Boolean)
+    const knowledgeHits = await this.recipeKnowledge.search({
+      ingredients: pantryNames,
+      limit: Math.max(count * 4, 12),
+      maxDuration: cookingTime,
+      taste: tastePreference,
+      avoidances,
+      excludeNames,
+    })
+    const knowledgeRecipes = this.filterRecipesByAvoidances(
+      knowledgeHits.map((hit) => this.knowledgeHitToGeneratedRecipe(hit, summaryOnly)),
+      avoidances,
+    ).slice(0, count)
+    if (knowledgeRecipes.length >= count) {
+      profileApplied.generatedCount = count
+      this.logger.log(`recipe-knowledge-hit returned=${count}, mode=${knowledgeHits[0]?.retrievalMode || 'local-hybrid'}`)
+      return { recipes: knowledgeRecipes.slice(0, count), profileApplied }
+    }
+    if (knowledgeOnly) {
+      profileApplied.generatedCount = knowledgeRecipes.length
+      return { recipes: knowledgeRecipes, profileApplied }
+    }
     if (!this.apiKey) {
-      if (!allowRecipeMockFallback) throw new Error('DASHSCOPE_API_KEY 未配置')
+      if (!allowRecipeMockFallback) {
+        if (knowledgeRecipes.length) {
+          profileApplied.generatedCount = knowledgeRecipes.length
+          return { recipes: knowledgeRecipes, profileApplied }
+        }
+        throw new Error('DASHSCOPE_API_KEY 未配置')
+      }
       const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
         .map((item, idx) => this.normalizeRecipe(item, idx, summaryOnly))
-      profileApplied.generatedCount = mocked.length
-      profileApplied.removedByAvoidanceCount = Math.max(count - mocked.length, 0)
+      const combined = this.dedupeRecipesByName([...knowledgeRecipes, ...mocked]).slice(0, count)
+      profileApplied.generatedCount = combined.length
+      profileApplied.removedByAvoidanceCount = Math.max(count - combined.length, 0)
       profileApplied.reducedByAvoidance = profileApplied.removedByAvoidanceCount > 0
-      return { recipes: mocked.slice(0, count), profileApplied }
+      return { recipes: combined, profileApplied }
     }
 
     const ingredientText = ingredients
@@ -648,9 +708,6 @@ export class AiService {
       })
       .filter(Boolean)
       .join('、')
-    const pantryNames = ingredients
-      .map((x: any) => `${x?.name || ''}`.trim())
-      .filter(Boolean)
     const uniquePantryNames = Array.from(new Set(pantryNames.map((x) => this.normalizeTextForCompare(x)))).filter(Boolean)
     const isSingleIngredientMode = uniquePantryNames.length === 1
     const singleIngredientGuidance = isSingleIngredientMode
@@ -717,14 +774,19 @@ export class AiService {
         `DashScope generate-recipe failed, fallback to mock: ${err?.message || err || 'unknown error'}; ingredientCount=${pantryNames.length}, singleIngredient=${isSingleIngredientMode}, profileMs=${profileMs}, dashScopeMs=${dashScopeMs}, totalMs=${Date.now() - startedAt}`,
       )
       if (!allowRecipeMockFallback) {
+        if (knowledgeRecipes.length) {
+          profileApplied.generatedCount = knowledgeRecipes.length
+          return { recipes: knowledgeRecipes, profileApplied }
+        }
         throw new Error(err?.message || '菜谱生成服务调用失败')
       }
       const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
         .map((item, idx) => this.normalizeRecipe(item, idx, summaryOnly))
-      profileApplied.generatedCount = mocked.length
-      profileApplied.removedByAvoidanceCount = Math.max(count - mocked.length, 0)
+      const combined = this.dedupeRecipesByName([...knowledgeRecipes, ...mocked]).slice(0, count)
+      profileApplied.generatedCount = combined.length
+      profileApplied.removedByAvoidanceCount = Math.max(count - combined.length, 0)
       profileApplied.reducedByAvoidance = profileApplied.removedByAvoidanceCount > 0
-      return { recipes: mocked.slice(0, count), profileApplied }
+      return { recipes: combined, profileApplied }
     }
 
     const parsed = this.parseJson(content)
@@ -857,6 +919,7 @@ export class AiService {
         .map((item, idx) => this.normalizeRecipe(item, idx, summaryOnly))
       finalRecipes = mocked.slice(0, count)
     }
+    finalRecipes = this.dedupeRecipesByName([...knowledgeRecipes, ...finalRecipes]).slice(0, count)
     profileApplied.generatedCount = finalRecipes.length
     profileApplied.removedByAvoidanceCount = removedByAvoidanceCount
     profileApplied.reducedByAvoidance = finalRecipes.length < count && removedByAvoidanceCount > 0
@@ -870,6 +933,10 @@ export class AiService {
     const summary = payload?.recipe && typeof payload.recipe === 'object' ? payload.recipe : payload || {}
     const name = `${summary?.name || ''}`.trim()
     if (!name) throw new Error('菜谱名称为空')
+
+    const knowledgeRecipe = this.recipeKnowledge.findByIdOrName(summary?.knowledgeId || summary?.id || name)
+      || this.recipeKnowledge.findByIdOrName(name)
+    if (knowledgeRecipe) return this.knowledgeRecipeToGeneratedRecipe(knowledgeRecipe, false)
 
     const userId = Math.max(Number(payload?.userId || 1), 1)
     const profile = await this.loadUserProfileForRecipe(userId)
@@ -971,6 +1038,54 @@ export class AiService {
       servings: summaryOnly ? undefined : Math.max(1, Math.min(12, Number(item?.servings || 2))),
       nutrition: summaryOnly ? undefined : this.normalizeRecipeNutrition(item?.nutrition),
       detailReady: !summaryOnly && steps.length > 0,
+    }
+  }
+
+  getRecipeKnowledgeStatus() {
+    return this.recipeKnowledge.getStatus()
+  }
+
+  private knowledgeHitToGeneratedRecipe(hit: RecipeKnowledgeHit, summaryOnly: boolean) {
+    return {
+      ...this.knowledgeRecipeToGeneratedRecipe(hit.recipe, summaryOnly),
+      matchScore: hit.score,
+      retrievalSource: hit.retrievalMode,
+      matchedIngredients: hit.matchedIngredients,
+      missingIngredients: hit.missingIngredients,
+    }
+  }
+
+  private knowledgeRecipeToGeneratedRecipe(recipe: RecipeKnowledgeDocument, summaryOnly: boolean): GeneratedRecipe {
+    const nutrition = recipe.nutritionPerServing
+      ? {
+          calories: recipe.nutritionPerServing.calories,
+          protein: recipe.nutritionPerServing.protein,
+          fat: recipe.nutritionPerServing.fat,
+          carbohydrates: recipe.nutritionPerServing.carbohydrates,
+          fiber: recipe.nutritionPerServing.fiber,
+          sodium: recipe.nutritionPerServing.sodium,
+          analysis: recipe.nutritionPerServing.estimated ? '每人份估算值，仅用于日常饮食参考。' : '每人份营养数据。',
+        }
+      : undefined
+    return {
+      id: recipe.id,
+      knowledgeId: recipe.id,
+      name: recipe.name,
+      duration: recipe.durationMinutes,
+      difficulty: recipe.difficulty,
+      matchScore: 85,
+      coverImage: '',
+      ingredients: recipe.ingredients.map((item) => ({
+        name: item.name,
+        quantity: item.quantity === null ? undefined : item.quantity,
+        unit: item.unit,
+      })),
+      steps: summaryOnly ? [] : recipe.steps.map((step) => step.description),
+      tips: summaryOnly ? '' : recipe.tips.join('；'),
+      servings: summaryOnly ? undefined : recipe.servings,
+      nutrition: summaryOnly ? undefined : nutrition,
+      detailReady: true,
+      retrievalSource: 'knowledge-base',
     }
   }
 

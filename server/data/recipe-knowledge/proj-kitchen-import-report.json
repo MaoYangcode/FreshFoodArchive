@@ -1,0 +1,120 @@
+{
+  "source": "https://proj.kitchen",
+  "sourceCount": 341,
+  "importedCount": 319,
+  "skippedCount": 22,
+  "firstId": "recipe_0061",
+  "lastId": "recipe_0379",
+  "skipped": [
+    {
+      "sourceId": "fanqiechaodan",
+      "name": "番茄炒蛋",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "凉拌木耳",
+      "name": "凉拌木耳",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "凉拌黄瓜",
+      "name": "凉拌黄瓜",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "可乐鸡翅",
+      "name": "可乐鸡翅",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "回锅肉",
+      "name": "回锅肉",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "地三鲜",
+      "name": "地三鲜",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "扬州炒饭",
+      "name": "扬州炒饭",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "清蒸鲈鱼",
+      "name": "清蒸鲈鱼",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "玉米排骨汤",
+      "name": "玉米排骨汤",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "白灼虾",
+      "name": "白灼虾",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "皮蛋瘦肉粥",
+      "name": "皮蛋瘦肉粥",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "糖醋里脊",
+      "name": "糖醋里脊",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "紫菜蛋花汤的做法",
+      "name": "紫菜蛋花汤的做法",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "红烧鸡翅",
+      "name": "红烧鸡翅",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "葱油拌面",
+      "name": "葱油拌面",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "蒜蓉西兰花",
+      "name": "蒜蓉西兰花",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "蚝油生菜",
+      "name": "蚝油生菜",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "西红柿炒鸡蛋",
+      "name": "西红柿炒鸡蛋",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "辣椒炒肉",
+      "name": "辣椒炒肉",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "韭菜盒子的做法",
+      "name": "韭菜盒子的做法",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "鱼香肉丝",
+      "name": "鱼香肉丝",
+      "reason": "与已有菜名或别名重复"
+    },
+    {
+      "sourceId": "黑椒牛柳",
+      "name": "黑椒牛柳",
+      "reason": "与已有菜名或别名重复"
+    }
+  ]
+}

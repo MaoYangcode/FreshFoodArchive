@@ -1,0 +1,5330 @@
+[
+  {
+    "id": "recipe_0361",
+    "name": "鱼香茄子",
+    "aliases": [],
+    "category": "热菜",
+    "cuisine": "其他菜系",
+    "taste": [
+      "酸香",
+      "甜香",
+      "蒜香"
+    ],
+    "methods": [
+      "炒",
+      "炸",
+      "拌"
+    ],
+    "difficulty": "中等",
+    "durationMinutes": 16,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "茄子",
+        "normalizedName": "茄子",
+        "quantity": 2,
+        "unit": "根",
+        "rawAmount": "2 根",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "肉末",
+        "normalizedName": "肉末",
+        "quantity": 20,
+        "unit": "克",
+        "rawAmount": "20g",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "盐",
+        "normalizedName": "盐",
+        "quantity": 4,
+        "unit": "克",
+        "rawAmount": "3-5g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "糖",
+        "normalizedName": "糖",
+        "quantity": 7.5,
+        "unit": "克",
+        "rawAmount": "5-10g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "味精",
+        "normalizedName": "味精",
+        "quantity": 5,
+        "unit": "克",
+        "rawAmount": "5g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "生抽",
+        "normalizedName": "生抽",
+        "quantity": 10,
+        "unit": "毫升",
+        "rawAmount": "10ml",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "老抽",
+        "normalizedName": "老抽",
+        "quantity": 5,
+        "unit": "毫升",
+        "rawAmount": "5ml",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "醋",
+        "normalizedName": "醋",
+        "quantity": 10,
+        "unit": "毫升",
+        "rawAmount": "10ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "水淀粉",
+        "normalizedName": "水淀粉",
+        "quantity": 100,
+        "unit": "毫升",
+        "rawAmount": "100ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "豆瓣酱",
+        "normalizedName": "豆瓣酱",
+        "quantity": 25,
+        "unit": "克",
+        "rawAmount": "20-30g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "小葱、姜、蒜、小米辣 （根据自己口味）",
+        "normalizedName": "小葱、姜、蒜、小米辣 （根据自己口味）",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "炒锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "准备食材",
+        "description": "本步骤操作要求：将茄子切成条。，完成后进入下一步。",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "茄子"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "准备食材",
+        "description": "将肉切成肉沫，葱姜蒜切碎、小米椒切丁。",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "调味拌匀",
+        "description": "调鱼香汁：碗中放入盐、味精、糖、生抽、老抽、醋、水淀粉搅拌均匀。",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "盐",
+          "糖",
+          "味精",
+          "生抽",
+          "老抽",
+          "醋",
+          "水淀粉"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "倒入配料",
+        "description": "锅中倒入 300ml 油，开小火（小火容易掌控），等油温七成热（小火大约 40 秒，有烟冒出）放入茄子炸两分钟，当茄子边缘微黄就捞出。多出的油可以盛出以后炒菜用。",
+        "durationMinutes": 0.7,
+        "heat": "小火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "茄子"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "倒入配料",
+        "description": "锅中留 15-30ml 油，倒入肉沫炒至颜色变白就盛出来。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 6,
+        "title": "倒入配料",
+        "description": "锅中倒入 15-30ml 油，放入豆瓣酱、葱白、姜、蒜炒香，然后倒入肉沫翻炒均匀。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "豆瓣酱"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 7,
+        "title": "倒入配料",
+        "description": "加入 80-150ml 清水（水面预计茄子八成高度为准），倒入茄子、倒入料汁，爆炒入味收汁。最后放入葱翻炒均匀，就可以起锅了。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "茄子"
+        ],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [
+      "茄子看个人喜好，可以去皮，肉沫也可以多放一点。",
+      "参考: [鱼香茄子详细步骤](https://www.zhms.cn/recipe/kbbrl.html?source=2)。"
+    ],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "麸质",
+      "大豆"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "鱼香茄子，荤菜，中等难度；主要食材：茄子2 根、肉末20g、盐3-5g、糖5-10g、味精5g、生抽10ml、老抽5ml、醋10ml、水淀粉100ml、豆瓣酱20-30g、小葱、姜、蒜、小米辣 （根据自己口味）适量；烹饪方式：炒、炸、拌；口味：酸香、甜香、蒜香。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.87,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "鱼香茄子",
+      "url": "https://proj.kitchen/api/recipes/%E9%B1%BC%E9%A6%99%E8%8C%84%E5%AD%90",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "荤菜",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0362",
+    "name": "鲜肉烧卖",
+    "aliases": [],
+    "category": "主食",
+    "cuisine": "其他菜系",
+    "taste": [
+      "甜香",
+      "家常"
+    ],
+    "methods": [
+      "蒸",
+      "拌"
+    ],
+    "difficulty": "中等",
+    "durationMinutes": 74,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "烧卖皮",
+        "normalizedName": "烧卖皮",
+        "quantity": 352.5,
+        "unit": "克",
+        "rawAmount": "240-465 g（约 24-31 张，建议用每张 10g 的烧卖皮 30 张）",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "猪肉末",
+        "normalizedName": "猪肉末",
+        "quantity": 300,
+        "unit": "克",
+        "rawAmount": "300 g（低脂版本用猪里脊或猪前腿肉 280 g）",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "生姜末",
+        "normalizedName": "生生姜",
+        "quantity": 7.5,
+        "unit": "克",
+        "rawAmount": "5-10 g",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "葱末",
+        "normalizedName": "葱末",
+        "quantity": 15,
+        "unit": "克",
+        "rawAmount": "10-20 g",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "生抽",
+        "normalizedName": "生抽",
+        "quantity": 15,
+        "unit": "升",
+        "rawAmount": "15 mL",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "料酒",
+        "normalizedName": "料酒",
+        "quantity": 10,
+        "unit": "升",
+        "rawAmount": "10 mL",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "盐",
+        "normalizedName": "盐",
+        "quantity": 4,
+        "unit": "克",
+        "rawAmount": "3-5 g（如果使用浓汤宝，减少 3 g）",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "糖",
+        "normalizedName": "糖",
+        "quantity": 2.5,
+        "unit": "克",
+        "rawAmount": "2-3 g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "白胡椒粉",
+        "normalizedName": "白胡椒粉",
+        "quantity": 2,
+        "unit": "克",
+        "rawAmount": "2 g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "芝麻油",
+        "normalizedName": "芝麻油",
+        "quantity": 5,
+        "unit": "升",
+        "rawAmount": "5 mL",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "高汤",
+        "normalizedName": "高汤",
+        "quantity": 30,
+        "unit": "升",
+        "rawAmount": "30 mL",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "浓汤宝",
+        "normalizedName": "浓汤宝",
+        "quantity": 0.125,
+        "unit": "块",
+        "rawAmount": "6 g（建议家乐牌，约 1/8 块）",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "冬笋",
+        "normalizedName": "冬笋",
+        "quantity": 50,
+        "unit": "克",
+        "rawAmount": "50 g",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "皮冻",
+        "normalizedName": "皮冻",
+        "quantity": 100,
+        "unit": "克",
+        "rawAmount": "100 g",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "香菇",
+        "normalizedName": "香菇",
+        "quantity": 75,
+        "unit": "克",
+        "rawAmount": "75 g（或干香菇 30 g 泡发）",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "虾仁",
+        "normalizedName": "虾仁",
+        "quantity": 150,
+        "unit": "个",
+        "rawAmount": "100-200 g（约 20-25 个）",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "复配食品增稠剂",
+        "normalizedName": "复配食品增稠剂",
+        "quantity": 1.2,
+        "unit": "克",
+        "rawAmount": "1.2 g（或玉米淀粉 2 g）",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "猪油（或鸡油）15 g",
+        "normalizedName": "猪油（或鸡油）15 g",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "蒸锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "制作步骤 1",
+        "description": "（低脂版本）取 10 mL 冷水，加入复配食品增稠剂，调成糊糊",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "复配食品增稠剂"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "调味拌匀",
+        "description": "（低脂版本）加入 25 mL 开水，搅拌至半透明凝胶",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "制作步骤 3",
+        "description": "（低脂版本）冷却后混入 280 g 纯瘦肉糜 + 15 g 融化猪油（或鸡油）",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "调味拌匀",
+        "description": "将猪肉末与生姜末、葱末混合，加入酱油、料酒、盐、糖、白胡椒粉，顺一个方向搅拌上劲",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "猪肉末",
+          "生姜末",
+          "葱末",
+          "料酒",
+          "盐",
+          "糖",
+          "白胡椒粉"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "调味拌匀",
+        "description": "如果使用浓汤宝，取浓汤宝块加入 15 mL 热水混合，搅拌至乳浊液完全分散，再加入 15 mL 常温水",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "浓汤宝"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 6,
+        "title": "调味拌匀",
+        "description": "慢慢加入水或高汤，继续搅拌，直到馅料吸收水分，变得粘稠，如果觉得肉馅太稠，补 5 mL 水继续搅拌",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "高汤"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 7,
+        "title": "调味拌匀",
+        "description": "加入可选配料（冬笋、皮冻、香菇），最后淋上芝麻油，拌匀。冷藏 30 分钟，让味道融合",
+        "durationMinutes": 30,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "芝麻油",
+          "冬笋",
+          "皮冻",
+          "香菇"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 8,
+        "title": "制作步骤 8",
+        "description": "取一张烧卖皮，放上约 20-25 g 馅料（别太贪心，否则包不住）",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "烧卖皮"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 9,
+        "title": "制作步骤 9",
+        "description": "用虎口轻轻收拢皮子边缘，形成“花瓶”状，顶部留开口",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 10,
+        "title": "制作步骤 10",
+        "description": "用手指轻轻压实底部，确保站立稳定",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 11,
+        "title": "制作步骤 11",
+        "description": "如果要加虾仁，在顶部加一颗虾仁",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "虾仁"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 12,
+        "title": "制作步骤 12",
+        "description": "重复包烧卖的步骤，直到包好",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 13,
+        "title": "蒸制",
+        "description": "放在蒸笼里，间隔开，避免粘连",
+        "durationMinutes": 8,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 14,
+        "title": "蒸制",
+        "description": "大火蒸 8-10 分钟即可",
+        "durationMinutes": 10,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [
+      "烧卖中的脂肪主要来自肥肉，低脂版本中的肥肉被移除后为保证口感需要使用少量动物油来补偿。",
+      "如果没有烧卖皮，可用大馄饨皮，或者饺子皮擀薄。",
+      "皮的直径在 8-10 cm 之间，每张皮重约 10-15g，皮和馅的比例控制在 1:2 - 1:2.5。",
+      "绞肉机建议用中档，这样肉末不会太细（像糊糊）也不会太粗（像碎块），保持适中纹理，让馅料口感 Q 弹。",
+      "使用姜末 5 g，葱末 10 g 不容易掩盖鲜肉的味道。",
+      "姜末 10 g，葱末 20 g 有点像饺子馅。",
+      "包烧卖的时候在虎口抹点油，收口不会粘手。",
+      "蒸的时候记得水开了再上笼，这样皮子不会塌掉。",
+      "做多了可 -18 ℃ 冷冻保存，冷冻保存的需要蒸 12-15 分钟。",
+      "蘸上玫瑰米醋更好吃，也可以根据口味配上桐乡辣酱、油泼辣子、生抽、姜丝。",
+      "参考资料：[【鲜肉烧麦的做法步骤图，鲜肉烧麦怎么做好吃】小什么l_下厨房](https://www.xiachufang.com/recipe/106527847/)。"
+    ],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "芝麻",
+      "麸质",
+      "大豆",
+      "甲壳类"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "鲜肉烧卖，主食，中等难度；主要食材：烧卖皮240-465 g（约 24-31 张，建议用每张 10g 的烧卖皮 30 张）、猪肉末300 g（低脂版本用猪里脊或猪前腿肉 280 g）、生姜末5-10 g、葱末10-20 g、生抽15 mL、料酒10 mL、盐3-5 g（如果使用浓汤宝，减少 3 g）、糖2-3 g、白胡椒粉2 g、芝麻油5 mL、高汤30 mL、浓汤宝6 g（建议家乐牌，约 1/8 块）、冬笋50 g、皮冻100 g、香菇75 g（或干香菇 30 g 泡发）、虾仁100-200 g（约 20-25 个）、复配食品增稠剂1.2 g（或玉米淀粉 2 g）、猪油（或鸡油）15 g适量；烹饪方式：蒸、拌；口味：甜香、家常。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.88,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "鲜肉烧卖",
+      "url": "https://proj.kitchen/api/recipes/%E9%B2%9C%E8%82%89%E7%83%A7%E5%8D%96",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "主食",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0363",
+    "name": "鲣鱼海苔玉米饭",
+    "aliases": [],
+    "category": "主食",
+    "cuisine": "其他菜系",
+    "taste": [
+      "家常"
+    ],
+    "methods": [
+      "拌"
+    ],
+    "difficulty": "简单",
+    "durationMinutes": 5,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "鲣鱼海苔碎",
+        "normalizedName": "鲣鱼海苔碎",
+        "quantity": 20,
+        "unit": "克",
+        "rawAmount": "20g",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "玉米粒",
+        "normalizedName": "玉米粒",
+        "quantity": 80,
+        "unit": "克",
+        "rawAmount": "80g/袋",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "电饭煲",
+      "空气炸锅",
+      "高压锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "调味拌匀",
+        "description": "盛好米饭，放入玉米粒拌好",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "玉米粒"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "制作步骤 2",
+        "description": "本步骤操作要求：放入鲣鱼海苔碎，完成后进入下一步。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "鲣鱼海苔碎"
+        ],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [
+      "使用米家小饭煲煮东北米的话，水没过米 3 毫米就行，太多水煮出来不是一粒一粒的饭。"
+    ],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "鱼类"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "鲣鱼海苔玉米饭，主食，简单难度；主要食材：鲣鱼海苔碎20g、玉米粒80g/袋；烹饪方式：拌；口味：家常。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.88,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "鲣鱼海苔玉米饭",
+      "url": "https://proj.kitchen/api/recipes/%E9%B2%A3%E9%B1%BC%E6%B5%B7%E8%8B%94%E7%8E%89%E7%B1%B3%E9%A5%AD",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "主食",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0364",
+    "name": "鲤鱼炖白菜",
+    "aliases": [],
+    "category": "热菜",
+    "cuisine": "家常菜",
+    "taste": [
+      "香辣",
+      "蒜香",
+      "家常"
+    ],
+    "methods": [
+      "炖",
+      "炒",
+      "煎"
+    ],
+    "difficulty": "中等",
+    "durationMinutes": 33,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "食用油：10ml",
+        "normalizedName": "食用油：10ml",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "姜：3 片",
+        "normalizedName": "姜：3 片",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "蒜：3 瓣（切成块）",
+        "normalizedName": "蒜：3 瓣（切成块）",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "鲤鱼：1.2 斤（清理过的）",
+        "normalizedName": "鲤鱼：1.2 斤（清理过的）",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "娃娃菜：13 片（可以多放一些，一顿就缩小了）",
+        "normalizedName": "娃娃菜：13 片（可以多放一些，一顿就缩小了）",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "盐：5-8 克",
+        "normalizedName": "盐：5-8 克",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "老抽：3ml",
+        "normalizedName": "老抽：3ml",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "生抽：6ml",
+        "normalizedName": "生抽：6ml",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "桂皮：1 块",
+        "normalizedName": "桂皮：1 块",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "八角：3 个",
+        "normalizedName": "八角：3 个",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "郫县豆瓣酱：20 克",
+        "normalizedName": "郫县豆瓣酱：20 克",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "干辣椒：4-6 个（根据个人口味选择）",
+        "normalizedName": "干辣椒：4-6 个（根据个人口味选择）",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "炒锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "准备食材",
+        "description": "鲤鱼清洗干净，改刀（在鱼身上多划几个伤口，方便入味）",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "准备食材",
+        "description": "娃娃菜清洗干净放入盘中备用",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "翻炒",
+        "description": "锅中加油，等油热放入“少盐” “姜” “蒜” “郫县豆瓣酱” “桂皮” “八角” 炒出香味",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "煎制",
+        "description": "把鱼放锅里煎（3 分钟）每（30 秒）需要翻面",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "制作步骤 5",
+        "description": "加入“水”（水量尽量和鱼平齐，可以少一点点） 放入 “生抽” “老抽” “娃娃菜”",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 6,
+        "title": "炖煮",
+        "description": "大火炖 15-20 分钟，汤汁快干时添加 “盐” 即可出锅",
+        "durationMinutes": 20,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [
+      "也可以放一些粉条，粉条先凉水/热水，需要泡软，可以和娃娃菜一起放入。"
+    ],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "麸质",
+      "大豆",
+      "鱼类"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "鲤鱼炖白菜，水产，中等难度；主要食材：食用油：10ml适量、姜：3 片适量、蒜：3 瓣（切成块）适量、鲤鱼：1.2 斤（清理过的）适量、娃娃菜：13 片（可以多放一些，一顿就缩小了）适量、盐：5-8 克适量、老抽：3ml适量、生抽：6ml适量、桂皮：1 块适量、八角：3 个适量、郫县豆瓣酱：20 克适量、干辣椒：4-6 个（根据个人口味选择）适量；烹饪方式：炖、炒、煎；口味：香辣、蒜香、家常。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.82,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "鲤鱼炖白菜",
+      "url": "https://proj.kitchen/api/recipes/%E9%B2%A4%E9%B1%BC%E7%82%96%E7%99%BD%E8%8F%9C",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "水产",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0365",
+    "name": "鳊鱼炖豆腐",
+    "aliases": [],
+    "category": "热菜",
+    "cuisine": "家常菜",
+    "taste": [
+      "香辣",
+      "甜香",
+      "蒜香"
+    ],
+    "methods": [
+      "炒",
+      "煎",
+      "腌"
+    ],
+    "difficulty": "中等",
+    "durationMinutes": 36,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "鳊鱼：550 克",
+        "normalizedName": "鳊鱼：550 克",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "老豆腐：400 克",
+        "normalizedName": "老豆腐：400 克",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "姜：5 片",
+        "normalizedName": "姜：5 片",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "葱：半根（50 克）",
+        "normalizedName": "葱：半根（50 克）",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "蒜：4 个",
+        "normalizedName": "蒜：4 个",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "老抽：2ml（不太喜欢重口的可以不放）",
+        "normalizedName": "老抽：2ml（不太喜欢重口的可以不放）",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "桂皮：1 块",
+        "normalizedName": "桂皮：1 块",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "冰糖：5 块",
+        "normalizedName": "冰糖：5 块",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "干辣椒：4-6 个（根据个人口味选择）",
+        "normalizedName": "干辣椒：4-6 个（根据个人口味选择）",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "料酒：5ml",
+        "normalizedName": "料酒：5ml",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "生抽：4ml",
+        "normalizedName": "生抽：4ml",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "盐：5-8 克（根据个人口味选择）",
+        "normalizedName": "盐：5-8 克（根据个人口味选择）",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "八角：1 个",
+        "normalizedName": "八角：1 个",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "香叶：1-3 片",
+        "normalizedName": "香叶：1-3 片",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "食用油：10ml",
+        "normalizedName": "食用油：10ml",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "热水：400 克",
+        "normalizedName": "热水：400 克",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "炒锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "腌制入味",
+        "description": "鳊鱼改刀,放上姜片和料酒腌制 5-10 分钟",
+        "durationMinutes": 10,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "准备食材",
+        "description": "老豆腐切块后放入水中备用",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "腌制入味",
+        "description": "锅中加油，可以放点盐在锅里，防止煎鱼的时候粘锅，把腌制的鱼用厨房纸擦干水分，把鱼放到锅中，两面都煎一下",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "煎制",
+        "description": "等两面都煎好时，把鱼推向锅边一点，留点空间放入葱姜蒜，干辣椒，香叶，八角炒出味道",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "倒入配料",
+        "description": "炒出佐料香味后，加入料酒，生抽，老抽，冰糖，桂皮，倒入热水，水量和鱼平齐或者少点",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 6,
+        "title": "制作步骤 6",
+        "description": "大火烧开后，放入老豆腐，豆腐贴在锅边，加入食盐，转小火",
+        "durationMinutes": 2,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 7,
+        "title": "装盘完成",
+        "description": "小火烧 10-15 分钟，然后大火收点汁，即可出锅",
+        "durationMinutes": 15,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [
+      "鱼的两面，各煎 2-4 分钟即可。",
+      "煎鱼的时候全程中小火。",
+      "最后出锅时，加入一些切碎的大蒜，味道会更好。"
+    ],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "麸质",
+      "大豆",
+      "鱼类"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "鳊鱼炖豆腐，水产，中等难度；主要食材：鳊鱼：550 克适量、老豆腐：400 克适量、姜：5 片适量、葱：半根（50 克）适量、蒜：4 个适量、老抽：2ml（不太喜欢重口的可以不放）适量、桂皮：1 块适量、冰糖：5 块适量、干辣椒：4-6 个（根据个人口味选择）适量、料酒：5ml适量、生抽：4ml适量、盐：5-8 克（根据个人口味选择）适量、八角：1 个适量、香叶：1-3 片适量、食用油：10ml适量、热水：400 克适量；烹饪方式：炒、煎、腌；口味：香辣、甜香、蒜香。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.82,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "鳊鱼炖豆腐",
+      "url": "https://proj.kitchen/api/recipes/%E9%B3%8A%E9%B1%BC%E7%82%96%E8%B1%86%E8%85%90",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "水产",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0366",
+    "name": "鸡蛋三明治",
+    "aliases": [],
+    "category": "早餐",
+    "cuisine": "其他菜系",
+    "taste": [
+      "家常"
+    ],
+    "methods": [
+      "煮",
+      "煎"
+    ],
+    "difficulty": "简单",
+    "durationMinutes": 20,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "鸡蛋",
+        "normalizedName": "鸡蛋",
+        "quantity": 1,
+        "unit": "个",
+        "rawAmount": "1 个",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "吐司",
+        "normalizedName": "吐司",
+        "quantity": 2,
+        "unit": "片",
+        "rawAmount": "2 片",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "培根",
+        "normalizedName": "培根",
+        "quantity": 2,
+        "unit": "片",
+        "rawAmount": "2 片",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "黄油",
+        "normalizedName": "黄油",
+        "quantity": 10,
+        "unit": "克",
+        "rawAmount": "10 g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "蛋黄酱",
+        "normalizedName": "蛋黄酱",
+        "quantity": 20,
+        "unit": "克",
+        "rawAmount": "20g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "盐",
+        "normalizedName": "盐",
+        "quantity": 1,
+        "unit": "克",
+        "rawAmount": "1g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "黑胡椒",
+        "normalizedName": "黑胡椒",
+        "quantity": 2,
+        "unit": "克",
+        "rawAmount": "2g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "炒锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "准备食材",
+        "description": "本步骤操作要求：吐司切去四边，备用，完成后进入下一步。",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "吐司"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "煮制",
+        "description": "本步骤操作要求：鸡蛋煮熟，捣碎，完成后进入下一步。",
+        "durationMinutes": 8,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "鸡蛋"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "制作步骤 3",
+        "description": "混合鸡蛋、蛋黄酱、盐、黑胡椒",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "鸡蛋",
+          "蛋黄酱",
+          "盐",
+          "黑胡椒"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "煎制",
+        "description": "本步骤操作要求：锅中加入黄油，煎熟培根，完成后进入下一步。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "培根",
+          "黄油"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "制作步骤 5",
+        "description": "组装吐司，在两片吐司间加入制作好的鸡蛋酱及培根",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "鸡蛋",
+          "吐司",
+          "培根"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 6,
+        "title": "准备食材",
+        "description": "四边形吐司切成三角形装盘",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "吐司"
+        ],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [
+      "也可加入芝士、酸黄瓜等食材。"
+    ],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "蛋类",
+      "乳制品"
+    ],
+    "suitableMeals": [
+      "早餐"
+    ],
+    "embeddingText": "鸡蛋三明治，早餐，简单难度；主要食材：鸡蛋1 个、吐司2 片、培根2 片、黄油10 g、蛋黄酱20g、盐1g、黑胡椒2g；烹饪方式：煮、煎；口味：家常。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.88,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "鸡蛋三明治",
+      "url": "https://proj.kitchen/api/recipes/%E9%B8%A1%E8%9B%8B%E4%B8%89%E6%98%8E%E6%B2%BB",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "早餐",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0367",
+    "name": "鸡蛋火腿炒黄瓜",
+    "aliases": [],
+    "category": "热菜",
+    "cuisine": "其他菜系",
+    "taste": [
+      "家常"
+    ],
+    "methods": [
+      "炒"
+    ],
+    "difficulty": "简单",
+    "durationMinutes": 21,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "黄瓜",
+        "normalizedName": "黄瓜",
+        "quantity": 1,
+        "unit": "根",
+        "rawAmount": "1 根（约 200g）",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "鸡蛋",
+        "normalizedName": "鸡蛋",
+        "quantity": 2,
+        "unit": "个",
+        "rawAmount": "2 个",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "火腿肠",
+        "normalizedName": "火腿肠",
+        "quantity": 1,
+        "unit": "根",
+        "rawAmount": "1 根（约 40g）",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "红尖椒",
+        "normalizedName": "红尖椒",
+        "quantity": 1,
+        "unit": "个",
+        "rawAmount": "1 个（可选）",
+        "role": "辅料",
+        "required": false,
+        "substitutes": []
+      },
+      {
+        "name": "食用油",
+        "normalizedName": "食用油",
+        "quantity": 10,
+        "unit": "毫升",
+        "rawAmount": "10ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "生抽",
+        "normalizedName": "生抽",
+        "quantity": 3,
+        "unit": "毫升",
+        "rawAmount": "3ml",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "盐",
+        "normalizedName": "盐",
+        "quantity": 2,
+        "unit": "克",
+        "rawAmount": "2g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "炒锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "准备食材",
+        "description": "黄瓜洗净，切半圆形片，备用",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "黄瓜"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "准备食材",
+        "description": "本步骤操作要求：火腿切半圆形片，备用，完成后进入下一步。",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "准备食材",
+        "description": "红尖椒（可选）切碎，备用",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "红尖椒"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "制作步骤 4",
+        "description": "将鸡蛋打入碗中，搅匀，即为 鸡蛋液",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "鸡蛋"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "制作步骤 5",
+        "description": "热锅里倒 5ml 食用油",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "食用油"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 6,
+        "title": "倒入配料",
+        "description": "油热后转小火，倒入打散的鸡蛋液，用筷子划散，翻炒至鸡蛋结为固体且颜色微微发黄，即为 半熟鸡蛋，盛出备用",
+        "durationMinutes": 2,
+        "heat": "小火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "鸡蛋"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 7,
+        "title": "准备食材",
+        "description": "不用洗锅**，往锅内倒入 5ml 食用油，倒入黄瓜片大火**翻炒 1 分钟**",
+        "durationMinutes": 1,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "黄瓜",
+          "食用油"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 8,
+        "title": "倒入配料",
+        "description": "把 半熟鸡蛋 倒入锅中，调入 2g 盐、3ml 生抽，立刻倒入火腿片和辣椒碎（可选）翻炒均匀",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "鸡蛋",
+          "生抽",
+          "盐"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 9,
+        "title": "制作步骤 9",
+        "description": "本步骤操作要求：关火，盛盘，完成后进入下一步。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [
+      "火腿是咸的，要在调味后才加入，这样不会让火腿也沾上盐。"
+    ],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "蛋类",
+      "麸质",
+      "大豆"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "鸡蛋火腿炒黄瓜，素菜，简单难度；主要食材：黄瓜1 根（约 200g）、鸡蛋2 个、火腿肠1 根（约 40g）、红尖椒1 个（可选）、食用油10ml、生抽3ml、盐2g；烹饪方式：炒；口味：家常。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.88,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "鸡蛋火腿炒黄瓜",
+      "url": "https://proj.kitchen/api/recipes/%E9%B8%A1%E8%9B%8B%E7%81%AB%E8%85%BF%E7%82%92%E9%BB%84%E7%93%9C",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "素菜",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0368",
+    "name": "鸡蛋羹",
+    "aliases": [],
+    "category": "热菜",
+    "cuisine": "其他菜系",
+    "taste": [
+      "酸香",
+      "家常"
+    ],
+    "methods": [
+      "蒸",
+      "煮",
+      "拌"
+    ],
+    "difficulty": "简单",
+    "durationMinutes": 53,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "鸡蛋",
+        "normalizedName": "鸡蛋",
+        "quantity": 2,
+        "unit": "个",
+        "rawAmount": "2 个",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "食用盐",
+        "normalizedName": "食用盐",
+        "quantity": 3,
+        "unit": "克",
+        "rawAmount": "3g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "香油（或芝麻油）",
+        "normalizedName": "香油（或芝麻油）",
+        "quantity": 3,
+        "unit": "毫升",
+        "rawAmount": "2-4ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "生抽",
+        "normalizedName": "生抽",
+        "quantity": 8,
+        "unit": "毫升",
+        "rawAmount": "/ 味极鲜 8ml",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "白醋（或料酒）",
+        "normalizedName": "白醋（或料酒）",
+        "quantity": 2,
+        "unit": "毫升",
+        "rawAmount": "2ml（可选）",
+        "role": "调味料",
+        "required": false,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "蒸锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "制作步骤 1",
+        "description": "本步骤操作要求：两个鸡蛋放入碗中打散，完成后进入下一步。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "鸡蛋"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "制作步骤 2",
+        "description": "本步骤操作要求：加入食用盐 3g，完成后进入下一步。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "食用盐"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "制作步骤 3",
+        "description": "盐起到了重要的增加底味和凝固作用",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "制作步骤 4",
+        "description": "加入 2ml 白醋，去除鸡蛋的腥味（可选）",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "鸡蛋"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "制作步骤 5",
+        "description": "加入米醋也行，但米醋的颜色会使鸡蛋微微发黑",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "鸡蛋"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 6,
+        "title": "制作步骤 6",
+        "description": "还可以加入料酒，同样具有去腥的作用，且没有醋的酸味",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 7,
+        "title": "调味拌匀",
+        "description": "向碗中加入鸡蛋体积 1-1.5 倍的 70 度纯净水，并且搅拌均匀",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": 70,
+        "ingredientsUsed": [
+          "鸡蛋"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 8,
+        "title": "制作步骤 8",
+        "description": "1 倍的水鸡蛋更弹，1.5 倍的水鸡蛋更嫩",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "鸡蛋"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 9,
+        "title": "蒸制",
+        "description": "过滤蛋液，去掉蛋液中的浮沫（可选，不过滤蒸出来的蛋会有气泡导致不好看）",
+        "durationMinutes": 8,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 10,
+        "title": "制作步骤 10",
+        "description": "向任意一口锅中加入 50ml 清水，水烧开后，放入盛有鸡蛋液的碗",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "鸡蛋"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 11,
+        "title": "蒸制",
+        "description": "蒸碗要盖上一个盖子，倒扣一个有凹槽的铁碟子，或者使用保鲜膜来减少水汽进入，这是为了避免其变成蜂窝状",
+        "durationMinutes": 8,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 12,
+        "title": "蒸制",
+        "description": "本步骤操作要求：蒸煮步骤（二选一），完成后进入下一步。",
+        "durationMinutes": 8,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 13,
+        "title": "制作步骤 13",
+        "description": "本步骤操作要求：如何判断已经熟了？，完成后进入下一步。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 14,
+        "title": "装盘完成",
+        "description": "晃动碗，蛋羹不再处于液体状态，拥有类似果冻的 Q 弹状态即可出锅。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 15,
+        "title": "装盘完成",
+        "description": "本步骤操作要求：出锅，完成后进入下一步。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 16,
+        "title": "制作步骤 16",
+        "description": "本步骤操作要求：加入香油和生抽即可享用，完成后进入下一步。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "生抽"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 17,
+        "title": "制作步骤 17",
+        "description": "也可用藤椒油代替香油，增加麻爽口感",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "蛋类",
+      "芝麻",
+      "麸质",
+      "大豆"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "鸡蛋羹，素菜，简单难度；主要食材：鸡蛋2 个、食用盐3g、香油（或芝麻油）2-4ml、生抽/ 味极鲜 8ml、白醋（或料酒）2ml（可选）；烹饪方式：蒸、煮、拌；口味：酸香、家常。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.85,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "鸡蛋羹",
+      "url": "https://proj.kitchen/api/recipes/%E9%B8%A1%E8%9B%8B%E7%BE%B9",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "素菜",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0369",
+    "name": "鸡蛋花",
+    "aliases": [
+      "鸡蛋花的做法"
+    ],
+    "category": "热菜",
+    "cuisine": "其他菜系",
+    "taste": [
+      "甜香",
+      "家常"
+    ],
+    "methods": [
+      "煮",
+      "拌"
+    ],
+    "difficulty": "简单",
+    "durationMinutes": 15,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "鸡蛋",
+        "normalizedName": "鸡蛋",
+        "quantity": 1,
+        "unit": "个",
+        "rawAmount": "1 个 （去壳后约 50 g）",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "沸水",
+        "normalizedName": "沸水",
+        "quantity": 125,
+        "unit": "毫升",
+        "rawAmount": "100 - 150 ml",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "白糖",
+        "normalizedName": "白糖",
+        "quantity": 7.5,
+        "unit": "克",
+        "rawAmount": "5 - 10 g （如制作甜口）",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "食盐",
+        "normalizedName": "食盐",
+        "quantity": 1.5,
+        "unit": "克",
+        "rawAmount": "1 - 2 g （如制作咸口）",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "炒锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "制作步骤 1",
+        "description": "本步骤操作要求：将鸡蛋打入碗中。，完成后进入下一步。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "鸡蛋"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "调味拌匀",
+        "description": "使用筷子或搅拌器，顺着一个方向搅打蛋液，直至蛋清与蛋黄完全混合均匀，颜色一致。（此过程约需 1 - 2 分钟）",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "调味拌匀",
+        "description": "将糖或盐等调味料加入蛋液中，略微搅匀。",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "煮制",
+        "description": "准备刚烧开的、100 ℃ 的沸水。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": 100,
+        "ingredientsUsed": [
+          "沸水"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "煮制",
+        "description": "一边用筷子快速搅拌碗中的蛋液，一边将沸水以细流状冲入蛋液中**。确保沸水与蛋液充分混合。",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "沸水"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 6,
+        "title": "调味拌匀",
+        "description": "持续搅拌片刻，直至蛋液被完全烫熟，形成均匀的淡黄色蛋花。",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [
+      "为了防止生鸡蛋中可能含有的沙门氏菌，建议使用刚烧开的、100 ℃ 的滚水，瞬间将鸡蛋液完全烫熟。"
+    ],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "蛋类"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "鸡蛋花，素菜，简单难度；主要食材：鸡蛋1 个 （去壳后约 50 g）、沸水100 - 150 ml、白糖5 - 10 g （如制作甜口）、食盐1 - 2 g （如制作咸口）；烹饪方式：煮、拌；口味：甜香、家常。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.88,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "鸡蛋花的做法",
+      "url": "https://proj.kitchen/api/recipes/%E9%B8%A1%E8%9B%8B%E8%8A%B1%E7%9A%84%E5%81%9A%E6%B3%95",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "素菜",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0370",
+    "name": "鹰嘴豆炸饼",
+    "aliases": [],
+    "category": "主食",
+    "cuisine": "其他菜系",
+    "taste": [
+      "香辣",
+      "咖喱香",
+      "蒜香"
+    ],
+    "methods": [
+      "煮",
+      "炖",
+      "炒",
+      "炸",
+      "拌"
+    ],
+    "difficulty": "中等",
+    "durationMinutes": 646,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "鹰嘴豆咖喱(Chole)部分：**",
+        "normalizedName": "鹰嘴豆咖喱(Chole)部分：**",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "干鹰嘴豆",
+        "normalizedName": "干鹰嘴豆",
+        "quantity": 200,
+        "unit": "克",
+        "rawAmount": "200g（提前浸泡 8 小时）",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "洋葱",
+        "normalizedName": "洋葱",
+        "quantity": 2,
+        "unit": "个",
+        "rawAmount": "2 个（约 200g），切碎",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "番茄",
+        "normalizedName": "番茄",
+        "quantity": 3,
+        "unit": "个",
+        "rawAmount": "3 个（约 300g），切碎",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "生姜",
+        "normalizedName": "生姜",
+        "quantity": 10,
+        "unit": "克",
+        "rawAmount": "10g，磨碎",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "大蒜",
+        "normalizedName": "大蒜",
+        "quantity": 4,
+        "unit": "瓣",
+        "rawAmount": "4 瓣（约 12g），磨碎",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "青辣椒",
+        "normalizedName": "青辣椒",
+        "quantity": 2,
+        "unit": "根",
+        "rawAmount": "2 根，切缝",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "食用油",
+        "normalizedName": "食用油",
+        "quantity": 30,
+        "unit": "毫升",
+        "rawAmount": "30ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "红茶包",
+        "normalizedName": "红茶包",
+        "quantity": 1,
+        "unit": "个",
+        "rawAmount": "1 个",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "姜黄粉",
+        "normalizedName": "姜黄粉",
+        "quantity": 3,
+        "unit": "克",
+        "rawAmount": "3g",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "红辣椒粉",
+        "normalizedName": "红辣椒粉",
+        "quantity": 5,
+        "unit": "克",
+        "rawAmount": "5g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "香菜粉",
+        "normalizedName": "香菜粉",
+        "quantity": 8,
+        "unit": "克",
+        "rawAmount": "8g",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "孜然粉",
+        "normalizedName": "孜然粉",
+        "quantity": 5,
+        "unit": "克",
+        "rawAmount": "5g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "印度综合香料粉",
+        "normalizedName": "印度综合香料粉",
+        "quantity": 5,
+        "unit": "克",
+        "rawAmount": "5g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "石榴粉",
+        "normalizedName": "石榴粉",
+        "quantity": 3,
+        "unit": "毫升",
+        "rawAmount": "3g（或柠檬汁 15ml）",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "盐",
+        "normalizedName": "盐",
+        "quantity": 6,
+        "unit": "克",
+        "rawAmount": "6g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "水",
+        "normalizedName": "水",
+        "quantity": 500,
+        "unit": "毫升",
+        "rawAmount": "500ml",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "炸饼(Bhature)部分：**",
+        "normalizedName": "炸饼(Bhature)部分：**",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "中筋面粉",
+        "normalizedName": "中筋面粉",
+        "quantity": 250,
+        "unit": "克",
+        "rawAmount": "250g",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "酸奶",
+        "normalizedName": "酸奶",
+        "quantity": 60,
+        "unit": "毫升",
+        "rawAmount": "60ml",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "食用油",
+        "normalizedName": "食用油",
+        "quantity": 15,
+        "unit": "毫升",
+        "rawAmount": "15ml（和面用）",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "小苏打",
+        "normalizedName": "小苏打",
+        "quantity": 2,
+        "unit": "克",
+        "rawAmount": "2g",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "盐",
+        "normalizedName": "盐",
+        "quantity": 3,
+        "unit": "克",
+        "rawAmount": "3g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "温水 约",
+        "normalizedName": "温水 约",
+        "quantity": 60,
+        "unit": "毫升",
+        "rawAmount": "60ml",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "食用油",
+        "normalizedName": "食用油",
+        "quantity": 500,
+        "unit": "毫升",
+        "rawAmount": "500ml（炸饼用）",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "炒锅",
+      "高压锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "制作步骤 1",
+        "description": "将干鹰嘴豆用清水浸泡过夜（至少 8 小时），浸泡后体积会膨胀至约两倍",
+        "durationMinutes": 480,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "干鹰嘴豆",
+          "水"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "制作步骤 2",
+        "description": "将浸泡好的鹰嘴豆沥干水分",
+        "durationMinutes": 15,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "水"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "制作步骤 3",
+        "description": "放入锅中，加入 500ml 水和 1 个红茶包（用于上色）",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "红茶包",
+          "水"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "煮制",
+        "description": "大火煮沸后转中火，**煮 25-30 分钟**，直至*鹰嘴豆用手指可以轻松压碎*",
+        "durationMinutes": 30,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "煮制",
+        "description": "取出红茶包，保留煮豆的汤水，备用",
+        "durationMinutes": 8,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "红茶包",
+          "水"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 6,
+        "title": "倒入配料",
+        "description": "在炒锅中倒入 30ml 食用油，中火加热",
+        "durationMinutes": 2,
+        "heat": "中火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "食用油",
+          "食用油",
+          "食用油"
+        ],
+        "cookwareUsed": [
+          "炒锅"
+        ]
+      },
+      {
+        "order": 7,
+        "title": "准备食材",
+        "description": "放入切碎的洋葱，翻炒至*金棕色*（约 6-8 分钟）",
+        "durationMinutes": 8,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "洋葱"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 8,
+        "title": "翻炒",
+        "description": "加入磨碎的生姜和大蒜，翻炒 1 分钟",
+        "durationMinutes": 1,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "生姜",
+          "大蒜"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 9,
+        "title": "准备食材",
+        "description": "加入切碎的番茄，翻炒至*番茄完全软烂出油*（约 5 分钟）",
+        "durationMinutes": 5,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "番茄"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 10,
+        "title": "制作步骤 10",
+        "description": "加入姜黄粉 3g、红辣椒粉 5g、香菜粉 8g、孜然粉 5g、盐 6g",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "姜黄粉",
+          "红辣椒粉",
+          "香菜粉",
+          "孜然粉",
+          "盐",
+          "盐"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 11,
+        "title": "翻炒",
+        "description": "翻炒 2 分钟，使香料充分释放香味",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 12,
+        "title": "倒入配料",
+        "description": "将煮好的鹰嘴豆连同汤水一起倒入锅中",
+        "durationMinutes": 8,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "水"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 13,
+        "title": "调味拌匀",
+        "description": "本步骤操作要求：加入青辣椒，搅拌均匀，完成后进入下一步。",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "青辣椒"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 14,
+        "title": "炖煮",
+        "description": "大火煮沸后转小火，**炖 15-20 分钟**，期间可用铲子背面压碎一些鹰嘴豆使汤汁变稠",
+        "durationMinutes": 20,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 15,
+        "title": "制作步骤 15",
+        "description": "加入印度综合香料粉 5g 和石榴粉 3g（或柠檬汁 15ml）",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "印度综合香料粉",
+          "石榴粉"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 16,
+        "title": "调味拌匀",
+        "description": "本步骤操作要求：搅拌均匀后关火，备用，完成后进入下一步。",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 17,
+        "title": "制作步骤 17",
+        "description": "在大碗中混合中筋面粉 250g、小苏打 2g、盐 3g",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "盐",
+          "中筋面粉",
+          "小苏打",
+          "盐"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 18,
+        "title": "制作步骤 18",
+        "description": "加入酸奶 60ml 和食用油 15ml",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "食用油",
+          "酸奶",
+          "食用油",
+          "食用油"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 19,
+        "title": "制作步骤 19",
+        "description": "逐渐加入温水，边加边揉，揉成*光滑柔软*的面团（面团应比普通面团稍软）",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "水"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 20,
+        "title": "制作步骤 20",
+        "description": "用湿布盖住面团，静置 **30 分钟**",
+        "durationMinutes": 30,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 21,
+        "title": "制作步骤 21",
+        "description": "将面团分成 8 个等大的小剂子",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 22,
+        "title": "制作步骤 22",
+        "description": "取一个剂子，手上沾少量油，擀成直径约 15cm、厚度约 3mm 的圆形面饼",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 23,
+        "title": "倒入配料",
+        "description": "在深锅中倒入 500ml 食用油，中大火加热至油温约 180°C",
+        "durationMinutes": 2,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "食用油",
+          "食用油",
+          "食用油"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 24,
+        "title": "制作步骤 24",
+        "description": "将面饼轻轻滑入热油中，用漏勺轻轻按压面饼使其*膨胀鼓起*",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 25,
+        "title": "炸制",
+        "description": "炸 1-2 分钟**，翻面炸至*两面金黄*",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 26,
+        "title": "制作步骤 26",
+        "description": "捞出，用厨房纸吸去多余油分",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 27,
+        "title": "制作步骤 27",
+        "description": "本步骤操作要求：将鹰嘴豆咖喱重新加热，完成后进入下一步。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 28,
+        "title": "炸制",
+        "description": "炸饼趁热上桌，搭配鹰嘴豆咖喱食用",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 29,
+        "title": "准备食材",
+        "description": "可搭配切片洋葱、青辣椒和柠檬角",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "洋葱",
+          "青辣椒"
+        ],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [
+      "鹰嘴豆提前浸泡是必须步骤，不泡的话煮不软。",
+      "如果时间紧迫，可以用高压锅将未泡的鹰嘴豆压 20 分钟。",
+      "红茶包的作用是给鹰嘴豆上色，使其呈现深棕色。",
+      "这是印度餐厅的秘诀。",
+      "炸饼面团中的酸奶和小苏打是其松软蓬松的关键。",
+      "面团不宜太硬。",
+      "这道菜在印度是国民级的早午餐，从路边摊到高档餐厅都有供应。",
+      "在中国的印度餐厅中通常被称为\"鹰嘴豆咖喱配炸饼\"。"
+    ],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "乳制品",
+      "麸质"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "鹰嘴豆炸饼，主食，中等难度；主要食材：鹰嘴豆咖喱(Chole)部分：**适量、干鹰嘴豆200g（提前浸泡 8 小时）、洋葱2 个（约 200g），切碎、番茄3 个（约 300g），切碎、生姜10g，磨碎、大蒜4 瓣（约 12g），磨碎、青辣椒2 根，切缝、食用油30ml、红茶包1 个、姜黄粉3g、红辣椒粉5g、香菜粉8g、孜然粉5g、印度综合香料粉5g、石榴粉3g（或柠檬汁 15ml）、盐6g、水500ml、炸饼(Bhature)部分：**适量、中筋面粉250g、酸奶60ml、食用油15ml（和面用）、小苏打2g、盐3g、温水 约60ml、食用油500ml（炸饼用）；烹饪方式：煮、炖、炒、炸、拌；口味：香辣、咖喱香、蒜香。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.88,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "鹰嘴豆炸饼",
+      "url": "https://proj.kitchen/api/recipes/%E9%B9%B0%E5%98%B4%E8%B1%86%E7%82%B8%E9%A5%BC",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "主食",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0371",
+    "name": "麻婆豆腐（咸鸭蛋版）",
+    "aliases": [],
+    "category": "热菜",
+    "cuisine": "其他菜系",
+    "taste": [
+      "香辣",
+      "蒜香",
+      "家常"
+    ],
+    "methods": [
+      "煮",
+      "炒",
+      "拌"
+    ],
+    "difficulty": "中等",
+    "durationMinutes": 35,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "1 盒内脂豆腐",
+        "normalizedName": "1 盒内脂豆腐",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "1 枚咸鸭蛋",
+        "normalizedName": "1 枚咸鸭蛋",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "20-30g 五花肉",
+        "normalizedName": "20-30g 五花肉",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "两瓣大蒜",
+        "normalizedName": "两瓣大蒜",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "2 片生姜",
+        "normalizedName": "2 片生姜",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "5 根小米辣",
+        "normalizedName": "5 根小米辣",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "5g 蒜蓉辣酱",
+        "normalizedName": "5g 蒜蓉辣酱",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "20 颗花椒",
+        "normalizedName": "20 颗花椒",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "3g 食盐",
+        "normalizedName": "3g 食盐",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "10g 酱油",
+        "normalizedName": "10g 酱油",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "炒锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "准备食材",
+        "description": "本步骤操作要求：大蒜和生姜切碎，备用，完成后进入下一步。",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "准备食材",
+        "description": "本步骤操作要求：小米辣切成辣椒圈，备用，完成后进入下一步。",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "准备食材",
+        "description": "五花肉切成肉糜（本来就是买的肉糜的跳过）",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "调味拌匀",
+        "description": "肉糜中加入一半的食盐和味极鲜酱油，搅拌均匀，备用",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "准备食材",
+        "description": "鸭蛋用菜刀竖着对半切开（注意安全），去除蛋黄（一定要去除，不然会腥），剩下的蛋白捣碎成大约 2 mm * 2 mm 大小，不用太碎，备用",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 6,
+        "title": "制作步骤 6",
+        "description": "打开豆腐包装，用水果刀将在盒子中的豆腐划成大约 2.5 cm * 3 cm 大小，备用",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 7,
+        "title": "制作步骤 7",
+        "description": "热锅，锅内放入 10ml - 15ml 食用油。等待 10 秒让油温升高",
+        "durationMinutes": 0.5,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 8,
+        "title": "翻炒",
+        "description": "调成小火，放入大蒜、生姜、辣椒圈、花椒、咸鸭蛋、蒜蓉辣酱翻炒 20 秒，炒出香味",
+        "durationMinutes": 0.5,
+        "heat": "小火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 9,
+        "title": "翻炒",
+        "description": "调成中火，放入肉糜，翻炒大约 1 分钟，肉炒变色",
+        "durationMinutes": 1,
+        "heat": "中火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 10,
+        "title": "制作步骤 10",
+        "description": "调成小火，放入豆腐，将剩下的食盐、味极鲜酱油酱油均匀的洒在豆腐上",
+        "durationMinutes": 2,
+        "heat": "小火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 11,
+        "title": "倒入配料",
+        "description": "从锅边倒入开水（不然豆腐容易破），没过豆腐即可",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 12,
+        "title": "煮制",
+        "description": "开大火，水沸腾后立马转入中火，等待大约 10 分钟",
+        "durationMinutes": 10,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 13,
+        "title": "制作步骤 13",
+        "description": "等到水只剩 1/5 并且豆腐表面已经入色，关火，盛盘",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [
+      "期间一定要注意观察，防止糊锅。"
+    ],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "蛋类",
+      "麸质",
+      "大豆"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "麻婆豆腐（咸鸭蛋版），荤菜，中等难度；主要食材：1 盒内脂豆腐适量、1 枚咸鸭蛋适量、20-30g 五花肉适量、两瓣大蒜适量、2 片生姜适量、5 根小米辣适量、5g 蒜蓉辣酱适量、20 颗花椒适量、3g 食盐适量、10g 酱油适量；烹饪方式：煮、炒、拌；口味：香辣、蒜香、家常。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.82,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "麻婆豆腐",
+      "url": "https://proj.kitchen/api/recipes/%E9%BA%BB%E5%A9%86%E8%B1%86%E8%85%90",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "荤菜",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0372",
+    "name": "麻油拌面",
+    "aliases": [],
+    "category": "主食",
+    "cuisine": "其他菜系",
+    "taste": [
+      "家常"
+    ],
+    "methods": [
+      "煮",
+      "拌"
+    ],
+    "difficulty": "简单",
+    "durationMinutes": 24,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "水",
+        "normalizedName": "水",
+        "quantity": 1,
+        "unit": "升",
+        "rawAmount": "1 升",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "快熟面",
+        "normalizedName": "快熟面",
+        "quantity": 1,
+        "unit": "块",
+        "rawAmount": "1 块",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "麻油",
+        "normalizedName": "麻油",
+        "quantity": 15,
+        "unit": "毫升",
+        "rawAmount": "15ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "老抽",
+        "normalizedName": "老抽",
+        "quantity": 10,
+        "unit": "克",
+        "rawAmount": "10 克",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "盐",
+        "normalizedName": "盐",
+        "quantity": 30,
+        "unit": "克",
+        "rawAmount": "30 克（可选，这 30g 盐不会被全部食用）",
+        "role": "调味料",
+        "required": false,
+        "substitutes": []
+      },
+      {
+        "name": "胡椒粉",
+        "normalizedName": "胡椒粉",
+        "quantity": 10,
+        "unit": "克",
+        "rawAmount": "10 克",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "生抽",
+        "normalizedName": "生抽",
+        "quantity": 5,
+        "unit": "克",
+        "rawAmount": "5 克（可选）",
+        "role": "辅料",
+        "required": false,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "炒锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "倒入配料",
+        "description": "将水倒入锅中并煮沸 （喜欢吃 q 弹面的同学，可在水里加入 30 克盐，用盐水煮出来的面会比较 q 弹）",
+        "durationMinutes": 8,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "水",
+          "盐"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "制作步骤 2",
+        "description": "将快熟面放入锅中 3 分钟（也可参考当下品牌快熟面的烹饪时间）",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "快熟面"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "调味拌匀",
+        "description": "当面开始散了可以开始搅拌，让面受热均匀",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "倒入配料",
+        "description": "本步骤操作要求：将水滤干把面倒入碗中，完成后进入下一步。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "水"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "制作步骤 5",
+        "description": "按照上面的计量放入麻油，老抽，胡椒粉，生抽（可选）",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "麻油",
+          "老抽",
+          "胡椒粉",
+          "生抽"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 6,
+        "title": "调味拌匀",
+        "description": "本步骤操作要求：筷子搅拌均匀，完成后进入下一步。",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 7,
+        "title": "调味拌匀",
+        "description": "一道简单即省钱的懒人麻油拌面就完成啦",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "麻油"
+        ],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "麸质",
+      "大豆"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "麻油拌面，主食，简单难度；主要食材：水1 升、快熟面1 块、麻油15ml、老抽10 克、盐30 克（可选，这 30g 盐不会被全部食用）、胡椒粉10 克、生抽5 克（可选）；烹饪方式：煮、拌；口味：家常。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.85,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "麻油拌面",
+      "url": "https://proj.kitchen/api/recipes/%E9%BA%BB%E6%B2%B9%E6%8B%8C%E9%9D%A2",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "主食",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0373",
+    "name": "麻辣减脂荞麦面",
+    "aliases": [],
+    "category": "主食",
+    "cuisine": "其他菜系",
+    "taste": [
+      "香辣",
+      "酸香",
+      "家常"
+    ],
+    "methods": [
+      "煮"
+    ],
+    "difficulty": "简单",
+    "durationMinutes": 14,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "半干荞麦面",
+        "normalizedName": "半干荞麦面",
+        "quantity": 100,
+        "unit": "克",
+        "rawAmount": "100g",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "娃娃菜",
+        "normalizedName": "娃娃菜",
+        "quantity": 8,
+        "unit": "片",
+        "rawAmount": "8 片（共 150g）",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "生菜",
+        "normalizedName": "生菜",
+        "quantity": 6,
+        "unit": "片",
+        "rawAmount": "6 片（共 80g）",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "火锅底料",
+        "normalizedName": "火锅底料",
+        "quantity": 25,
+        "unit": "克",
+        "rawAmount": "25g",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "花生酱",
+        "normalizedName": "花生酱",
+        "quantity": 15,
+        "unit": "克",
+        "rawAmount": "15g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "全脂牛奶",
+        "normalizedName": "全脂牛奶",
+        "quantity": 150,
+        "unit": "毫升",
+        "rawAmount": "150ml",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "生抽",
+        "normalizedName": "生抽",
+        "quantity": 6,
+        "unit": "毫升",
+        "rawAmount": "6ml",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "辣椒油",
+        "normalizedName": "辣椒油",
+        "quantity": 10,
+        "unit": "毫升",
+        "rawAmount": "10ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "醋",
+        "normalizedName": "醋",
+        "quantity": 20,
+        "unit": "毫升",
+        "rawAmount": "20ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "花椒油",
+        "normalizedName": "花椒油",
+        "quantity": 10,
+        "unit": "毫升",
+        "rawAmount": "10ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "水",
+        "normalizedName": "水",
+        "quantity": 500,
+        "unit": "毫升",
+        "rawAmount": "500ml",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "炒锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "准备食材",
+        "description": "本步骤操作要求：娃娃菜、生菜洗好，备用，完成后进入下一步。",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "娃娃菜",
+          "生菜"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "倒入配料",
+        "description": "锅内倒入 500ml 水，开大火，将荞麦面和娃娃菜放进去，等待水沸腾",
+        "durationMinutes": 2,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "娃娃菜",
+          "水"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "煮制",
+        "description": "水沸腾后，转小火，加入火锅底料、花生酱、牛奶、生抽、辣椒油，水开后煮 5 分钟",
+        "durationMinutes": 5,
+        "heat": "小火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "火锅底料",
+          "花生酱",
+          "生抽",
+          "辣椒油",
+          "水"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "煮制",
+        "description": "加入生菜，再煮 2 分钟",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "生菜"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "制作步骤 5",
+        "description": "加入醋、花椒油，关火，直接端着小锅开吃。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "醋",
+          "花椒油"
+        ],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [
+      "一定要选半干荞麦面，口感最好。",
+      "可以随意添加其他东西，比如火锅丸、蛋饺等。",
+      "火锅底料、花生酱、牛奶一定要加，口味三大巨头。",
+      "如果不能吃酸，可以不加醋。"
+    ],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "乳制品",
+      "花生",
+      "麸质",
+      "大豆"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "麻辣减脂荞麦面，主食，简单难度；主要食材：半干荞麦面100g、娃娃菜8 片（共 150g）、生菜6 片（共 80g）、火锅底料25g、花生酱15g、全脂牛奶150ml、生抽6ml、辣椒油10ml、醋20ml、花椒油10ml、水500ml；烹饪方式：煮；口味：香辣、酸香、家常。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.88,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "麻辣减脂荞麦面",
+      "url": "https://proj.kitchen/api/recipes/%E9%BA%BB%E8%BE%A3%E5%87%8F%E8%84%82%E8%8D%9E%E9%BA%A6%E9%9D%A2",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "主食",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0374",
+    "name": "黄油煎虾",
+    "aliases": [],
+    "category": "热菜",
+    "cuisine": "家常菜",
+    "taste": [
+      "甜香",
+      "家常"
+    ],
+    "methods": [
+      "炒"
+    ],
+    "difficulty": "中等",
+    "durationMinutes": 10,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "鲜虾",
+        "normalizedName": "鲜虾",
+        "quantity": 300,
+        "unit": "克",
+        "rawAmount": "300g",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "黄油",
+        "normalizedName": "黄油",
+        "quantity": 7,
+        "unit": "克",
+        "rawAmount": "7g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "黑胡椒粒 大概",
+        "normalizedName": "黑胡椒粒 大概",
+        "quantity": 15,
+        "unit": "毫升",
+        "rawAmount": "15ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "食用油",
+        "normalizedName": "食用油",
+        "quantity": 45,
+        "unit": "毫升",
+        "rawAmount": "45ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "生抽",
+        "normalizedName": "生抽",
+        "quantity": 10,
+        "unit": "毫升",
+        "rawAmount": "10ml",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "米酒",
+        "normalizedName": "米酒",
+        "quantity": 5,
+        "unit": "毫升",
+        "rawAmount": "5ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "白糖",
+        "normalizedName": "白糖",
+        "quantity": 10,
+        "unit": "毫升",
+        "rawAmount": "10ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "盐",
+        "normalizedName": "盐",
+        "quantity": 2.5,
+        "unit": "毫升",
+        "rawAmount": "2.5ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "炒锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "准备食材",
+        "description": "鲜虾摘除头部，顺带扯出虾线（这步处理不好可在下一步开背时取出虾线），使用剪刀剪开或菜刀片开虾背，沥干水分备用",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "鲜虾"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "制作步骤 2",
+        "description": "调制酱汁：小碗放入上述量的全部生抽、米酒、白糖、盐搅匀备用",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "生抽",
+          "米酒",
+          "白糖",
+          "盐"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "制作步骤 3",
+        "description": "中大火热锅，热锅内放入食用油，等待 10 秒让油温升高",
+        "durationMinutes": 0.5,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "食用油"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "翻炒",
+        "description": "虾全部放入锅中，开始瓶磨黑胡椒，均匀地撒在虾上翻炒",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "倒入配料",
+        "description": "虾变色后加入黄油，黄油完全融化后倒入调制酱汁，继续翻炒",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "黄油"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 6,
+        "title": "翻炒",
+        "description": "大火翻炒 15 秒收汁即可装盘",
+        "durationMinutes": 0.5,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [
+      "虾开背才更好入味，不过处理时切记切记小心用刀，新手容易伤到手。",
+      "[冯小厨的菜谱](https://www.bilibili.com/video/BV1g541177cd)。"
+    ],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "乳制品",
+      "麸质",
+      "大豆",
+      "甲壳类"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "黄油煎虾，水产，中等难度；主要食材：鲜虾300g、黄油7g、黑胡椒粒 大概15ml、食用油45ml、生抽10ml、米酒5ml、白糖10ml、盐2.5ml；烹饪方式：炒；口味：甜香、家常。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.88,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "黄油煎虾",
+      "url": "https://proj.kitchen/api/recipes/%E9%BB%84%E6%B2%B9%E7%85%8E%E8%99%BE",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "水产",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0375",
+    "name": "黄油鸡",
+    "aliases": [],
+    "category": "热菜",
+    "cuisine": "其他菜系",
+    "taste": [
+      "香辣",
+      "酸香",
+      "甜香"
+    ],
+    "methods": [
+      "煮",
+      "炖",
+      "炒",
+      "煎",
+      "烤",
+      "拌",
+      "腌"
+    ],
+    "difficulty": "中等",
+    "durationMinutes": 141,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "腌鸡部分：**",
+        "normalizedName": "腌鸡部分：**",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "鸡腿肉",
+        "normalizedName": "鸡腿肉",
+        "quantity": 500,
+        "unit": "块",
+        "rawAmount": "500g（去骨，切大块）",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "酸奶",
+        "normalizedName": "酸奶",
+        "quantity": 80,
+        "unit": "毫升",
+        "rawAmount": "80ml",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "生姜",
+        "normalizedName": "生姜",
+        "quantity": 10,
+        "unit": "克",
+        "rawAmount": "10g，磨碎",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "大蒜",
+        "normalizedName": "大蒜",
+        "quantity": 4,
+        "unit": "瓣",
+        "rawAmount": "4 瓣（约 12g），磨碎",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "红辣椒粉",
+        "normalizedName": "红辣椒粉",
+        "quantity": 5,
+        "unit": "克",
+        "rawAmount": "5g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "姜黄粉",
+        "normalizedName": "姜黄粉",
+        "quantity": 3,
+        "unit": "克",
+        "rawAmount": "3g",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "盐",
+        "normalizedName": "盐",
+        "quantity": 3,
+        "unit": "克",
+        "rawAmount": "3g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "柠檬汁",
+        "normalizedName": "柠檬汁",
+        "quantity": 15,
+        "unit": "毫升",
+        "rawAmount": "15ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "食用油",
+        "normalizedName": "食用油",
+        "quantity": 15,
+        "unit": "毫升",
+        "rawAmount": "15ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "酱汁部分：**",
+        "normalizedName": "酱汁部分：**",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "番茄",
+        "normalizedName": "番茄",
+        "quantity": 5,
+        "unit": "个",
+        "rawAmount": "5 个（约 500g），切块",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "洋葱",
+        "normalizedName": "洋葱",
+        "quantity": 1,
+        "unit": "个",
+        "rawAmount": "1 个（约 100g），切块",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "腰果",
+        "normalizedName": "腰果",
+        "quantity": 30,
+        "unit": "克",
+        "rawAmount": "30g",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "生姜",
+        "normalizedName": "生姜",
+        "quantity": 10,
+        "unit": "克",
+        "rawAmount": "10g",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "大蒜",
+        "normalizedName": "大蒜",
+        "quantity": 4,
+        "unit": "瓣",
+        "rawAmount": "4 瓣",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "黄油",
+        "normalizedName": "黄油",
+        "quantity": 50,
+        "unit": "克",
+        "rawAmount": "50g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "淡奶油",
+        "normalizedName": "淡奶油",
+        "quantity": 100,
+        "unit": "毫升",
+        "rawAmount": "100ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "红辣椒粉",
+        "normalizedName": "红辣椒粉",
+        "quantity": 5,
+        "unit": "克",
+        "rawAmount": "5g（Kashmiri 红辣椒粉最佳）",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "香菜粉",
+        "normalizedName": "香菜粉",
+        "quantity": 5,
+        "unit": "克",
+        "rawAmount": "5g",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "孜然粉",
+        "normalizedName": "孜然粉",
+        "quantity": 3,
+        "unit": "克",
+        "rawAmount": "3g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "印度综合香料粉",
+        "normalizedName": "印度综合香料粉",
+        "quantity": 3,
+        "unit": "克",
+        "rawAmount": "3g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "小豆蔻粉",
+        "normalizedName": "小豆蔻粉",
+        "quantity": 2,
+        "unit": "克",
+        "rawAmount": "2g",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "干葫芦巴叶",
+        "normalizedName": "干葫芦巴叶",
+        "quantity": 3,
+        "unit": "克",
+        "rawAmount": "3g（用手搓碎）",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "糖",
+        "normalizedName": "糖",
+        "quantity": 10,
+        "unit": "克",
+        "rawAmount": "10g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "盐",
+        "normalizedName": "盐",
+        "quantity": 5,
+        "unit": "克",
+        "rawAmount": "5g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "水",
+        "normalizedName": "水",
+        "quantity": 100,
+        "unit": "毫升",
+        "rawAmount": "100ml",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "炒锅",
+      "搅拌机"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "制作步骤 1",
+        "description": "在大碗中混合酸奶、生姜泥、大蒜泥、红辣椒粉、姜黄粉、盐、柠檬汁",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "酸奶",
+          "生姜",
+          "大蒜",
+          "红辣椒粉",
+          "姜黄粉",
+          "盐",
+          "柠檬汁",
+          "生姜",
+          "大蒜",
+          "红辣椒粉",
+          "盐"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "腌制入味",
+        "description": "放入鸡肉块，充分裹上腌料",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "腌制入味",
+        "description": "盖保鲜膜，冷藏腌制**至少 1 小时**",
+        "durationMinutes": 60,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "倒入配料",
+        "description": "在平底锅中倒入 15ml 食用油，大火加热",
+        "durationMinutes": 2,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "食用油"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "倒入配料",
+        "description": "将腌好的鸡肉块放入锅中（不要倒入腌料汁）",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 6,
+        "title": "煮制",
+        "description": "大火煎至*两面焦黄*（每面约 3 分钟），鸡肉不需要完全煮熟",
+        "durationMinutes": 3,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 7,
+        "title": "制作步骤 7",
+        "description": "本步骤操作要求：盛出备用，完成后进入下一步。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 8,
+        "title": "制作步骤 8",
+        "description": "在锅中放入番茄块、洋葱块、腰果、生姜、大蒜和水 100ml",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "生姜",
+          "大蒜",
+          "番茄",
+          "洋葱",
+          "腰果",
+          "生姜",
+          "大蒜",
+          "水"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 9,
+        "title": "煮制",
+        "description": "大火煮沸后转中火，**煮 15 分钟**，直至*所有材料完全软烂*",
+        "durationMinutes": 15,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 10,
+        "title": "倒入配料",
+        "description": "稍微冷却后，倒入搅拌机中打成*细腻顺滑的泥状*",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": [
+          "搅拌机"
+        ]
+      },
+      {
+        "order": 11,
+        "title": "制作步骤 11",
+        "description": "用滤网过滤一遍，去除渣滓，得到顺滑的酱汁，备用",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 12,
+        "title": "翻炒",
+        "description": "在炒锅中放入黄油 50g，中火加热融化",
+        "durationMinutes": 2,
+        "heat": "中火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "黄油"
+        ],
+        "cookwareUsed": [
+          "炒锅"
+        ]
+      },
+      {
+        "order": 13,
+        "title": "倒入配料",
+        "description": "本步骤操作要求：倒入过滤好的番茄酱汁，完成后进入下一步。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "番茄"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 14,
+        "title": "制作步骤 14",
+        "description": "加入红辣椒粉 5g、香菜粉 5g、孜然粉 3g、盐 5g",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "红辣椒粉",
+          "盐",
+          "红辣椒粉",
+          "香菜粉",
+          "孜然粉",
+          "盐"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 15,
+        "title": "翻炒",
+        "description": "翻炒 **3-5 分钟**，直至*酱汁颜色变深且油花浮出*",
+        "durationMinutes": 5,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 16,
+        "title": "烘烤",
+        "description": "放入烤好的鸡肉块，翻拌均匀",
+        "durationMinutes": 8,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 17,
+        "title": "调味拌匀",
+        "description": "加入糖 10g（平衡番茄的酸味），搅拌",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "番茄",
+          "糖"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 18,
+        "title": "倒入配料",
+        "description": "倒入淡奶油 100ml，搅拌均匀",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "淡奶油"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 19,
+        "title": "炖煮",
+        "description": "小火**炖 10-12 分钟**，使鸡肉完全熟透且吸收酱汁",
+        "durationMinutes": 12,
+        "heat": "小火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 20,
+        "title": "制作步骤 20",
+        "description": "加入印度综合香料粉 3g、小豆蔻粉 2g",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "印度综合香料粉",
+          "小豆蔻粉"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 21,
+        "title": "制作步骤 21",
+        "description": "撒入干葫芦巴叶 3g（用手搓碎后撒入）",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "干葫芦巴叶"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 22,
+        "title": "调味拌匀",
+        "description": "本步骤操作要求：搅拌均匀，关火，完成后进入下一步。",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 23,
+        "title": "制作步骤 23",
+        "description": "盛盘，可额外淋上少量淡奶油作为装饰",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "淡奶油"
+        ],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [
+      "干葫芦巴叶(Kasuri Methi)是这道菜独特风味的关键配料，能赋予一种特殊的草本香气。",
+      "在印度食品店或电商平台可以购买到。",
+      "使用 Kashmiri 红辣椒粉可以使颜色更鲜红但辣度较低。",
+      "如果买不到，可以用普通红辣椒粉减半并加入 3g 红甜椒粉。",
+      "腰果的作用是使酱汁更加浓稠丝滑。",
+      "如果对坚果过敏，可以用等量的淡奶油替代。",
+      "此菜通常搭配印度烤饼(Naan)或巴斯马蒂米饭食用。",
+      "黄油鸡被认为是印度对世界美食最大的贡献之一，在全球各地的印度餐厅菜单上几乎都名列前茅。"
+    ],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "乳制品",
+      "坚果"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "黄油鸡，荤菜，中等难度；主要食材：腌鸡部分：**适量、鸡腿肉500g（去骨，切大块）、酸奶80ml、生姜10g，磨碎、大蒜4 瓣（约 12g），磨碎、红辣椒粉5g、姜黄粉3g、盐3g、柠檬汁15ml、食用油15ml、酱汁部分：**适量、番茄5 个（约 500g），切块、洋葱1 个（约 100g），切块、腰果30g、生姜10g、大蒜4 瓣、黄油50g、淡奶油100ml、红辣椒粉5g（Kashmiri 红辣椒粉最佳）、香菜粉5g、孜然粉3g、印度综合香料粉3g、小豆蔻粉2g、干葫芦巴叶3g（用手搓碎）、糖10g、盐5g、水100ml；烹饪方式：煮、炖、炒、煎、烤、拌、腌；口味：香辣、酸香、甜香。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.88,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "黄油鸡",
+      "url": "https://proj.kitchen/api/recipes/%E9%BB%84%E6%B2%B9%E9%B8%A1",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "荤菜",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0376",
+    "name": "黄焖鸡",
+    "aliases": [],
+    "category": "热菜",
+    "cuisine": "其他菜系",
+    "taste": [
+      "香辣",
+      "甜香",
+      "家常"
+    ],
+    "methods": [
+      "煮",
+      "炖",
+      "炒",
+      "拌"
+    ],
+    "difficulty": "中等",
+    "durationMinutes": 51,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "鸡腿 = 两只",
+        "normalizedName": "鸡腿 = 两只",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "香菇（干香菇最佳）=",
+        "normalizedName": "香菇（干香菇最佳）=",
+        "quantity": 5,
+        "unit": "朵",
+        "rawAmount": "5 朵",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "青椒 = 两个",
+        "normalizedName": "青椒 = 两个",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "生姜片 = 两片",
+        "normalizedName": "生姜片 = 两片",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "干辣椒 =",
+        "normalizedName": "干辣椒 =",
+        "quantity": 5,
+        "unit": "个",
+        "rawAmount": "5，6 个",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "盐 =",
+        "normalizedName": "盐 =",
+        "quantity": 10,
+        "unit": "克",
+        "rawAmount": "10g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "料酒 =",
+        "normalizedName": "料酒 =",
+        "quantity": 10,
+        "unit": "毫升",
+        "rawAmount": "10ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "白胡椒粉 =",
+        "normalizedName": "白胡椒粉 =",
+        "quantity": 5,
+        "unit": "克",
+        "rawAmount": "5g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "白糖 =",
+        "normalizedName": "白糖 =",
+        "quantity": 5,
+        "unit": "克",
+        "rawAmount": "5g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "酱油 =",
+        "normalizedName": "酱油 =",
+        "quantity": 5,
+        "unit": "毫升",
+        "rawAmount": "5ml",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "土豆 = 一个（可选，可使汤汁更粘稠）",
+        "normalizedName": "土豆 = 一个（可选，可使汤汁更粘稠）",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "炒锅",
+      "砂锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "准备食材",
+        "description": "鸡腿洗净，剁成**4cm**大小的块",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "准备食材",
+        "description": "生姜切片、干辣椒切成**小圈**",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "准备食材",
+        "description": "香菇切片，青椒切成细长的**马蹄状**，若为干香菇，洗净灰尘后泡一晚上并留香菇水备用",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "准备食材",
+        "description": "若有土豆，切为与鸡肉大小类似的**滚刀块**",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "倒入配料",
+        "description": "炒糖色：锅里倒入底油，冷油时放入白糖（**有一定难度，新手可跳至鸡肉炒制并使用老抽替代**）",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 6,
+        "title": "调味拌匀",
+        "description": "小火慢慢加热，待油温逐渐升高，白糖开始融化并变成较深的棕色（期间要不断搅拌，防止糊锅）",
+        "durationMinutes": 3,
+        "heat": "小火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 7,
+        "title": "倒入配料",
+        "description": "迅速倒入鸡块，转大火，快速翻炒！烹入料酒，继续翻炒片刻",
+        "durationMinutes": 2,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 8,
+        "title": "倒入配料",
+        "description": "本步骤操作要求：将生姜片和干辣椒倒入，完成后进入下一步。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 9,
+        "title": "翻炒",
+        "description": "本步骤操作要求：放入酱油，炒匀，完成后进入下一步。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 10,
+        "title": "倒入配料",
+        "description": "倒入香菇水或清水，以能淹住鸡肉为准",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 11,
+        "title": "倒入配料",
+        "description": "倒入香菇片，白胡椒粉，盐，土豆",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 12,
+        "title": "炖煮",
+        "description": "翻炒均匀后，盖上锅盖焖煮，转中小火**15——20分钟**，有条件可以转至砂锅",
+        "durationMinutes": 20,
+        "heat": "中小火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": [
+          "砂锅"
+        ]
+      },
+      {
+        "order": 13,
+        "title": "制作步骤 13",
+        "description": "待鸡肉软烂，汤汁浓稠后（汤汁不要收的太干），最后放入青椒",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 14,
+        "title": "翻炒",
+        "description": "放入味精，兜炒均匀后，关火！青椒基本断生即可，不要炒时间久了",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "麸质",
+      "大豆"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "黄焖鸡，荤菜，中等难度；主要食材：鸡腿 = 两只适量、香菇（干香菇最佳）=5 朵、青椒 = 两个适量、生姜片 = 两片适量、干辣椒 =5，6 个、盐 =10g、料酒 =10ml、白胡椒粉 =5g、白糖 =5g、酱油 =5ml、土豆 = 一个（可选，可使汤汁更粘稠）适量；烹饪方式：煮、炖、炒、拌；口味：香辣、甜香、家常。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.83,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "黄焖鸡",
+      "url": "https://proj.kitchen/api/recipes/%E9%BB%84%E7%84%96%E9%B8%A1",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "荤菜",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0377",
+    "name": "黄瓜炒肉",
+    "aliases": [],
+    "category": "热菜",
+    "cuisine": "其他菜系",
+    "taste": [
+      "蒜香",
+      "家常"
+    ],
+    "methods": [
+      "炒",
+      "拌",
+      "腌"
+    ],
+    "difficulty": "中等",
+    "durationMinutes": 31,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "黄瓜 =",
+        "normalizedName": "黄瓜 =",
+        "quantity": 100,
+        "unit": "克",
+        "rawAmount": "100 克/份",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "猪肉 =",
+        "normalizedName": "猪肉 =",
+        "quantity": 50,
+        "unit": "克",
+        "rawAmount": "50 克/份",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "油量 =",
+        "normalizedName": "油量 =",
+        "quantity": 50,
+        "unit": "克",
+        "rawAmount": "50 克/份",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "盐量 =",
+        "normalizedName": "盐量 =",
+        "quantity": 10,
+        "unit": "克",
+        "rawAmount": "10  克/份",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "酱油 =",
+        "normalizedName": "酱油 =",
+        "quantity": 5,
+        "unit": "克",
+        "rawAmount": "5  克/份",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "蒜瓣 =",
+        "normalizedName": "蒜瓣 =",
+        "quantity": 2,
+        "unit": "瓣",
+        "rawAmount": "2  瓣/份",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "小米辣 =",
+        "normalizedName": "小米辣 =",
+        "quantity": 1,
+        "unit": "根",
+        "rawAmount": "1  根/份",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "炒锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "准备食材",
+        "description": "将猪瘦肉切片，放入碗中，倒入食用油 10 克，生抽，搅拌均匀，腌制 10 分钟",
+        "durationMinutes": 10,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "准备食材",
+        "description": "将黄瓜切去 5 厘米的头尾，剩余部分斜着切成 0.5 厘米的薄片",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "倒入配料",
+        "description": "将黄瓜倒入碗中，撒上盐 8 克，搅拌均匀，腌制 5 分钟",
+        "durationMinutes": 5,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "准备食材",
+        "description": "将蒜瓣去皮，压扁，切成蒜末备用",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "准备食材",
+        "description": "将小米辣去丁切分成均匀 0.5 厘米的段状",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 6,
+        "title": "翻炒",
+        "description": "热锅，倒油 40 克，等油温到冒烟，放入蒜蓉小米辣翻炒 5 次",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 7,
+        "title": "腌制入味",
+        "description": "放入腌制好的猪瘦肉，翻炒至肉熟变色",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 8,
+        "title": "翻炒",
+        "description": "放入黄瓜，加入盐 2 克，大火翻炒均匀半分钟，出锅",
+        "durationMinutes": 2,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 9,
+        "title": "制作步骤 9",
+        "description": "如果无法保证大火，可能会有点生。可以考虑增加到 50 秒。",
+        "durationMinutes": 0.8,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "麸质",
+      "大豆"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "黄瓜炒肉，荤菜，中等难度；主要食材：黄瓜 =100 克/份、猪肉 =50 克/份、油量 =50 克/份、盐量 =10  克/份、酱油 =5  克/份、蒜瓣 =2  瓣/份、小米辣 =1  根/份；烹饪方式：炒、拌、腌；口味：蒜香、家常。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.85,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "黄瓜炒肉",
+      "url": "https://proj.kitchen/api/recipes/%E9%BB%84%E7%93%9C%E7%82%92%E8%82%89",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "荤菜",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0378",
+    "name": "黄瓜皮蛋汤",
+    "aliases": [],
+    "category": "汤羹",
+    "cuisine": "其他菜系",
+    "taste": [
+      "蒜香",
+      "家常"
+    ],
+    "methods": [
+      "煮",
+      "炒"
+    ],
+    "difficulty": "简单",
+    "durationMinutes": 15,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "黄瓜",
+        "normalizedName": "黄瓜",
+        "quantity": 1,
+        "unit": "根",
+        "rawAmount": "1 根",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "皮蛋",
+        "normalizedName": "皮蛋",
+        "quantity": 2,
+        "unit": "个",
+        "rawAmount": "2 个",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "大蒜",
+        "normalizedName": "大蒜",
+        "quantity": 2,
+        "unit": "瓣",
+        "rawAmount": "2 瓣",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "小葱",
+        "normalizedName": "小葱",
+        "quantity": null,
+        "unit": "适量",
+        "rawAmount": "适量",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "食用油",
+        "normalizedName": "食用油",
+        "quantity": 12.5,
+        "unit": "克",
+        "rawAmount": "10-15 g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "盐",
+        "normalizedName": "盐",
+        "quantity": 2.5,
+        "unit": "克",
+        "rawAmount": "2-3 g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "鸡精",
+        "normalizedName": "鸡精",
+        "quantity": 0.75,
+        "unit": "克",
+        "rawAmount": "0.5-1 g",
+        "role": "调味料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "水",
+        "normalizedName": "水",
+        "quantity": 450,
+        "unit": "毫升",
+        "rawAmount": "400-500 ml",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "炒锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "准备食材",
+        "description": "黄瓜洗净，切成 0.5-1.2 mm 厚的薄片",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "黄瓜"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "准备食材",
+        "description": "葱洗净切成末，蒜用刀拍几下去皮，对半切一下",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "准备食材",
+        "description": "皮蛋剥去壳，然后每个切成 6-8 份。锅里倒入油，放入切好的皮蛋和大蒜",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "皮蛋",
+          "大蒜"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "翻炒",
+        "description": "小火炒至皮蛋和大蒜表面有些焦黄，加入水，转大火烧开",
+        "durationMinutes": 2,
+        "heat": "大火",
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "皮蛋",
+          "大蒜",
+          "水"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "煮制",
+        "description": "放入黄瓜片。水再次沸腾以后立马关火，放入盐、鸡精调味即可出锅",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "黄瓜",
+          "盐",
+          "鸡精",
+          "水"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 6,
+        "title": "制作步骤 6",
+        "description": "装入碗中，再撒上葱花即可",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [
+      "黄瓜可以根据喜好决定是否去皮。",
+      "黄瓜薄片可以用刮皮刀刮。",
+      "皮蛋切块时抹点香油不容易粘刀。",
+      "参考资料：[【黄瓜皮蛋汤的做法步骤图，黄瓜皮蛋汤怎么做好吃】是春天呐__下厨房](https://www.xiachufang.com/recipe/103991291/)。"
+    ],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [
+      "蛋类"
+    ],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "黄瓜皮蛋汤，汤与粥，简单难度；主要食材：黄瓜1 根、皮蛋2 个、大蒜2 瓣、小葱适量、食用油10-15 g、盐2-3 g、鸡精0.5-1 g、水400-500 ml；烹饪方式：煮、炒；口味：蒜香、家常。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.87,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "黄瓜皮蛋汤",
+      "url": "https://proj.kitchen/api/recipes/%E9%BB%84%E7%93%9C%E7%9A%AE%E8%9B%8B%E6%B1%A4",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "汤与粥",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  },
+  {
+    "id": "recipe_0379",
+    "name": "黔式腊肠娃娃菜",
+    "aliases": [],
+    "category": "热菜",
+    "cuisine": "其他菜系",
+    "taste": [
+      "家常"
+    ],
+    "methods": [
+      "煮"
+    ],
+    "difficulty": "简单",
+    "durationMinutes": 22,
+    "servings": 2,
+    "ingredients": [
+      {
+        "name": "黔式腊肠",
+        "normalizedName": "黔式腊肠",
+        "quantity": 200,
+        "unit": "克",
+        "rawAmount": "200g",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "娃娃菜",
+        "normalizedName": "娃娃菜",
+        "quantity": 300,
+        "unit": "克",
+        "rawAmount": "300g",
+        "role": "主料",
+        "required": true,
+        "substitutes": []
+      },
+      {
+        "name": "水",
+        "normalizedName": "水",
+        "quantity": 750,
+        "unit": "毫升",
+        "rawAmount": "750ml",
+        "role": "辅料",
+        "required": true,
+        "substitutes": []
+      }
+    ],
+    "cookware": [
+      "炒锅"
+    ],
+    "steps": [
+      {
+        "order": 1,
+        "title": "煮制",
+        "description": "锅内放入 750ml 水，开火加热至沸腾",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "水"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 2,
+        "title": "制作步骤 2",
+        "description": "放入腊肠，计时 13 分钟",
+        "durationMinutes": 13,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [],
+        "cookwareUsed": []
+      },
+      {
+        "order": 3,
+        "title": "制作步骤 3",
+        "description": "放入娃娃菜，计时 2 分钟",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "娃娃菜"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 4,
+        "title": "制作步骤 4",
+        "description": "本步骤操作要求：关火，夹出腊肠及娃娃菜，完成后进入下一步。",
+        "durationMinutes": 2,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "娃娃菜"
+        ],
+        "cookwareUsed": []
+      },
+      {
+        "order": 5,
+        "title": "准备食材",
+        "description": "娃娃菜切段、腊肠切片，装盘",
+        "durationMinutes": 3,
+        "heat": null,
+        "temperatureCelsius": null,
+        "ingredientsUsed": [
+          "娃娃菜"
+        ],
+        "cookwareUsed": []
+      }
+    ],
+    "tips": [
+      "根据锅的大小，建议以水量没过食材为宜，宁多勿少。",
+      "如果没有刀具，娃娃菜和腊肠不切也可以。"
+    ],
+    "nutritionPerServing": null,
+    "dietTags": [],
+    "allergens": [],
+    "suitableMeals": [
+      "午餐",
+      "晚餐"
+    ],
+    "embeddingText": "黔式腊肠娃娃菜，荤菜，简单难度；主要食材：黔式腊肠200g、娃娃菜300g、水750ml；烹饪方式：煮；口味：家常。",
+    "quality": {
+      "status": "source_validated",
+      "score": 0.88,
+      "version": 1,
+      "curationMethod": "厨房计划 MIT 数据导入、字段规范化、全库去重与规则校验"
+    },
+    "source": {
+      "provider": "厨房计划",
+      "sourceRecipeId": "黔式腊肠娃娃菜",
+      "url": "https://proj.kitchen/api/recipes/%E9%BB%94%E5%BC%8F%E8%85%8A%E8%82%A0%E5%A8%83%E5%A8%83%E8%8F%9C",
+      "license": "MIT",
+      "importedAt": "2026-08-05",
+      "originalCategory": "荤菜",
+      "estimatedFields": [
+        "durationMinutes",
+        "servings",
+        "steps.durationMinutes"
+      ]
+    }
+  }
+]

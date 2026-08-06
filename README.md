@@ -66,6 +66,8 @@
 flowchart LR
     A[微信小程序] -->|HTTPS API| B[NestJS 服务]
     B --> C[(MySQL / MariaDB)]
+    B --> K[(Neo4j 菜谱知识图谱)]
+    K --> V[向量与图关系检索]
     B --> D[微信登录服务]
     B --> E[DashScope AI]
     E --> E1[食材与小票识别]
@@ -74,7 +76,7 @@ flowchart LR
     E --> E4[语音合成]
 ```
 
-菜谱生成采用异步任务模式：前端创建任务后进入结果页，定时轮询真实任务状态；列表生成完成后立即展示，详细步骤和营养数据在进入菜谱详情时按需生成。
+菜谱推荐采用异步任务模式：前端创建任务后进入结果页并轮询状态。后端优先从 Neo4j 向量/图关系或本地 JSON 知识库返回已有菜谱和完整步骤；知识库不足时才调用大模型补充，从而降低等待时间并减少菜谱事实漂移。
 
 ## 项目结构
 
@@ -146,7 +148,14 @@ DATABASE_URL="mysql://root:your_password@127.0.0.1:3306/fresh_food_archive"
 DASHSCOPE_API_KEY=your_dashscope_api_key
 DASHSCOPE_VISION_MODEL=qwen3.6-flash
 DASHSCOPE_TEXT_MODEL=qwen2.5-14b-instruct
+DASHSCOPE_EMBEDDING_MODEL=text-embedding-v4
+DASHSCOPE_EMBEDDING_DIMENSIONS=1024
 DASHSCOPE_ASR_MODEL=qwen3-asr-flash
+
+NEO4J_URI=bolt://127.0.0.1:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=your_neo4j_password
+NEO4J_DATABASE=neo4j
 
 WECHAT_MINI_APP_ID=your_wechat_app_id
 WECHAT_MINI_APP_SECRET=your_wechat_app_secret
@@ -197,6 +206,12 @@ npm run start:dev
 | `AUTH_TOKEN_SECRET` | 登录令牌签名密钥 | 是 |
 | `AI_RECOGNIZE_FALLBACK_TO_MOCK` | AI 识别异常时是否启用模拟结果 | 否 |
 | `AI_RECIPE_ENABLE_RETRY` | 菜谱不足时是否追加一次生成 | 否 |
+| `DASHSCOPE_EMBEDDING_MODEL` | 菜谱向量模型，默认 `text-embedding-v4` | 否 |
+| `DASHSCOPE_EMBEDDING_DIMENSIONS` | 向量维度，默认 `1024` | 否 |
+| `NEO4J_URI` | Neo4j Bolt 地址；不配置时自动使用本地 JSON 检索 | 否 |
+| `NEO4J_USER` | Neo4j 用户名 | 否 |
+| `NEO4J_PASSWORD` | Neo4j 密码 | 否 |
+| `NEO4J_DATABASE` | Neo4j 数据库名，默认 `neo4j` | 否 |
 
 ## 常用命令
 
@@ -207,6 +222,8 @@ npm run start:dev    # 开发模式
 npm run build        # 构建服务端
 npm run start:prod   # 运行生产构建
 npm run test         # 单元测试
+npm run validate:recipes        # 校验全部结构化菜谱
+npm run sync:recipe-knowledge   # 同步图谱并生成向量
 npm run test:e2e     # 端到端测试
 npm run lint         # 代码检查并修复
 ```
