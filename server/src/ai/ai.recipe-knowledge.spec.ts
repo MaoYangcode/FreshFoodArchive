@@ -159,6 +159,48 @@ describe('AiService recipe RAG loop', () => {
     expect(result.detailReady).toBe(false)
   })
 
+  it('rejects unnecessary mechanical measurements while keeping useful cooking parameters', async () => {
+    const ingredients = [
+      { name: '茄子', quantity: 5, unit: '个' },
+      { name: '食用油', quantity: 15, unit: '毫升' },
+      { name: '胡椒粉', quantity: 1, unit: '茶匙' },
+    ]
+    const bad = {
+      ...detail('烤茄子'),
+      ingredients,
+      steps: [
+        '将茄子洗净擦干，用叉子在每个茄子表面均匀扎8下。',
+        '取15毫升食用油，均匀涂抹在5个茄子的整个表面。',
+        '烤箱预热至200℃，将茄子烤约15分钟，直至按压可凹陷0.4厘米。',
+        '取出茄子纵向划开一道长约9厘米、深约1.5厘米的切口。',
+        '撒入1茶匙胡椒粉后放回烤箱，继续烤3分钟即可装盘。',
+      ],
+    }
+    const good = {
+      ...bad,
+      steps: [
+        '茄子洗净并擦干表面水分，用叉子均匀扎孔帮助受热。',
+        '在茄子表面薄薄刷一层食用油，同时将烤箱预热至200℃。',
+        '茄子放入烤箱中层烤约15分钟，烤至表皮起皱、按压明显变软。',
+        '取出茄子纵向划开，用小刀轻轻拨松内部茄肉，但不要划破外皮。',
+        '在切口处撒入胡椒粉，放回烤箱继续烤约3分钟，闻到香味后取出装盘。',
+      ],
+    }
+    const modelCall = jest.spyOn(service as any, 'callDashScope')
+      .mockResolvedValueOnce(JSON.stringify({ recipe: bad }))
+      .mockResolvedValueOnce(JSON.stringify({ recipe: good }))
+
+    const result = await service.generateRecipeSteps({
+      userId: 1,
+      recipe: summary('烤茄子', ingredients),
+    })
+
+    expect(modelCall).toHaveBeenCalledTimes(2)
+    expect(result.steps.join('')).not.toMatch(/扎8下|凹陷0\.4厘米|长约9厘米/)
+    expect(result.steps.join('')).toContain('200℃')
+    expect(result.steps.join('')).toContain('表皮起皱')
+  })
+
   it('generates steps and nutrition concurrently before returning a complete detail', async () => {
     let stepsFinishedAt = 0
     let nutritionFinishedAt = 0
