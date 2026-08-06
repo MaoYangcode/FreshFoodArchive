@@ -17,7 +17,7 @@
 				</view>
 				<button v-if="fromFavorite && favorited" class="head-unfavorite-btn" @click="unfavorite">取消收藏</button>
 			</view>
-			<view class="recipe-banner">
+			<view v-if="isRecipeContentReady" class="recipe-banner">
 				<view class="banner-title-row">
 					<text class="banner-title">所需食材</text>
 					<text class="banner-count" :class="{ missing: missingIngredientCount > 0 }">{{ missingIngredientCount > 0 ? `还需${missingIngredientCount}种` : '食材齐全' }}</text>
@@ -34,15 +34,15 @@
 			<view v-if="detailLoading" class="detail-loading-card">
 				<view class="detail-loading-dot"></view>
 				<view>
-					<text class="detail-loading-title">正在生成详细做法</text>
-					<text class="detail-loading-meta">同时估算每人份营养数据，请稍候…</text>
+					<text class="detail-loading-title">正在补全菜谱详情</text>
+					<text class="detail-loading-meta">正在校验食材、步骤和每人份营养数据，请稍候…</text>
 				</view>
 			</view>
-			<view v-else-if="detailError && !hasRecipeDetail" class="detail-error-card">
+			<view v-else-if="detailError" class="detail-error-card">
 				<text class="detail-error-text">{{ detailError }}</text>
 				<button class="detail-retry-btn" @click="retryLoadDetail">重新生成</button>
 			</view>
-			<view v-if="hasRecipeDetail" class="step-card">
+			<view v-if="isRecipeContentReady" class="step-card">
 				<view class="step-head">
 					<text class="step-title">步骤</text>
 					<view class="step-head-actions">
@@ -59,7 +59,7 @@
 					</view>
 				</view>
 			</view>
-			<view v-if="hasNutrition" class="nutrition-card">
+			<view v-if="isRecipeContentReady" class="nutrition-card">
 				<view class="nutrition-head">
 					<text class="nutrition-title">营养元素</text>
 					<text class="nutrition-serving">每人份估算</text>
@@ -76,7 +76,7 @@
 				<text class="nutrition-disclaimer">营养数据为 AI 估算值，仅供日常饮食参考。</text>
 			</view>
 		</view>
-		<view class="favorite-wrap">
+		<view v-if="isRecipeContentReady" class="favorite-wrap">
 			<view class="action-grid single">
 				<button v-if="!fromFavorite" class="btn" :class="favorited ? 'done' : 'primary'" @click="favorite">{{ favorited ? '已收藏' : '收藏该菜谱' }}</button>
 				<button v-if="fromFavorite" class="btn complete-btn" @click="completeRecipe">{{ completeButtonText }}</button>
@@ -144,6 +144,9 @@ export default {
 		},
 		hasNutrition() {
 			return !!this.recipe?.nutrition && this.nutritionItems.some((item) => Number(item.rawValue) > 0)
+		},
+		isRecipeContentReady() {
+			return this.hasRecipeDetail && this.hasNutrition && this.ingredientDisplayItems.length > 0
 		},
 		availableIngredientItems() {
 			return this.ingredientDisplayItems.filter((item) => !item.isMissing)
@@ -327,9 +330,16 @@ export default {
 			} catch (_) {}
 		},
 		isDetailComplete(recipe) {
+			const nutrition = recipe?.nutrition
+			const nutritionValues = nutrition
+				? [nutrition.calories, nutrition.protein, nutrition.fat, nutrition.carbohydrates, nutrition.fiber, nutrition.sodium]
+				: []
 			return !!recipe &&
 				Array.isArray(recipe.steps) && recipe.steps.length > 0 &&
-				Array.isArray(recipe.ingredients) && recipe.ingredients.length > 0
+				Array.isArray(recipe.ingredients) && recipe.ingredients.length > 0 &&
+				nutritionValues.length === 6 &&
+				nutritionValues.every((value) => Number.isFinite(Number(value)) && Number(value) >= 0) &&
+				Number(nutrition?.calories) > 0 && !!`${nutrition?.analysis || ''}`.trim()
 		},
 		async ensureRecipeDetail(force = false) {
 			if (this.detailLoading) return
@@ -360,13 +370,13 @@ export default {
 				const resolvedDetail = detailIngredients.length
 					? detail
 					: { ...(detail || {}), ingredients: summaryIngredients }
-				if (!this.isDetailComplete(resolvedDetail)) throw new Error('详细做法加载失败，请重试')
+				if (!this.isDetailComplete(resolvedDetail)) throw new Error('菜谱详情生成失败，请重试')
 				this.applyRecipeFromRaw(resolvedDetail)
 				this.writeDetailCache(resolvedDetail)
 				uni.setStorageSync('latestRecipeDetail', resolvedDetail)
 			} catch (error) {
 				const message = `${error?.message || error?.msg || error?.data?.message || ''}`.trim()
-				this.detailError = this.hasRecipeDetail ? '' : (message || '详细做法暂时无法加载，请重试')
+				this.detailError = message || '菜谱详情暂时无法加载，请重试'
 			} finally {
 				this.detailLoading = false
 			}

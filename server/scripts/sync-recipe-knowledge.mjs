@@ -88,7 +88,7 @@ try {
            recipe.qualityStatus = item.quality.status,
            recipe.qualityScore = item.quality.score,
            recipe.version = item.quality.version,
-           recipe.nutritionJson = item.nutritionJson,
+           recipe.nutritionJson = coalesce(item.nutritionJson, recipe.nutritionJson),
            recipe.sourceJson = item.sourceJson,
            recipe.fullRecipeJson = item.fullRecipeJson,
            recipe.embedding = coalesce(item.embedding, recipe.embedding),

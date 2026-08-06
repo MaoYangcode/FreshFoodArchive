@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { randomUUID } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
-import { RecipeKnowledgeDocument, RecipeKnowledgeHit, RecipeKnowledgeService } from '../recipe-knowledge/recipe-knowledge.service'
+import {
+  RecipeKnowledgeDocument,
+  RecipeKnowledgeHit,
+  RecipeKnowledgeService,
+} from '../recipe-knowledge/recipe-knowledge.service'
 
 type RecognizedIngredient = {
   name: string
@@ -936,7 +940,13 @@ export class AiService {
 
     const knowledgeRecipe = this.recipeKnowledge.findByIdOrName(summary?.knowledgeId || summary?.id || name)
       || this.recipeKnowledge.findByIdOrName(name)
-    if (knowledgeRecipe) return this.knowledgeRecipeToGeneratedRecipe(knowledgeRecipe, false)
+    if (knowledgeRecipe) {
+      const detail = this.knowledgeRecipeToGeneratedRecipe(knowledgeRecipe, false)
+      detail.nutrition = await this.ensureRecipeNutrition(detail, knowledgeRecipe)
+      if (!this.isRecipeDetailComplete(detail)) throw new Error('菜谱详情生成失败，请重试')
+      detail.detailReady = true
+      return detail
+    }
 
     const userId = Math.max(Number(payload?.userId || 1), 1)
     const profile = await this.loadUserProfileForRecipe(userId)
@@ -1006,8 +1016,11 @@ export class AiService {
       name,
       ingredients: returnedIngredients,
     }, 0, false)
-    if (!recipe.steps.length) throw new Error('菜谱详情生成不完整，请重试')
+    if (!recipe.steps.length) throw new Error('菜谱详细步骤生成失败，请重试')
     if (this.recipeContainsAvoidance(recipe, profile.avoidances)) throw new Error('生成内容包含忌口食材，请重试')
+    recipe.nutrition = await this.ensureRecipeNutrition(recipe)
+    if (!this.isRecipeDetailComplete(recipe)) throw new Error('菜谱详情生成失败，请重试')
+    recipe.detailReady = true
     return recipe
   }
 
@@ -1084,9 +1097,76 @@ export class AiService {
       tips: summaryOnly ? '' : recipe.tips.join('；'),
       servings: summaryOnly ? undefined : recipe.servings,
       nutrition: summaryOnly ? undefined : nutrition,
-      detailReady: !summaryOnly && recipe.steps.length > 0,
+      detailReady: !summaryOnly && recipe.steps.length > 0 && !!nutrition,
       retrievalSource: 'knowledge-base',
     }
+  }
+
+  private isRecipeDetailComplete(recipe: GeneratedRecipe) {
+    const nutrition = recipe?.nutrition
+    const nutritionValues = nutrition
+      ? [nutrition.calories, nutrition.protein, nutrition.fat, nutrition.carbohydrates, nutrition.fiber, nutrition.sodium]
+      : []
+    return Boolean(
+      recipe &&
+      Array.isArray(recipe.ingredients) && recipe.ingredients.length > 0 &&
+      Array.isArray(recipe.steps) && recipe.steps.length > 0 &&
+      nutrition && nutritionValues.length === 6 &&
+      nutritionValues.every((value) => Number.isFinite(Number(value)) && Number(value) >= 0) &&
+      Number(nutrition.calories) > 0 && `${nutrition.analysis || ''}`.trim(),
+    )
+  }
+
+  private async ensureRecipeNutrition(recipe: GeneratedRecipe, knowledgeRecipe?: RecipeKnowledgeDocument) {
+    if (this.isRecipeDetailComplete({ ...recipe, nutrition: recipe.nutrition })) return recipe.nutrition
+    if (knowledgeRecipe) {
+      const stored = await this.recipeKnowledge.getRecipeNutrition(knowledgeRecipe)
+      const normalizedStored = this.normalizeRecipeNutrition(stored)
+      if (normalizedStored && this.isRecipeDetailComplete({ ...recipe, nutrition: normalizedStored })) return normalizedStored
+    }
+    if (!this.apiKey) throw new Error('营养数据正在补充，请稍后重试')
+
+    const ingredientText = recipe.ingredients
+      .map((item) => `${item.name}${item.quantity ?? ''}${item.unit || ''}`.trim())
+      .filter(Boolean)
+      .join('、')
+    const schema = '{"nutrition":{"calories":286,"protein":18.6,"fat":12.8,"carbohydrates":24.7,"fiber":3.2,"sodium":560,"analysis":"每人份营养特点简述"}}'
+    let lastError: unknown = null
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const content = await this.callDashScope(
+          this.textModel,
+          [
+            { role: 'system', content: '你是严谨的家庭菜谱营养估算助手，只返回结构化 JSON。' },
+            {
+              role: 'user',
+              content: [
+                `请根据菜谱“${recipe.name}”和全部食材，估算每人份营养数据。`,
+                `份数：${Math.max(Number(recipe.servings || 2), 1)} 人份。`,
+                `全部食材及总用量：${ingredientText}。`,
+                '必须返回热量、蛋白质、脂肪、碳水化合物、膳食纤维、钠六项数字，以及一句简体中文营养分析。',
+                '热量单位 kcal；蛋白质、脂肪、碳水化合物、膳食纤维单位 g；钠单位 mg。',
+                `严格返回：${schema}`,
+              ].join('\n'),
+            },
+          ],
+          true,
+          0.1,
+          700,
+        )
+        const parsed = this.parseJson(content)
+        const nutrition = this.normalizeRecipeNutrition(parsed?.nutrition || parsed)
+        if (!nutrition || !this.isRecipeDetailComplete({ ...recipe, nutrition })) {
+          throw new Error('营养估算字段缺失')
+        }
+        if (knowledgeRecipe) await this.recipeKnowledge.saveRecipeNutrition(knowledgeRecipe.id, nutrition)
+        this.logger.log(`recipe-nutrition-ready recipe=${knowledgeRecipe?.id || recipe.id}, generated=${knowledgeRecipe?.nutritionPerServing ? 0 : 1}`)
+        return nutrition
+      } catch (error) {
+        lastError = error
+      }
+    }
+    throw new Error(`营养数据生成失败，请重试：${(lastError as any)?.message || lastError || '未知错误'}`)
   }
 
   private normalizeRecipeNutrition(source: any): RecipeNutrition | undefined {

@@ -72,11 +72,22 @@ export type RecipeKnowledgeHit = {
   retrievalMode: 'neo4j-vector' | 'neo4j-graph' | 'local-hybrid'
 }
 
+export type RecipeNutritionEstimate = {
+  calories: number
+  protein: number
+  fat: number
+  carbohydrates: number
+  fiber: number
+  sodium: number
+  analysis: string
+}
+
 @Injectable()
 export class RecipeKnowledgeService implements OnModuleDestroy {
   private readonly logger = new Logger(RecipeKnowledgeService.name)
   private readonly recipes: RecipeKnowledgeDocument[]
   private readonly recipesByKey = new Map<string, RecipeKnowledgeDocument>()
+  private readonly nutritionByRecipeId = new Map<string, RecipeNutritionEstimate>()
   private driver: Driver | null = null
   private neo4jUnavailableLogged = false
 
@@ -117,6 +128,52 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
 
   findByIdOrName(value: unknown) {
     return this.recipesByKey.get(this.normalizeText(value)) || null
+  }
+
+  async getRecipeNutrition(recipe: RecipeKnowledgeDocument): Promise<RecipeNutritionEstimate | null> {
+    if (recipe.nutritionPerServing) {
+      return {
+        calories: recipe.nutritionPerServing.calories,
+        protein: recipe.nutritionPerServing.protein,
+        fat: recipe.nutritionPerServing.fat,
+        carbohydrates: recipe.nutritionPerServing.carbohydrates,
+        fiber: recipe.nutritionPerServing.fiber,
+        sodium: recipe.nutritionPerServing.sodium,
+        analysis: recipe.nutritionPerServing.estimated ? '每人份估算值，仅用于日常饮食参考。' : '每人份营养数据。',
+      }
+    }
+    const cached = this.nutritionByRecipeId.get(recipe.id)
+    if (cached) return cached
+    if (!this.neo4jUri || !this.neo4jPassword) return null
+    try {
+      const result = await this.getDriver().executeQuery(
+        'MATCH (recipe:Recipe {id: $id}) RETURN recipe.nutritionJson AS nutritionJson',
+        { id: recipe.id },
+        { database: this.neo4jDatabase },
+      )
+      const raw = `${result.records[0]?.get('nutritionJson') || ''}`
+      if (!raw) return null
+      const nutrition = JSON.parse(raw) as RecipeNutritionEstimate
+      this.nutritionByRecipeId.set(recipe.id, nutrition)
+      return nutrition
+    } catch (error: any) {
+      this.logger.warn(`读取菜谱营养缓存失败：${recipe.id}，${error?.message || error}`)
+      return null
+    }
+  }
+
+  async saveRecipeNutrition(recipeId: string, nutrition: RecipeNutritionEstimate) {
+    this.nutritionByRecipeId.set(recipeId, nutrition)
+    if (!this.neo4jUri || !this.neo4jPassword) return
+    try {
+      await this.getDriver().executeQuery(
+        'MATCH (recipe:Recipe {id: $id}) SET recipe.nutritionJson = $nutritionJson',
+        { id: recipeId, nutritionJson: JSON.stringify(nutrition) },
+        { database: this.neo4jDatabase },
+      )
+    } catch (error: any) {
+      this.logger.warn(`保存菜谱营养缓存失败：${recipeId}，${error?.message || error}`)
+    }
   }
 
   async search(options: RecipeKnowledgeSearchOptions): Promise<RecipeKnowledgeHit[]> {

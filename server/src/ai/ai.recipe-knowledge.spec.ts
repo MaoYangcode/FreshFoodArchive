@@ -39,7 +39,18 @@ describe('AiService recipe knowledge loop', () => {
     expect(detail.detailReady).toBe(true)
   })
 
-  it('returns stored cooking details when nutrition estimates are unavailable', async () => {
+  it('enriches and caches nutrition before returning a knowledge recipe detail', async () => {
+    const nutritionCall = jest.spyOn(service as any, 'callDashScope').mockResolvedValue(JSON.stringify({
+      nutrition: {
+        calories: 328,
+        protein: 22.4,
+        fat: 18.6,
+        carbohydrates: 19.2,
+        fiber: 3.1,
+        sodium: 620,
+        analysis: '蛋白质较丰富，搭配蔬菜可提供膳食纤维。',
+      },
+    }))
     const detail = await service.generateRecipeDetail({
       userId: 1,
       recipe: { knowledgeId: 'recipe_0320', name: '西葫芦炒鸡蛋' },
@@ -47,7 +58,14 @@ describe('AiService recipe knowledge loop', () => {
     expect(detail.ingredients.length).toBeGreaterThan(0)
     expect(detail.steps.length).toBeGreaterThan(1)
     expect(detail.detailReady).toBe(true)
-    expect(detail.nutrition).toBeUndefined()
+    expect(detail.nutrition?.calories).toBe(328)
+
+    const cachedDetail = await service.generateRecipeDetail({
+      userId: 1,
+      recipe: { knowledgeId: 'recipe_0320', name: '西葫芦炒鸡蛋' },
+    })
+    expect(cachedDetail.nutrition?.calories).toBe(328)
+    expect(nutritionCall).toHaveBeenCalledTimes(1)
   })
 
   it('completes the asynchronous recommendation task from knowledge data', async () => {
