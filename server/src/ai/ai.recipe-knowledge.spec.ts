@@ -57,7 +57,7 @@ describe('AiService recipe RAG loop', () => {
   it('uses retrieved knowledge as model context instead of returning it directly', async () => {
     const modelCall = jest.spyOn(service as any, 'callDashScope').mockResolvedValue(JSON.stringify({
       recipes: [
-        summary('番茄炒鸡蛋盖饭', [{ name: '番茄', quantity: 2, unit: '个' }, { name: '鸡蛋', quantity: 2, unit: '个' }]),
+        summary('番茄炒鸡蛋盖饭', [{ name: '番茄', quantity: 2, unit: '个' }, { name: '鸡蛋', quantity: 2, unit: '个' }, { name: '米饭', quantity: 300, unit: '克' }]),
         summary('西红柿鸡蛋汤', [{ name: '西红柿', quantity: 2, unit: '个' }, { name: '鸡蛋', quantity: 1, unit: '个' }]),
         summary('番茄鸡蛋面', [{ name: '番茄', quantity: 1, unit: '个' }, { name: '鸡蛋', quantity: 1, unit: '个' }, { name: '面条', quantity: 150, unit: '克' }]),
       ],
@@ -123,6 +123,38 @@ describe('AiService recipe RAG loop', () => {
     expect(modelCall).toHaveBeenCalledTimes(2)
     expect(result.recipes).toHaveLength(1)
     expect(result.recipes[0].ingredients.every((item) => item.quantity && item.unit)).toBe(true)
+  })
+
+  it('regenerates a named staple dish when its required staple is missing', async () => {
+    const modelCall = jest.spyOn(service as any, 'callDashScope')
+      .mockResolvedValueOnce(JSON.stringify({
+        recipes: [summary('茄丁焖面', [
+          { name: '茄子', quantity: 2, unit: '个' },
+          { name: '番茄', quantity: 1, unit: '个' },
+          { name: '食用油', quantity: 15, unit: '毫升' },
+        ])],
+      }))
+      .mockResolvedValueOnce(JSON.stringify({
+        recipes: [summary('茄丁焖面', [
+          { name: '茄子', quantity: 2, unit: '个' },
+          { name: '鲜面条', quantity: 240, unit: '克' },
+          { name: '番茄', quantity: 1, unit: '个' },
+          { name: '食用油', quantity: 15, unit: '毫升' },
+        ])],
+      }))
+
+    const result = await service.generateRecipeList({
+      userId: 1,
+      ingredients: [{ name: '茄子' }, { name: '番茄' }],
+      cookingTime: 30,
+      count: 1,
+      summaryOnly: true,
+      allowMockFallback: false,
+    })
+
+    expect(modelCall).toHaveBeenCalledTimes(2)
+    expect(result.recipes).toHaveLength(1)
+    expect(result.recipes[0].ingredients.some((item) => /面/u.test(item.name))).toBe(true)
   })
 
   it('rejects template steps and retries before returning the detail', async () => {
@@ -249,6 +281,11 @@ describe('AiService recipe RAG loop', () => {
         recipes: pair.map((name) => summary(name, [
           { name: '番茄', quantity: 1, unit: '个' },
           { name: '鸡蛋', quantity: 2, unit: '个' },
+          ...(/面/u.test(name) ? [{ name: '面条', quantity: 150, unit: '克' }] : []),
+          ...(/盖饭|炒饭|焖饭|烩饭|拌饭|饭团|煲仔饭/u.test(name)
+            ? [{ name: '米饭', quantity: 200, unit: '克' }]
+            : []),
+          ...(/粥/u.test(name) ? [{ name: '大米', quantity: 100, unit: '克' }] : []),
         ])),
       })
     })

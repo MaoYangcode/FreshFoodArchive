@@ -712,6 +712,7 @@ export class AiService {
       '4) 不要为了凑数量输出不符合常理的菜。',
       '5) 同一批结果要尽量多样：优先覆盖不同库存食材，不要多数菜都围绕同一个主食材。',
       '6) 菜名和做法不得语义重复，例如“白菜猪肉饺子”和“白菜猪肉馅饺子”属于同一道菜，只能保留一个。',
+      '7) 菜名中的核心主食和主料必须出现在 ingredients 中，例如“焖面”必须有面条，“炒饭”必须有米饭，“饺子”必须有饺子皮或面粉；不得出现菜名有、食材却没有的情况。',
       'JSON 结构：',
       outputSchema,
       'difficulty 仅可取：简单、中等、困难。',
@@ -812,6 +813,7 @@ export class AiService {
         '4) 不要为了凑数量输出不符合常理的菜。',
         '5) 同一批结果要尽量多样：优先覆盖不同库存食材，不要多数菜都围绕同一个主食材。',
         '6) 菜名和做法不得语义重复，例如“白菜猪肉饺子”和“白菜猪肉馅饺子”属于同一道菜，只能保留一个。',
+        '7) 菜名中的核心主食和主料必须出现在 ingredients 中，例如“焖面”必须有面条，“炒饭”必须有米饭，“饺子”必须有饺子皮或面粉；不得出现菜名有、食材却没有的情况。',
         'JSON 结构：',
         outputSchema,
         'difficulty 仅可取：简单、中等、困难。',
@@ -1110,6 +1112,7 @@ export class AiService {
       Boolean(item?.name && item?.unit && Number.isFinite(Number(item?.quantity)) && Number(item.quantity) > 0),
     )
     if (!ingredientsComplete) return false
+    if (this.getRecipeNameIngredientIssues(recipe).length) return false
     if (summaryOnly) return true
     return this.getRecipeDetailQualityIssues(recipe, false).length === 0
   }
@@ -1125,6 +1128,7 @@ export class AiService {
       )
       if (invalidIngredients.length) issues.push('食材用量或单位不完整')
     }
+    issues.push(...this.getRecipeNameIngredientIssues(recipe))
     const steps = Array.isArray(recipe?.steps) ? recipe.steps.map((step) => `${step || ''}`.trim()).filter(Boolean) : []
     if (steps.length < 3) issues.push('步骤少于3步')
     if (steps.length > 14) issues.push('步骤过度拆分')
@@ -1155,6 +1159,26 @@ export class AiService {
       }
     }
     return issues
+  }
+
+  private getRecipeNameIngredientIssues(recipe: GeneratedRecipe) {
+    const name = this.normalizeTextForCompare(recipe?.name)
+    const ingredientText = this.normalizeTextForCompare(
+      (Array.isArray(recipe?.ingredients) ? recipe.ingredients : []).map((item) => item?.name || '').join('、'),
+    )
+    if (!name || !ingredientText) return []
+    const requirements = [
+      { dish: /焖面|炒面|拌面|汤面|面条|拉面|刀削面|乌冬面|意大利面|意面/u, ingredient: /面条|挂面|鲜面|切面|拉面|刀削面|乌冬面|意大利面|意面|面粉/u, label: '面条或面粉' },
+      { dish: /盖饭|炒饭|焖饭|烩饭|拌饭|饭团|煲仔饭/u, ingredient: /米饭|大米|糙米|小米/u, label: '米饭或大米' },
+      { dish: /粥/u, ingredient: /大米|糙米|小米|燕麦|米饭/u, label: '米或谷物' },
+      { dish: /饺子|馄饨|包子|锅贴|馅饼/u, ingredient: /面粉|饺子皮|馄饨皮|包子皮|面皮/u, label: '面粉或面皮' },
+      { dish: /酸辣粉|炒粉|汤粉|米粉|粉丝/u, ingredient: /粉条|米粉|粉丝|河粉|红薯粉/u, label: '粉条或米粉' },
+      { dish: /年糕/u, ingredient: /年糕/u, label: '年糕' },
+      { dish: /豆腐/u, ingredient: /豆腐/u, label: '豆腐' },
+    ]
+    return requirements
+      .filter((rule) => rule.dish.test(name) && !rule.ingredient.test(ingredientText))
+      .map((rule) => `菜名与食材不一致：缺少${rule.label}`)
   }
 
   private isRecipeDetailComplete(recipe: GeneratedRecipe) {
