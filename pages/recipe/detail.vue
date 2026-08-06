@@ -12,7 +12,10 @@
 					<IngredientIcon :name="pickRecipeCoverName(recipe)" :size="46" />
 				</view>
 				<view class="head-main">
-					<text class="title">{{ recipe.name }}</text>
+					<view class="title-video-link" hover-class="title-video-link-active" @click="copyVideoSearchKeyword">
+						<text class="title">{{ recipe.name }}</text>
+						<view class="video-play-icon" aria-label="复制视频搜索词"></view>
+					</view>
 					<text class="meta">{{ recipe.servings }}人份 · {{ recipe.duration }}分钟 · {{ recipe.difficulty }}</text>
 				</view>
 				<button v-if="fromFavorite && favorited" class="head-unfavorite-btn" @click="unfavorite">取消收藏</button>
@@ -245,6 +248,19 @@ export default {
 		}
 	},
 	methods: {
+		copyVideoSearchKeyword() {
+			const name = `${this.recipe?.name || ''}`.trim()
+			if (!name) {
+				uni.showToast({ title: '暂未获取到菜谱名称', icon: 'none' })
+				return
+			}
+			const keyword = `${name} 做法`
+			uni.setClipboardData({
+				data: keyword,
+				success: () => uni.showToast({ title: '已复制，去视频平台搜索', icon: 'none' }),
+				fail: () => uni.showToast({ title: '复制失败，请重试', icon: 'none' })
+			})
+		},
 		initRecipeAudio() {
 			if (typeof uni.createInnerAudioContext !== 'function') return
 			configureSpeechAudio()
@@ -733,7 +749,11 @@ export default {
 .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10rpx; }
 .action-grid.single { grid-template-columns: 1fr; }
 .complete-meta { display: block; font-size: 11px; color: #7f8c83; margin-top: 8rpx; padding-left: 4rpx; }
-.title { display: block; font-size: 18px; line-height: 1.35; font-weight: 800; color: #1f2922; }
+.title-video-link { display: inline-flex; align-items: center; gap: 9rpx; max-width: 100%; }
+.title-video-link-active { opacity: .62; }
+.title { display: inline-block; max-width: calc(100% - 42rpx); padding-bottom: 2rpx; border-bottom: 1rpx dashed #aebbb1; font-size: 18px; line-height: 1.35; font-weight: 800; color: #1f2922; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.video-play-icon { position: relative; width: 30rpx; height: 30rpx; flex-shrink: 0; border: 2rpx solid #929b95; border-radius: 50%; }
+.video-play-icon::after { content: ''; position: absolute; left: 11rpx; top: 8rpx; width: 0; height: 0; border-top: 6rpx solid transparent; border-bottom: 6rpx solid transparent; border-left: 9rpx solid #929b95; }
 .meta { display: block; margin-top: 5rpx; font-size: 12px; color: #738177; }
 .recipe-banner { border-radius: 18px; padding: 18rpx; background: #fff; border: 1rpx solid #edf2ee; box-shadow: 0 8rpx 22rpx rgba(39,76,45,.045); margin-bottom: 14rpx; }
 .banner-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14rpx; }
