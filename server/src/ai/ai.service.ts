@@ -37,6 +37,7 @@ type GeneratedRecipe = {
   plan?: RecipePlan
   ingredientSetLocked?: boolean
   ingredientSetVersion?: number
+  usedIngredients?: string[]
 }
 
 type RecipeNutrition = {
@@ -1014,7 +1015,7 @@ export class AiService {
       .map((item: any) => `${item?.name || ''}${item?.quantity ?? ''}${item?.unit || ''}`.trim())
       .filter(Boolean)
       .join('、')
-    const schema = '{"recipe":{"requiredIngredientAdditions":[{"name":"确实缺少的必要食材","quantity":1,"unit":"个","reason":"缺少后无法完成菜品"}],"steps":["具体可执行步骤1","具体可执行步骤2","具体可执行步骤3"],"tips":"烹饪提示"}}'
+    const schema = '{"recipe":{"usedIngredients":["步骤实际使用的全部食材名称"],"requiredIngredientAdditions":[{"name":"确实缺少的必要食材","quantity":1,"unit":"个","reason":"缺少后无法完成菜品"}],"steps":["具体可执行步骤1","具体可执行步骤2","具体可执行步骤3"],"tips":"烹饪提示"}}'
 
     if (!this.apiKey) throw new Error('DASHSCOPE_API_KEY 未配置，无法生成最终菜谱')
     let qualityFeedback = ''
@@ -1036,6 +1037,7 @@ export class AiService {
         '食材清单已由推荐阶段定稿；只生成 steps 与 tips，不得重新输出、替换、删除或修改锁定食材。',
         '只有发现缺少鸡蛋、淀粉等“不补就无法完成这道菜”的必要食材时，才可放入 requiredIngredientAdditions；最多补充4项，并写明正数 quantity、明确 unit 和 reason。',
         '不得把可选装饰、可替代调味料或仅用于丰富口味的食材列为补充项；没有必要补充时返回空数组。',
+        'usedIngredients 必须逐项列出 steps 实际提到的全部食材，名称要与锁定食材或必要补充食材一致，不得漏报。',
         'steps 必须使用全部锁定食材和全部必要补充食材，不得使用清单以外的食材。',
         '步骤数量按实际操作组织，家常菜通常5至9步；连续的小动作应合并，不要为了增加步数拆开洗、擦、取出、静置、装盘等自然衔接动作。',
         '食材总量已经在食材清单中给出，步骤中不要机械重复食材总数量；只有分次使用时才写该次用量。',
@@ -1069,23 +1071,29 @@ export class AiService {
       const list = this.pickRecipeArray(parsed)
       const detailSource = parsed?.recipe || list[0] || parsed
       const proposedAdditions = this.pickRequiredIngredientAdditions(detailSource, ingredients)
-      const finalIngredients = this.mergeLockedRecipeIngredients(ingredients, proposedAdditions)
+      const reportedUsedIngredients = [...new Set([...this.normalizeStringArray(detailSource?.usedIngredients), ...proposedAdditions.map((item) => item.name)])]
       let recipe = this.normalizeRecipe(
         {
           ...summary,
           ...(detailSource || {}),
           id: summary?.id || detailSource?.id,
           name,
-        ingredients: finalIngredients,
-        plan,
-        nutrition: undefined,
-        ingredientSetLocked: true,
+          ingredients,
+          plan,
+          nutrition: undefined,
+          ingredientSetLocked: true,
           ingredientSetVersion: 1,
         },
         0,
         false,
       )
-      recipe = this.repairUndeclaredStepIngredients(recipe)
+      recipe.usedIngredients = reportedUsedIngredients.length ? reportedUsedIngredients : ingredients.map((item: any) => `${item?.name || ''}`.trim()).filter(Boolean)
+      const contractConflicts = this.getUndeclaredContractIngredients(recipe)
+      let contractRepairAttempted = false
+      if (contractConflicts.length) {
+        contractRepairAttempted = true
+        recipe = await this.resolveRecipeContractConflict(recipe, contractConflicts, knowledgeReferenceText, referenceHits)
+      }
       recipe = this.repairMinorRecipeDetailConsistency(recipe)
       lastIssues = this.getRecipeDetailQualityIssues(recipe, false)
       if (this.recipeContainsAvoidance(recipe, profile.avoidances)) lastIssues.push('包含用户忌口食材')
@@ -1099,6 +1107,7 @@ export class AiService {
       }
       qualityFeedback = [...new Set(lastIssues)].join('；')
       this.logger.warn(`recipe-steps-quality-retry name=${name}, attempt=${attempt + 1}, issues=${qualityFeedback}`)
+      if (contractRepairAttempted) break
     }
     throw new Error(`菜谱步骤未通过质量校验：${[...new Set(lastIssues)].join('；') || '未知问题'}`)
   }
@@ -1366,51 +1375,77 @@ export class AiService {
     return /^(?:食用油|花生油|菜籽油|玉米油|橄榄油|食盐|盐|白糖|白砂糖|冰糖|生抽|老抽|酱油|蚝油|陈醋|米醋|香醋|醋|料酒|胡椒粉|白胡椒粉|黑胡椒粉|鸡精|味精)$/u.test(`${name || ''}`.trim())
   }
 
-  private getUndeclaredCommonStepIngredients(recipe: GeneratedRecipe) {
-    const defaults: Array<{ name: string; quantity: number; unit: string }> = [
-      { name: '鸡蛋', quantity: 1, unit: '个' },
-      { name: '鸭蛋', quantity: 1, unit: '个' },
-      { name: '淀粉', quantity: 15, unit: '克' },
-      { name: '面粉', quantity: 50, unit: '克' },
-      { name: '面包糠', quantity: 30, unit: '克' },
-      { name: '牛奶', quantity: 50, unit: '毫升' },
-      { name: '奶油', quantity: 20, unit: '克' },
-      { name: '豆腐', quantity: 200, unit: '克' },
-      { name: '米饭', quantity: 200, unit: '克' },
-      { name: '大米', quantity: 100, unit: '克' },
-      { name: '食用油', quantity: 10, unit: '毫升' },
-      { name: '橄榄油', quantity: 10, unit: '毫升' },
-      { name: '酱油', quantity: 10, unit: '毫升' },
-      { name: '生抽', quantity: 10, unit: '毫升' },
-      { name: '老抽', quantity: 5, unit: '毫升' },
-      { name: '蚝油', quantity: 10, unit: '克' },
-      { name: '醋', quantity: 10, unit: '毫升' },
-      { name: '白糖', quantity: 5, unit: '克' },
-      { name: '葱', quantity: 10, unit: '克' },
-      { name: '姜', quantity: 5, unit: '克' },
-      { name: '蒜', quantity: 5, unit: '瓣' },
-      { name: '胡椒粉', quantity: 1, unit: '克' },
-    ]
-    const stepText = this.normalizeTextForCompare((recipe.steps || []).join(' '))
+  private getUndeclaredContractIngredients(recipe: GeneratedRecipe) {
     const declaredKeys = (recipe.ingredients || [])
       .map((item) => this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name)))
       .filter(Boolean)
-    return defaults.filter((item) => {
-      const normalized = this.normalizeTextForCompare(item.name)
-      const key = this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name))
-      const isDeclared = declaredKeys.some((declared) => declared === key || declared.includes(key) || key.includes(declared))
-      return stepText.includes(normalized) && !isDeclared
+    return this.normalizeStringArray(recipe.usedIngredients).filter((name) => {
+      const key = this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(name))
+      return key && !declaredKeys.some((declared) => declared === key || declared.includes(key) || key.includes(declared))
     })
   }
 
-  private repairUndeclaredStepIngredients(recipe: GeneratedRecipe) {
-    const additions = this.getUndeclaredCommonStepIngredients(recipe).slice(0, 4)
-    if (!additions.length) return recipe
-    this.logger.log(`recipe-detail-auto-add name=${recipe.name}, ingredients=${additions.map((item) => item.name).join('、')}`)
-    return {
+  private async resolveRecipeContractConflict(
+    recipe: GeneratedRecipe,
+    conflictNames: string[],
+    knowledgeReferenceText: string,
+    referenceHits: RecipeKnowledgeHit[],
+  ): Promise<GeneratedRecipe> {
+    const trustedRequiredKeys = new Set(
+      referenceHits
+        .filter((hit) => Number(hit.recipe?.quality?.score || 0) >= 0.85)
+        .flatMap((hit) => (hit.recipe?.ingredients || []).filter((item) => item.required).map((item) => this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name))))
+        .filter(Boolean),
+    )
+    const lockedText = (recipe.ingredients || []).map((item) => `${item.name}${item.quantity ?? ''}${item.unit || ''}`).join('、')
+    const schema = '{"resolution":{"action":"keep_contract或add_required","usedIngredients":["修正后步骤实际使用的全部食材"],"additions":[{"name":"必要食材","quantity":1,"unit":"个","reason":"知识库支持且缺少后无法成菜"}],"steps":["修正后的完整步骤"],"tips":"烹饪提示","reason":"处理原因"}}'
+    const prompt = [
+      '你是菜谱合同冲突修复器。仅返回 JSON，不要解释。',
+      `菜名：${recipe.name}`,
+      `锁定菜谱合同食材：${lockedText}`,
+      `当前步骤：${(recipe.steps || []).join('；')}`,
+      `步骤使用但合同未声明的食材：${conflictNames.join('、')}`,
+      '优先保持锁定合同并重写步骤，删除可选、装饰性、可替代或并非成菜必需的额外食材。',
+      '只有知识库参考明确支持、且缺少后无法完成该菜时，action 才能设为 add_required，并给出明确正数用量和单位；否则必须设为 keep_contract，additions 返回空数组。',
+      '不得修改锁定食材的名称、用量或单位。修正后的 steps 必须使用全部最终食材，且不得再出现清单外食材。',
+      '知识库检索参考：',
+      knowledgeReferenceText || '无可靠参考；此时必须保持锁定合同并删除额外食材。',
+      `JSON 结构：${schema}`,
+    ].join('\n')
+    const content = await this.callDashScope(
+      this.textModel,
+      [
+        { role: 'system', content: '你负责修复菜谱步骤与已锁定食材合同之间的冲突。' },
+        { role: 'user', content: prompt },
+      ],
+      true,
+      0.05,
+      1200,
+    )
+    const parsed = this.parseJson(content)
+    const source = parsed?.resolution || parsed?.recipe || parsed
+    const action = `${source?.action || 'keep_contract'}`.trim()
+    const proposed = this.pickRequiredIngredientAdditions({ requiredIngredientAdditions: source?.additions }, recipe.ingredients || [])
+    const additions = action === 'add_required'
+      ? proposed.filter((item) => trustedRequiredKeys.has(this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name))))
+      : []
+    const steps = this.normalizeStringArray(source?.steps)
+    if (steps.length < 3) throw new Error('菜谱合同冲突修复未返回完整步骤')
+    const finalIngredients = this.mergeLockedRecipeIngredients(recipe.ingredients || [], additions)
+    const usedIngredients = this.normalizeStringArray(source?.usedIngredients)
+    const resolved: GeneratedRecipe = {
       ...recipe,
-      ingredients: this.mergeLockedRecipeIngredients(recipe.ingredients || [], additions),
+      ingredients: finalIngredients,
+      steps,
+      tips: `${source?.tips || recipe.tips || ''}`.trim(),
+      usedIngredients: usedIngredients.length ? usedIngredients : finalIngredients.map((item) => item.name),
     }
+    const remaining = this.getUndeclaredContractIngredients(resolved)
+    if (remaining.length) throw new Error(`菜谱合同冲突修复失败：仍使用未声明食材 ${remaining.join('、')}`)
+    this.logger.log(
+      `recipe-contract-resolved name=${recipe.name}, action=${additions.length ? 'add_required' : 'keep_contract'}, conflicts=${conflictNames.join('、')}, additions=${additions.map((item) => item.name).join('、') || 'none'}`,
+    )
+    return resolved
   }
 
   private repairMinorRecipeDetailConsistency(recipe: GeneratedRecipe) {
@@ -1495,8 +1530,8 @@ export class AiService {
           .map((item) => item.name)
           .join('、')}`,
       )
-    const undeclaredIngredients = this.getUndeclaredCommonStepIngredients(recipe)
-    if (undeclaredIngredients.length) issues.push(`步骤使用但食材清单未列出：${undeclaredIngredients.slice(0, 4).map((item) => item.name).join('、')}`)
+    const undeclaredIngredients = this.getUndeclaredContractIngredients(recipe)
+    if (undeclaredIngredients.length) issues.push(`步骤使用但食材清单未列出：${undeclaredIngredients.slice(0, 4).join('、')}`)
     if (requireNutrition) {
       const nutrition = recipe?.nutrition
       const values = nutrition ? [nutrition.calories, nutrition.protein, nutrition.fat, nutrition.carbohydrates, nutrition.fiber, nutrition.sodium] : []

@@ -122,25 +122,39 @@ describe('AiService recipe RAG loop', () => {
     expect(modelCall.mock.calls[0][4]).toBe(1800)
   })
 
-  it('keeps the recommendation ingredient set locked and only accepts explicit additions', async () => {
+  it('keeps locked quantities and only adds an ingredient after contract resolution', async () => {
     const lockedIngredients = [
       { name: '番茄', quantity: 2, unit: '个' },
       { name: '鸡蛋', quantity: 3, unit: '个' },
       { name: '食盐', quantity: 2, unit: '克' },
     ]
-    jest.spyOn(service as any, 'callDashScope').mockResolvedValue(
-      JSON.stringify({
-        recipe: {
-          ingredients: [
-            { name: '番茄', quantity: 99, unit: '个' },
-            { name: '鸡蛋', quantity: 1, unit: '个' },
-          ],
-          requiredIngredientAdditions: [{ name: '食用油', quantity: 15, unit: '毫升', reason: '炒制需要' }],
-          steps: ['番茄洗净切块，鸡蛋打入碗中并充分搅散备用。', '锅中加入食用油烧热，倒入鸡蛋炒至凝固后盛出。', '原锅加入番茄翻炒至出汁，再倒回鸡蛋翻炒均匀。', '加入食盐调味，继续翻炒片刻后关火装盘。'],
-          tips: '鸡蛋不要炒得过老。',
-        },
-      }),
-    )
+    const modelCall = jest
+      .spyOn(service as any, 'callDashScope')
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          recipe: {
+            ingredients: [
+              { name: '番茄', quantity: 99, unit: '个' },
+              { name: '鸡蛋', quantity: 1, unit: '个' },
+            ],
+            usedIngredients: ['番茄', '鸡蛋', '食盐', '食用油'],
+            requiredIngredientAdditions: [{ name: '食用油', quantity: 15, unit: '毫升', reason: '炒制需要' }],
+            steps: ['番茄洗净切块，鸡蛋打入碗中并充分搅散备用。', '锅中加入食用油烧热，倒入鸡蛋炒至凝固后盛出。', '原锅加入番茄翻炒至出汁，再倒回鸡蛋翻炒均匀。', '加入食盐调味，继续翻炒片刻后关火装盘。'],
+            tips: '鸡蛋不要炒得过老。',
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          resolution: {
+            action: 'add_required',
+            usedIngredients: ['番茄', '鸡蛋', '食盐', '食用油'],
+            additions: [{ name: '食用油', quantity: 15, unit: '毫升', reason: '知识库中的番茄炒蛋需要炒制用油' }],
+            steps: ['番茄洗净切块，鸡蛋打入碗中并充分搅散备用。', '锅中加入食用油烧热，倒入鸡蛋炒至凝固后盛出。', '原锅加入番茄翻炒至出汁，再倒回鸡蛋翻炒均匀。', '加入食盐调味，继续翻炒片刻后关火装盘。'],
+            tips: '鸡蛋不要炒得过老。',
+          },
+        }),
+      )
 
     const result = await service.generateRecipeSteps({
       userId: 1,
@@ -151,6 +165,7 @@ describe('AiService recipe RAG loop', () => {
     expect(result.ingredients.find((item) => item.name === '鸡蛋')?.quantity).toBe(3)
     expect(result.ingredients.find((item) => item.name === '食用油')?.quantity).toBe(15)
     expect(result.ingredientSetLocked).toBe(true)
+    expect(modelCall).toHaveBeenCalledTimes(2)
   })
 
   it('automatically writes an omitted optional seasoning into the steps', async () => {
@@ -179,7 +194,7 @@ describe('AiService recipe RAG loop', () => {
     expect(result.steps.join('')).toContain('白糖')
   })
 
-  it('adds a clearly used structural ingredient when the model omits it from additions', async () => {
+  it('rewrites optional undeclared ingredients instead of applying fixed ingredient defaults', async () => {
     const ingredients = [
       { name: '番茄', quantity: 2, unit: '个' },
       { name: '土豆', quantity: 1, unit: '个' },
@@ -187,28 +202,48 @@ describe('AiService recipe RAG loop', () => {
       { name: '食盐', quantity: 2, unit: '克' },
       { name: '胡椒粉', quantity: 0.5, unit: '克' },
     ]
-    const modelCall = jest.spyOn(service as any, 'callDashScope').mockResolvedValue(
-      JSON.stringify({
-        recipe: {
-          requiredIngredientAdditions: [],
-          steps: [
-            '番茄洗净切块，土豆去皮切成小块备用。',
-            '土豆放入蒸锅，中火蒸约15分钟至能轻松压碎。',
-            '番茄加入食用油翻炒至软烂出汁，再压成细腻的泥。',
-            '将土豆泥与番茄泥混合，加入淀粉、食盐和胡椒粉拌匀后即可食用。',
-          ],
-          tips: '土豆蒸透后更容易压成细腻的泥。',
-        },
-      }),
-    )
+    const modelCall = jest
+      .spyOn(service as any, 'callDashScope')
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          recipe: {
+            usedIngredients: ['番茄', '土豆', '食用油', '淀粉', '食盐', '胡椒粉'],
+            requiredIngredientAdditions: [],
+            steps: [
+              '番茄洗净切块，土豆去皮切成小块备用。',
+              '土豆放入蒸锅，中火蒸约15分钟至能轻松压碎。',
+              '番茄加入食用油翻炒至软烂出汁，再压成细腻的泥。',
+              '将土豆泥与番茄泥混合，加入淀粉、食盐和胡椒粉拌匀后即可食用。',
+            ],
+            tips: '土豆蒸透后更容易压成细腻的泥。',
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          resolution: {
+            action: 'keep_contract',
+            usedIngredients: ['番茄', '土豆', '食用油', '食盐', '胡椒粉'],
+            additions: [],
+            steps: [
+              '番茄洗净切块，土豆去皮切成小块备用。',
+              '土豆放入蒸锅，中火蒸约15分钟至能轻松压碎。',
+              '番茄加入食用油翻炒至软烂出汁，再压成细腻的泥。',
+              '将土豆泥与番茄泥混合，加入食盐和胡椒粉拌匀后即可食用。',
+            ],
+            tips: '土豆蒸透后更容易压成细腻的泥。',
+          },
+        }),
+      )
 
     const result = await service.generateRecipeSteps({
       userId: 1,
       recipe: summary('蒸番茄土豆泥', ingredients),
     })
 
-    expect(modelCall).toHaveBeenCalledTimes(1)
-    expect(result.ingredients).toEqual(expect.arrayContaining([expect.objectContaining({ name: '淀粉', quantity: 15, unit: '克' })]))
+    expect(modelCall).toHaveBeenCalledTimes(2)
+    expect(result.ingredients.some((item) => item.name === '淀粉')).toBe(false)
+    expect(result.steps.join('')).not.toContain('淀粉')
   })
 
   it('regenerates recommendation summaries when quantities or units are missing', async () => {
