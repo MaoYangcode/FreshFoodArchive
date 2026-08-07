@@ -37,6 +37,7 @@ type GeneratedRecipe = {
   plan?: RecipePlan
   ingredientSetLocked?: boolean
   ingredientSetVersion?: number
+  contractUpgraded?: boolean
   usedIngredients?: string[]
 }
 
@@ -935,6 +936,8 @@ export class AiService {
         matchedIngredients: hit.matchedIngredients,
         missingIngredients: hit.missingIngredients,
         retrievalSource: hit.retrievalMode,
+        ingredientSetLocked: true,
+        ingredientSetVersion: 2,
       }
     })
     return {
@@ -975,21 +978,21 @@ export class AiService {
     const userId = Math.max(Number(payload?.userId || 1), 1)
     const profile = await this.loadUserProfileForRecipe(userId)
     const summaryIngredients = Array.isArray(summary?.ingredients) ? summary.ingredients : []
-    const ingredients = summaryIngredients.length
+    let ingredients = summaryIngredients.length
       ? summaryIngredients
       : (knowledgeRecipe?.ingredients || []).map((item) => ({
           name: item.name,
           quantity: item.quantity,
           unit: item.unit,
         }))
-    const plan = this.normalizeRecipePlan(summary?.plan, name, ingredients)
+    let plan = this.normalizeRecipePlan(summary?.plan, name, ingredients)
     const referenceIngredientNames = ingredients.map((item: any) => `${item?.name || ''}`.trim()).filter(Boolean)
     if (!referenceIngredientNames.length && knowledgeRecipe) {
       referenceIngredientNames.push(...knowledgeRecipe.ingredients.map((item) => item.name).filter(Boolean))
     }
     const searchedHits = await this.recipeKnowledge.search({
       ingredients: referenceIngredientNames,
-      limit: 4,
+      limit: 20,
       maxDuration: Number(summary?.duration || 30),
       avoidances: profile.avoidances,
     })
@@ -1004,18 +1007,49 @@ export class AiService {
       })
     }
     const seenReferenceIds = new Set(referenceHits.map((hit) => hit.recipe.id))
-    for (const hit of searchedHits) {
+    const rankedSearchedHits = [...searchedHits].sort((left, right) => {
+      const nameDifference = this.scoreRecipeNameSimilarity(name, right.recipe.name) - this.scoreRecipeNameSimilarity(name, left.recipe.name)
+      return nameDifference || Number(right.score || 0) - Number(left.score || 0)
+    })
+    for (const hit of rankedSearchedHits) {
       if (seenReferenceIds.has(hit.recipe.id)) continue
       referenceHits.push(hit)
       seenReferenceIds.add(hit.recipe.id)
     }
     const knowledgeReferenceText = this.buildKnowledgeReferenceContext(referenceHits, 3, true, 5)
     const retrievalMs = Date.now() - startedAt
+    const isLegacyContract = summary?.ingredientSetLocked !== true || Number(summary?.ingredientSetVersion || 1) < 2
+    let contractUpgraded = false
+    if (isLegacyContract) {
+      let contract = this.normalizeRecipe(
+        {
+          ...summary,
+          name,
+          ingredients,
+          plan,
+          steps: [],
+          nutrition: undefined,
+          ingredientSetLocked: true,
+          ingredientSetVersion: 2,
+        },
+        0,
+        true,
+      )
+      const contractIssues = this.getRecipeSummaryQualityIssues(contract)
+      const upgradeIssues = contractIssues.length
+        ? contractIssues
+        : ['旧版菜谱未保存完整食材合同，请核对并一次补齐成立这道菜所必需的主料、辅料和调味料']
+      contract = await this.repairRecipeSummary(contract, upgradeIssues, true, knowledgeReferenceText)
+      ingredients = contract.ingredients
+      plan = this.normalizeRecipePlan(contract.plan, name, ingredients)
+      contractUpgraded = true
+      this.logger.log(`recipe-contract-upgraded name=${name}, repaired=${upgradeIssues.join('、')}`)
+    }
     const ingredientText = ingredients
       .map((item: any) => `${item?.name || ''}${item?.quantity ?? ''}${item?.unit || ''}`.trim())
       .filter(Boolean)
       .join('、')
-    const schema = '{"recipe":{"usedIngredients":["步骤实际使用的全部食材名称"],"requiredIngredientAdditions":[{"name":"确实缺少的必要食材","quantity":1,"unit":"个","reason":"缺少后无法完成菜品"}],"steps":["具体可执行步骤1","具体可执行步骤2","具体可执行步骤3"],"tips":"烹饪提示"}}'
+    const schema = '{"recipe":{"usedIngredients":["步骤实际使用的全部食材名称"],"steps":["具体可执行步骤1","具体可执行步骤2","具体可执行步骤3"],"tips":"烹饪提示"}}'
 
     if (!this.apiKey) throw new Error('DASHSCOPE_API_KEY 未配置，无法生成最终菜谱')
     let qualityFeedback = ''
@@ -1034,11 +1068,9 @@ export class AiService {
         `饮食偏好（尽量贴合）：${profile.dietPreferences.length ? profile.dietPreferences.join('、') : '无特别偏好'}`,
         `可用厨具：${profile.note || '常见家用厨具'}`,
         `忌口食材（绝对不能出现）：${profile.avoidances.length ? profile.avoidances.join('、') : '无'}`,
-        '食材清单已由推荐阶段定稿；只生成 steps 与 tips，不得重新输出、替换、删除或修改锁定食材。',
-        '只有发现缺少鸡蛋、淀粉等“不补就无法完成这道菜”的必要食材时，才可放入 requiredIngredientAdditions；最多补充4项，并写明正数 quantity、明确 unit 和 reason。',
-        '不得把可选装饰、可替代调味料或仅用于丰富口味的食材列为补充项；没有必要补充时返回空数组。',
-        'usedIngredients 必须逐项列出 steps 实际提到的全部食材，名称要与锁定食材或必要补充食材一致，不得漏报。',
-        'steps 必须使用全部锁定食材和全部必要补充食材，不得使用清单以外的食材。',
+        '食材清单已由推荐阶段完整定稿；只生成 steps 与 tips，不得重新输出、替换、删除、修改或补充食材。',
+        'usedIngredients 必须逐项列出 steps 实际提到的全部食材，名称必须与锁定食材一致，不得漏报。',
+        'steps 必须使用全部锁定食材，不得使用清单以外的任何食材；如果某种食材可有可无，直接不要使用。',
         '步骤数量按实际操作组织，家常菜通常5至9步；连续的小动作应合并，不要为了增加步数拆开洗、擦、取出、静置、装盘等自然衔接动作。',
         '食材总量已经在食材清单中给出，步骤中不要机械重复食材总数量；只有分次使用时才写该次用量。',
         '只保留真正影响成败的关键数字，例如火候、烤箱温度、合理的时间范围和必要的切配厚度；成熟程度优先写颜色、软硬、香气、沸腾状态等直观判断。',
@@ -1070,8 +1102,7 @@ export class AiService {
       const parsed = this.parseJson(content)
       const list = this.pickRecipeArray(parsed)
       const detailSource = parsed?.recipe || list[0] || parsed
-      const proposedAdditions = this.pickRequiredIngredientAdditions(detailSource, ingredients)
-      const reportedUsedIngredients = [...new Set([...this.normalizeStringArray(detailSource?.usedIngredients), ...proposedAdditions.map((item) => item.name)])]
+      const reportedUsedIngredients = [...new Set(this.normalizeStringArray(detailSource?.usedIngredients))]
       let recipe = this.normalizeRecipe(
         {
           ...summary,
@@ -1082,18 +1113,13 @@ export class AiService {
           plan,
           nutrition: undefined,
           ingredientSetLocked: true,
-          ingredientSetVersion: 1,
+          ingredientSetVersion: 2,
+          contractUpgraded,
         },
         0,
         false,
       )
       recipe.usedIngredients = reportedUsedIngredients.length ? reportedUsedIngredients : ingredients.map((item: any) => `${item?.name || ''}`.trim()).filter(Boolean)
-      const contractConflicts = this.getUndeclaredContractIngredients(recipe)
-      let contractRepairAttempted = false
-      if (contractConflicts.length) {
-        contractRepairAttempted = true
-        recipe = await this.resolveRecipeContractConflict(recipe, contractConflicts, knowledgeReferenceText, referenceHits)
-      }
       recipe = this.repairRecipeStepPresentation(recipe)
       recipe = this.repairMinorRecipeDetailConsistency(recipe)
       lastIssues = this.getRecipeDetailQualityIssues(recipe, false)
@@ -1108,7 +1134,6 @@ export class AiService {
       }
       qualityFeedback = [...new Set(lastIssues)].join('；')
       this.logger.warn(`recipe-steps-quality-retry name=${name}, attempt=${attempt + 1}, issues=${qualityFeedback}`)
-      if (contractRepairAttempted) break
     }
     throw new Error(`菜谱步骤未通过质量校验：${[...new Set(lastIssues)].join('；') || '未知问题'}`)
   }
@@ -1161,7 +1186,8 @@ export class AiService {
       detailReady: !summaryOnly && steps.length > 0,
       plan: this.normalizeRecipePlan(item?.plan, name, ingredients),
       ingredientSetLocked: item?.ingredientSetLocked === true || summaryOnly,
-      ingredientSetVersion: Math.max(1, Number(item?.ingredientSetVersion || 1)),
+      ingredientSetVersion: summaryOnly ? 2 : Math.max(1, Number(item?.ingredientSetVersion || 1)),
+      contractUpgraded: item?.contractUpgraded === true,
     }
   }
 
@@ -1326,39 +1352,6 @@ export class AiService {
     return [...new Set(issues)]
   }
 
-  private pickRequiredIngredientAdditions(source: any, lockedIngredients: GeneratedRecipe['ingredients']): GeneratedRecipe['ingredients'] {
-    const explicit = Array.isArray(source?.requiredIngredientAdditions) ? source.requiredIngredientAdditions : Array.isArray(source?.required_ingredient_additions) ? source.required_ingredient_additions : []
-    // Keep compatibility with older model responses that returned a full ingredients array.
-    // Only ingredients not already present are treated as proposed additions; locked values always win.
-    const legacy = explicit.length || !Array.isArray(source?.ingredients) ? [] : source.ingredients
-    const lockedKeys = new Set((lockedIngredients || []).map((item) => this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name))).filter(Boolean))
-    const additions: GeneratedRecipe['ingredients'] = []
-    for (const item of [...explicit, ...legacy]) {
-      const name = `${item?.name || ''}`.trim()
-      const key = this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(name))
-      const quantity = Number(item?.quantity)
-      const unit = `${item?.unit || ''}`.trim()
-      if (!name || !key || lockedKeys.has(key)) continue
-      if (!Number.isFinite(quantity) || quantity <= 0 || !unit) continue
-      lockedKeys.add(key)
-      additions.push({ name, quantity, unit })
-      if (additions.length >= 4) break
-    }
-    return additions
-  }
-
-  private mergeLockedRecipeIngredients(lockedIngredients: GeneratedRecipe['ingredients'], additions: GeneratedRecipe['ingredients']) {
-    const output = (lockedIngredients || []).map((item) => ({ ...item }))
-    const keys = new Set(output.map((item) => this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name))).filter(Boolean))
-    for (const item of additions || []) {
-      const key = this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name))
-      if (!key || keys.has(key)) continue
-      keys.add(key)
-      output.push({ ...item })
-    }
-    return output
-  }
-
   private getUnusedRecipeIngredients(recipe: GeneratedRecipe) {
     const steps = Array.isArray(recipe?.steps) ? recipe.steps : []
     const stepText = this.normalizeTextForCompare(steps.join(' '))
@@ -1386,67 +1379,24 @@ export class AiService {
     })
   }
 
-  private async resolveRecipeContractConflict(
-    recipe: GeneratedRecipe,
-    conflictNames: string[],
-    knowledgeReferenceText: string,
-    referenceHits: RecipeKnowledgeHit[],
-  ): Promise<GeneratedRecipe> {
-    const trustedRequiredKeys = new Set(
-      referenceHits
-        .filter((hit) => Number(hit.recipe?.quality?.score || 0) >= 0.85)
-        .flatMap((hit) => (hit.recipe?.ingredients || []).filter((item) => item.required).map((item) => this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name))))
-        .filter(Boolean),
-    )
-    const lockedText = (recipe.ingredients || []).map((item) => `${item.name}${item.quantity ?? ''}${item.unit || ''}`).join('、')
-    const schema = '{"resolution":{"action":"keep_contract或add_required","usedIngredients":["修正后步骤实际使用的全部食材"],"additions":[{"name":"必要食材","quantity":1,"unit":"个","reason":"知识库支持且缺少后无法成菜"}],"steps":["修正后的完整步骤"],"tips":"烹饪提示","reason":"处理原因"}}'
-    const prompt = [
-      '你是菜谱合同冲突修复器。仅返回 JSON，不要解释。',
-      `菜名：${recipe.name}`,
-      `锁定菜谱合同食材：${lockedText}`,
-      `当前步骤：${(recipe.steps || []).join('；')}`,
-      `步骤使用但合同未声明的食材：${conflictNames.join('、')}`,
-      '优先保持锁定合同并重写步骤，删除可选、装饰性、可替代或并非成菜必需的额外食材。',
-      '只有知识库参考明确支持、且缺少后无法完成该菜时，action 才能设为 add_required，并给出明确正数用量和单位；否则必须设为 keep_contract，additions 返回空数组。',
-      '不得修改锁定食材的名称、用量或单位。修正后的 steps 必须使用全部最终食材，且不得再出现清单外食材。',
-      '知识库检索参考：',
-      knowledgeReferenceText || '无可靠参考；此时必须保持锁定合同并删除额外食材。',
-      `JSON 结构：${schema}`,
-    ].join('\n')
-    const content = await this.callDashScope(
-      this.textModel,
-      [
-        { role: 'system', content: '你负责修复菜谱步骤与已锁定食材合同之间的冲突。' },
-        { role: 'user', content: prompt },
-      ],
-      true,
-      0.05,
-      1200,
-    )
-    const parsed = this.parseJson(content)
-    const source = parsed?.resolution || parsed?.recipe || parsed
-    const action = `${source?.action || 'keep_contract'}`.trim()
-    const proposed = this.pickRequiredIngredientAdditions({ requiredIngredientAdditions: source?.additions }, recipe.ingredients || [])
-    const additions = action === 'add_required'
-      ? proposed.filter((item) => trustedRequiredKeys.has(this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name))))
-      : []
-    const steps = this.normalizeStringArray(source?.steps)
-    if (steps.length < 3) throw new Error('菜谱合同冲突修复未返回完整步骤')
-    const finalIngredients = this.mergeLockedRecipeIngredients(recipe.ingredients || [], additions)
-    const usedIngredients = this.normalizeStringArray(source?.usedIngredients)
-    const resolved: GeneratedRecipe = {
-      ...recipe,
-      ingredients: finalIngredients,
-      steps,
-      tips: `${source?.tips || recipe.tips || ''}`.trim(),
-      usedIngredients: usedIngredients.length ? usedIngredients : finalIngredients.map((item) => item.name),
-    }
-    const remaining = this.getUndeclaredContractIngredients(resolved)
-    if (remaining.length) throw new Error(`菜谱合同冲突修复失败：仍使用未声明食材 ${remaining.join('、')}`)
-    this.logger.log(
-      `recipe-contract-resolved name=${recipe.name}, action=${additions.length ? 'add_required' : 'keep_contract'}, conflicts=${conflictNames.join('、')}, additions=${additions.map((item) => item.name).join('、') || 'none'}`,
-    )
-    return resolved
+  private scoreRecipeNameSimilarity(leftValue: unknown, rightValue: unknown) {
+    const normalize = (value: unknown) =>
+      this.normalizeTextForCompare(value)
+        .replace(/西红柿/gu, '番茄')
+        .replace(/马铃薯/gu, '土豆')
+        .replace(/鸡子/gu, '鸡蛋')
+    const left = normalize(leftValue)
+    const right = normalize(rightValue)
+    if (!left || !right) return 0
+    if (left === right) return 100
+    const leftCharacters = new Set([...left])
+    const rightCharacters = new Set([...right])
+    const shared = [...leftCharacters].filter((character) => rightCharacters.has(character)).length
+    const union = new Set([...leftCharacters, ...rightCharacters]).size || 1
+    const methodMarkers = '羹汤炒炖焖蒸煮煎烤炸拌饭面粥饼'
+    const sharedMethods = [...methodMarkers].filter((marker) => left.includes(marker) && right.includes(marker)).length
+    const conflictingMethods = [...methodMarkers].some((marker) => left.includes(marker) !== right.includes(marker))
+    return (shared / union) * 10 + sharedMethods * 3 - (conflictingMethods ? 1 : 0)
   }
 
   private repairMinorRecipeDetailConsistency(recipe: GeneratedRecipe) {

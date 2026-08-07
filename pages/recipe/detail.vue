@@ -48,11 +48,11 @@
 				<view class="detail-loading-dot"></view>
 				<view>
 					<text class="detail-loading-title">正在读取收藏内容</text>
-					<text class="detail-loading-meta">稍后只会根据当前冰箱重新核对食材</text>
+					<text class="detail-loading-meta">食材库存会按当前冰箱重新核对</text>
 				</view>
 			</view>
 			<view v-else-if="fromFavorite && !hasRecipeDetail" class="detail-error-card favorite-legacy-card">
-				<text class="detail-error-text">这份早期收藏没有保存详细步骤，已保留菜名和食材信息，不会自动重新生成。</text>
+				<text class="detail-error-text">这份早期收藏暂时无法完成升级，请稍后再试。</text>
 			</view>
 			<view v-else-if="stepsError" class="detail-error-card">
 				<text class="detail-error-text">{{ stepsError }}</text>
@@ -188,7 +188,7 @@ import {
 	syncFavoriteRecipes
 } from '@/utils/user-data-sync'
 
-const RECIPE_DETAIL_QUALITY_VERSION = 5
+const RECIPE_DETAIL_QUALITY_VERSION = 6
 const RECIPE_DETAIL_CACHE_PREFIX = `FFA_RECIPE_DETAIL_V${RECIPE_DETAIL_QUALITY_VERSION}_`
 
 export default {
@@ -537,7 +537,8 @@ export default {
 				Number(nutrition?.calories) > 0 && !!`${nutrition?.analysis || ''}`.trim()
 		},
 		async ensureRecipeDetail(force = false) {
-			if (this.fromFavorite) {
+			const currentContractVersion = Number(this.recipe?.raw?.ingredientSetVersion || 1)
+			if (this.fromFavorite && this.hasRecipeDetail && currentContractVersion >= 2) {
 				this.stepsLoading = false
 				this.nutritionLoading = false
 				this.stepsError = ''
@@ -563,7 +564,7 @@ export default {
 					servings: this.recipe.servings,
 					ingredients: this.pickRecipeIngredientItems()
 				}
-			if (this.hasRecipeDetail || this.hasNutrition) {
+			if ((this.hasRecipeDetail || this.hasNutrition) && !this.fromFavorite) {
 				this.applyRecipeFromRaw({
 					...summary,
 					steps: [],
@@ -593,6 +594,17 @@ export default {
 						nutrition: null
 					}
 					this.applyRecipeFromRaw(resolved)
+					if (this.fromFavorite && resolved.contractUpgraded) {
+						const payload = {
+							name: resolved.name || this.recipe.name,
+							duration: Number(resolved.duration || this.recipe.duration || 0),
+							difficulty: resolved.difficulty || this.recipe.difficulty,
+							raw: resolved,
+							completedCount: this.completedCount,
+							lastCompletedAt: this.lastCompletedAt || null
+						}
+						saveFavoriteToServer(payload).then(() => this.syncFavoriteState(true)).catch(() => {})
+					}
 					return resolved
 				})
 				.catch((error) => {
@@ -649,6 +661,17 @@ export default {
 				if (this.isDetailComplete(completed)) {
 					this.writeDetailCache(completed)
 					uni.setStorageSync('latestRecipeDetail', completed)
+					if (this.fromFavorite && completed.contractUpgraded) {
+						const payload = {
+							name: completed.name || this.recipe.name,
+							duration: Number(completed.duration || this.recipe.duration || 0),
+							difficulty: completed.difficulty || this.recipe.difficulty,
+							raw: completed,
+							completedCount: this.completedCount,
+							lastCompletedAt: this.lastCompletedAt || null
+						}
+						saveFavoriteToServer(payload).then(() => this.syncFavoriteState(true)).catch(() => {})
+					}
 				}
 			}, 180)
 		},

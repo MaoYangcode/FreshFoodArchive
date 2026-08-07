@@ -12,7 +12,7 @@ const nutrition = {
 }
 
 function summary(name: string, ingredients: Array<{ name: string; quantity: number; unit: string }>) {
-  return { name, duration: 20, difficulty: '简单', ingredients }
+  return { name, duration: 20, difficulty: '简单', ingredients, ingredientSetLocked: true, ingredientSetVersion: 2 }
 }
 
 function detail(name = '番茄炒蛋') {
@@ -108,6 +108,8 @@ describe('AiService recipe RAG loop', () => {
         knowledgeId: 'recipe_0001',
         name: '番茄炒蛋',
         ingredients: detail().ingredients,
+        ingredientSetLocked: true,
+        ingredientSetVersion: 2,
       },
     })
 
@@ -122,39 +124,23 @@ describe('AiService recipe RAG loop', () => {
     expect(modelCall.mock.calls[0][4]).toBe(1800)
   })
 
-  it('keeps locked quantities and only adds an ingredient after contract resolution', async () => {
+  it('keeps the version 2 ingredient contract unchanged while generating steps', async () => {
     const lockedIngredients = [
       { name: '番茄', quantity: 2, unit: '个' },
       { name: '鸡蛋', quantity: 3, unit: '个' },
+      { name: '食用油', quantity: 15, unit: '毫升' },
       { name: '食盐', quantity: 2, unit: '克' },
     ]
-    const modelCall = jest
-      .spyOn(service as any, 'callDashScope')
-      .mockResolvedValueOnce(
-        JSON.stringify({
-          recipe: {
-            ingredients: [
-              { name: '番茄', quantity: 99, unit: '个' },
-              { name: '鸡蛋', quantity: 1, unit: '个' },
-            ],
-            usedIngredients: ['番茄', '鸡蛋', '食盐', '食用油'],
-            requiredIngredientAdditions: [{ name: '食用油', quantity: 15, unit: '毫升', reason: '炒制需要' }],
-            steps: ['番茄洗净切块，鸡蛋打入碗中并充分搅散备用。', '锅中加入食用油烧热，倒入鸡蛋炒至凝固后盛出。', '原锅加入番茄翻炒至出汁，再倒回鸡蛋翻炒均匀。', '加入食盐调味，继续翻炒片刻后关火装盘。'],
-            tips: '鸡蛋不要炒得过老。',
-          },
-        }),
-      )
-      .mockResolvedValueOnce(
-        JSON.stringify({
-          resolution: {
-            action: 'add_required',
-            usedIngredients: ['番茄', '鸡蛋', '食盐', '食用油'],
-            additions: [{ name: '食用油', quantity: 15, unit: '毫升', reason: '知识库中的番茄炒蛋需要炒制用油' }],
-            steps: ['番茄洗净切块，鸡蛋打入碗中并充分搅散备用。', '锅中加入食用油烧热，倒入鸡蛋炒至凝固后盛出。', '原锅加入番茄翻炒至出汁，再倒回鸡蛋翻炒均匀。', '加入食盐调味，继续翻炒片刻后关火装盘。'],
-            tips: '鸡蛋不要炒得过老。',
-          },
-        }),
-      )
+    const modelCall = jest.spyOn(service as any, 'callDashScope').mockResolvedValue(
+      JSON.stringify({
+        recipe: {
+          ingredients: [{ name: '番茄', quantity: 99, unit: '个' }],
+          usedIngredients: ['番茄', '鸡蛋', '食用油', '食盐'],
+          steps: detail().steps,
+          tips: '鸡蛋不要炒得过老。',
+        },
+      }),
+    )
 
     const result = await service.generateRecipeSteps({
       userId: 1,
@@ -165,7 +151,60 @@ describe('AiService recipe RAG loop', () => {
     expect(result.ingredients.find((item) => item.name === '鸡蛋')?.quantity).toBe(3)
     expect(result.ingredients.find((item) => item.name === '食用油')?.quantity).toBe(15)
     expect(result.ingredientSetLocked).toBe(true)
+    expect(result.ingredientSetVersion).toBe(2)
+    expect(modelCall).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries only the steps when a detail response uses an undeclared ingredient', async () => {
+    const lockedIngredients = [
+      { name: '番茄', quantity: 2, unit: '个' },
+      { name: '鸡蛋', quantity: 3, unit: '个' },
+      { name: '食盐', quantity: 2, unit: '克' },
+    ]
+    const correctedSteps = ['番茄洗净切块，鸡蛋打入碗中并充分搅散。', '锅中加入少量清水，倒入鸡蛋加热至凝固。', '加入番茄翻炒至出汁，与鸡蛋翻拌均匀。', '加入食盐调味，汤汁收至合适后关火。']
+    const modelCall = jest
+      .spyOn(service as any, 'callDashScope')
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          recipe: {
+            usedIngredients: ['番茄', '鸡蛋', '食盐', '淀粉'],
+            steps: [...correctedSteps.slice(0, 3), '加入淀粉和食盐调味后关火。'],
+            tips: '鸡蛋不要炒得过老。',
+          },
+        }),
+      )
+      .mockResolvedValueOnce(JSON.stringify({ recipe: { usedIngredients: ['番茄', '鸡蛋', '食盐'], steps: correctedSteps, tips: '按食材状态调整火候。' } }))
+
+    const result = await service.generateRecipeSteps({
+      userId: 1,
+      recipe: summary('番茄炒蛋', lockedIngredients),
+    })
+
     expect(modelCall).toHaveBeenCalledTimes(2)
+    expect(result.steps).toEqual(correctedSteps)
+    expect(result.ingredients.some((item) => item.name === '淀粉')).toBe(false)
+  })
+
+  it('upgrades an old incomplete recipe contract once before generating steps', async () => {
+    const modelCall = jest
+      .spyOn(service as any, 'callDashScope')
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          recipe: { plan: { dishType: '汤羹', cookingMethod: '煮', requiredIngredients: ['番茄', '豆腐'] }, ingredients: [{ name: '番茄', quantity: 3, unit: '个' }, { name: '豆腐', quantity: 200, unit: '克' }, { name: '鸡蛋', quantity: 2, unit: '个' }, { name: '淀粉', quantity: 5, unit: '克' }, { name: '食盐', quantity: 3, unit: '克' }] },
+        }),
+      )
+      .mockResolvedValueOnce(JSON.stringify({ recipe: { usedIngredients: ['番茄', '豆腐', '鸡蛋', '淀粉', '食盐'], steps: ['番茄洗净切丁，豆腐切块，鸡蛋充分搅散。', '锅中加水烧开，放入番茄和豆腐煮至番茄变软。', '淋入鸡蛋液，待蛋花凝固后用淀粉水勾芡。', '加入食盐调味，汤汁稍稠后关火。'], tips: '淀粉水要分次加入。' } }))
+
+    const result = await service.generateRecipeSteps({
+      userId: 1,
+      recipe: { name: '番茄豆腐羹', duration: 20, difficulty: '简单', ingredients: [{ name: '番茄', quantity: 3, unit: '个' }] },
+    })
+
+    expect(modelCall).toHaveBeenCalledTimes(2)
+    expect(result.ingredients.some((item) => item.name.includes('豆腐'))).toBe(true)
+    expect(result.ingredientSetVersion).toBe(2)
+    expect(result.contractUpgraded).toBe(true)
+    expect(result.steps.length).toBeGreaterThanOrEqual(3)
   })
 
   it('automatically writes an omitted optional seasoning into the steps', async () => {
@@ -221,10 +260,8 @@ describe('AiService recipe RAG loop', () => {
       )
       .mockResolvedValueOnce(
         JSON.stringify({
-          resolution: {
-            action: 'keep_contract',
+          recipe: {
             usedIngredients: ['番茄', '土豆', '食用油', '食盐', '胡椒粉'],
-            additions: [],
             steps: [
               '番茄洗净切块，土豆去皮切成小块备用。',
               '土豆放入蒸锅，中火蒸约15分钟至能轻松压碎。',
