@@ -1,7 +1,10 @@
 <template>
 	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
 		<view class="top" :style="{ paddingRight: `${navRightGap}px` }">
-			<text class="top-title">菜谱</text>
+			<view class="top-title-wrap">
+				<view v-if="fromProfile" class="back-left" @click="backToProfile"><text class="back-arrow">‹</text></view>
+				<text class="top-title">菜谱</text>
+			</view>
 		</view>
 
 		<view class="page-tabs">
@@ -207,6 +210,7 @@ export default {
 	data() {
 		return {
 			activeTab: 'recommend',
+			entrySource: '',
 			isGenerating: false,
 			ingredientPickerVisible: false,
 			pantryIngredients: [],
@@ -236,6 +240,7 @@ export default {
 		}
 	},
 	computed: {
+		fromProfile() { return this.entrySource === 'profile' },
 		generateButtonText() { return this.isGenerating ? '正在生成…' : 'AI 生成专属菜谱' },
 		allPantrySelected() { return this.pantryIngredients.length > 0 && this.selectedPantryNames.length === this.pantryIngredients.length },
 		selectedIngredients() {
@@ -272,6 +277,7 @@ export default {
 	},
 	onLoad(query) {
 		this.ensureShareMenu()
+		this.entrySource = query?.from === 'profile' ? 'profile' : ''
 		this.activeTab = query?.tab === 'plan' ? 'plan' : 'recommend'
 		if (query?.date && /^\d{4}-\d{2}-\d{2}$/.test(query.date)) this.selectedDate = query.date
 		this.hydratePantryCache()
@@ -286,6 +292,21 @@ export default {
 	onShareAppMessage() { return { title: '用冰箱食材生成今天的专属菜谱', path: '/pages/recipe/generate' } },
 	onShareTimeline() { return { title: '鲜食档案 | 智能菜谱与饮食计划' } },
 	methods: {
+		backToProfile() {
+			const returnToProfile = () => {
+				uni.redirectTo({
+					url: '/pages/profile/index',
+					fail: () => uni.reLaunch({ url: '/pages/profile/index' })
+				})
+			}
+			const pages = getCurrentPages()
+			const previousRoute = `${pages?.[pages.length - 2]?.route || ''}`
+			if (previousRoute === 'pages/profile/index') {
+				uni.navigateBack({ fail: returnToProfile })
+				return
+			}
+			returnToProfile()
+		},
 		openIngredientPicker() { this.ingredientPickerVisible = true },
 		closeIngredientPicker() { this.ingredientPickerVisible = false },
 		selectAllPantry() { this.selectedPantryNames = this.pantryIngredients.map((item) => item.name) },
@@ -332,7 +353,8 @@ export default {
 			} else {
 				uni.removeStorageSync('latestRecipeDetail')
 			}
-			const target = `/pages/recipe/detail?name=${encodeURIComponent(name)}&fromPlan=1&planId=${encodeURIComponent(plan.id)}&planDate=${encodeURIComponent(this.selectedDate)}`
+			const returnSource = this.fromProfile ? '&planReturnSource=profile' : ''
+			const target = `/pages/recipe/detail?name=${encodeURIComponent(name)}&fromPlan=1&planId=${encodeURIComponent(plan.id)}&planDate=${encodeURIComponent(this.selectedDate)}${returnSource}`
 			uni.navigateTo({
 				url: target,
 				fail: () => uni.redirectTo({ url: target, fail: () => uni.reLaunch({ url: target }) })
@@ -455,6 +477,9 @@ export default {
 <style scoped>
 .container { min-height: 100vh; box-sizing: border-box; padding: 10px 12px 96px; background: #f6f7f8; }
 .top { display: flex; align-items: center; min-height: 34px; }
+.top-title-wrap { display: flex; align-items: center; }
+.back-left { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-right: 2rpx; border-radius: 999rpx; }
+.back-arrow { color: #c7ced9; font-size: 30px; line-height: 1; transform: translateY(-1px); }
 .top-title { color: #1b2420; font-size: 20px; font-weight: 800; }
 .page-tabs { display: grid; grid-template-columns: 1fr 1fr; margin: 10rpx 0 46rpx; border-bottom: 1rpx solid #e4ebe5; }
 .page-tab { position: relative; padding: 18rpx 10rpx 20rpx; color: #8b958e; font-size: 14px; font-weight: 600; text-align: center; }

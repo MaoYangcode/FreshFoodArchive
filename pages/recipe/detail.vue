@@ -200,6 +200,7 @@ export default {
 			fromResult: false,
 			planSourceId: '',
 			planSourceDate: '',
+			planReturnSource: '',
 			favorited: false,
 			favoriteSyncing: false,
 			stepsLoading: false,
@@ -315,6 +316,7 @@ export default {
 		this.fromResult = !!(query && query.fromResult === '1')
 		this.planSourceId = query?.planId ? decodeURIComponent(query.planId) : ''
 		this.planSourceDate = query?.planDate ? decodeURIComponent(query.planDate) : ''
+		this.planReturnSource = query?.planReturnSource === 'profile' ? 'profile' : ''
 		const queryName = query?.name ? decodeURIComponent(query.name) : ''
 		const cached = uni.getStorageSync('latestRecipeDetail')
 		const cacheMatchesQuery = !queryName || this.normalizeName(cached?.name) === this.normalizeName(queryName)
@@ -1065,7 +1067,8 @@ export default {
 					return
 				}
 				const dateQuery = this.planSourceDate ? `&date=${encodeURIComponent(this.planSourceDate)}` : ''
-				openWithRedirect(`/pages/recipe/generate?tab=plan${dateQuery}`)
+				const sourceQuery = this.planReturnSource === 'profile' ? '&from=profile' : ''
+				openWithRedirect(`/pages/recipe/generate?tab=plan${dateQuery}${sourceQuery}`)
 				return
 			}
 			if (this.fromResult) {

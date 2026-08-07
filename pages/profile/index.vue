@@ -217,7 +217,7 @@ export default {
 			this.safeNavigate('/pages/profile/profile')
 		},
 		goMealPlan() {
-			this.safeNavigate(`/pages/recipe/generate?tab=plan&date=${this.formatToday()}`)
+			this.safeNavigate(`/pages/recipe/generate?tab=plan&date=${this.formatToday()}&from=profile`)
 		}
 	}
 }
