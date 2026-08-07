@@ -1094,6 +1094,7 @@ export class AiService {
         contractRepairAttempted = true
         recipe = await this.resolveRecipeContractConflict(recipe, contractConflicts, knowledgeReferenceText, referenceHits)
       }
+      recipe = this.repairRecipeStepPresentation(recipe)
       recipe = this.repairMinorRecipeDetailConsistency(recipe)
       lastIssues = this.getRecipeDetailQualityIssues(recipe, false)
       if (this.recipeContainsAvoidance(recipe, profile.avoidances)) lastIssues.push('包含用户忌口食材')
@@ -1477,6 +1478,34 @@ export class AiService {
       steps[index] = `烹饪接近完成时加入${seasoningNames.join('、')}调味并拌匀，${steps[index]}`
     }
     this.logger.log(`recipe-detail-auto-repair name=${recipe.name}, unusedSeasonings=${unused.map((item) => item.name).join('、')}`)
+    return { ...recipe, steps }
+  }
+
+  private repairRecipeStepPresentation(recipe: GeneratedRecipe) {
+    let changed = false
+    const steps = (recipe.steps || [])
+      .map((step) => {
+        const original = `${step || ''}`.trim()
+        const repaired = original
+          .replace(/\*\*/gu, '')
+          .replace(/本步骤操作要求[：:]?/gu, '')
+          .replace(/完成后进入下一步[。；;，,]?/gu, '')
+          .replace(/详情内容不完整[。；;，,]?/gu, '')
+          .replace(/按菜式需要/gu, '按食材状态')
+          .replace(/准备并清洗所有食材/gu, '将本步骤所需食材处理好')
+          .replace(/二选一/gu, '选择适合当前食材的方式')
+          .replace(/如何判断/gu, '判断')
+          .replace(/方法[一二三四][：:]?/gu, '')
+          .replace(/\b(\d+(?:\.\d+)?)\s*s\b/giu, '$1秒')
+          .replace(/[，,]\s*[。；;]/gu, '。')
+          .replace(/\s{2,}/gu, ' ')
+          .trim()
+        if (repaired !== original) changed = true
+        return repaired
+      })
+      .filter(Boolean)
+    if (!changed) return recipe
+    this.logger.log(`recipe-step-presentation-repaired name=${recipe.name}`)
     return { ...recipe, steps }
   }
 

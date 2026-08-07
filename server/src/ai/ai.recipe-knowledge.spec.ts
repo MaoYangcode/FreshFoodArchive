@@ -361,6 +361,40 @@ describe('AiService recipe RAG loop', () => {
     expect(result.recipes[0].ingredients.some((item) => item.name === '花生米')).toBe(true)
   })
 
+  it('normalizes template wording and time units without regenerating the recipe', async () => {
+    const ingredients = [
+      { name: '番茄', quantity: 3, unit: '个' },
+      { name: '土豆', quantity: 1, unit: '个' },
+      { name: '米饭', quantity: 300, unit: '克' },
+      { name: '食用油', quantity: 15, unit: '毫升' },
+      { name: '食盐', quantity: 3, unit: '克' },
+    ]
+    const modelCall = jest.spyOn(service as any, 'callDashScope').mockResolvedValue(
+      JSON.stringify({
+        recipe: {
+          usedIngredients: ingredients.map((item) => item.name),
+          requiredIngredientAdditions: [],
+          steps: [
+            '**方法一：** 番茄洗净切块，土豆去皮切成小丁备用。',
+            '本步骤操作要求：锅中加入食用油，中火加热后放入番茄和土豆翻炒2分钟。',
+            '加入米饭翻拌均匀并加盖焖10分钟，如何判断熟度可观察土豆是否变软。',
+            '最后加入食盐翻炒30 s，使味道均匀后关火，完成后进入下一步。',
+          ],
+          tips: '焖制时保持小火，避免锅底焦糊。',
+        },
+      }),
+    )
+
+    const result = await service.generateRecipeSteps({
+      userId: 1,
+      recipe: summary('番茄土豆焖饭', ingredients),
+    })
+
+    expect(modelCall).toHaveBeenCalledTimes(1)
+    expect(result.steps.join('')).not.toMatch(/本步骤操作要求|完成后进入下一步|如何判断|\*\*|30\s*s/u)
+    expect(result.steps.join('')).toContain('30秒')
+  })
+
   it('rejects template steps and retries before returning the detail', async () => {
     const bad = {
       ...detail('拔丝土豆'),
