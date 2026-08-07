@@ -96,6 +96,65 @@ describe('AiService recipe RAG loop', () => {
     expect(modelCall.mock.calls[0][1][1].content).toContain('知识库检索')
   })
 
+  it('grounds change-batch names in RAG results and keeps seasonings out of the recipe focus', async () => {
+    const groundedDocument = (knowledge as any).recipes.find((recipe: any) =>
+      (recipe.ingredients || []).some((item: any) => `${item?.normalizedName || item?.name || ''}`.includes('番茄')),
+    )
+    expect(groundedDocument).toBeTruthy()
+    jest.spyOn(knowledge, 'search').mockResolvedValue([
+      {
+        recipe: groundedDocument,
+        score: 10,
+        matchedIngredients: ['番茄'],
+        missingIngredients: [],
+        retrievalMode: 'local-hybrid',
+      },
+    ])
+    const groundedIngredients = groundedDocument.ingredients.map((item: any) => ({
+      name: item.name,
+      quantity: Number(item.quantity || 1),
+      unit: item.unit || '克',
+    }))
+    const modelCall = jest
+      .spyOn(service as any, 'callDashScope')
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          recipes: [
+            summary('胡椒番茄土豆羹', [
+              { name: '番茄', quantity: 2, unit: '个' },
+              { name: '土豆', quantity: 1, unit: '个' },
+              { name: '胡椒粉', quantity: 1, unit: '克' },
+            ]),
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(JSON.stringify({ recipes: [summary(groundedDocument.name, groundedIngredients)] }))
+
+    const result = await service.generateRecipeList({
+      userId: 1,
+      ingredients: [
+        { name: '番茄', quantity: 2, unit: '个', category: '蔬菜' },
+        { name: '胡椒粉', quantity: 1, unit: '袋', category: '调味品' },
+        { name: '食用油', quantity: 1, unit: '瓶', category: '调味品' },
+      ],
+      cookingTime: 30,
+      count: 1,
+      summaryOnly: true,
+      allowMockFallback: false,
+      excludeNames: ['上一批菜谱'],
+      groundNamesToKnowledge: true,
+    })
+
+    expect(modelCall).toHaveBeenCalledTimes(2)
+    expect(result.recipes).toHaveLength(1)
+    expect(result.recipes[0].name).toBe(groundedDocument.name)
+    const firstPrompt = modelCall.mock.calls[0][1][1].content
+    expect(firstPrompt).toContain('优先使用的主要食材：番茄2个')
+    expect(firstPrompt).toContain('家中现有调味料')
+    expect(firstPrompt).toContain('胡椒粉1袋')
+    expect(firstPrompt).toContain('菜名必须直接选自知识库检索参考')
+  })
+
   it('always asks the model to generate final steps from knowledge references', async () => {
     const modelCall = jest.spyOn(service as any, 'callDashScope').mockResolvedValue(
       JSON.stringify({

@@ -1,11 +1,12 @@
 <template>
 	<view class="container" :style="{ paddingTop: `${safeTop + 14}px` }">
 		<view class="top" :style="{ paddingRight: `${navRightGap}px` }">
+			<view class="back-left" @click="backToGenerate"><text class="back-arrow">‹</text></view>
 			<text class="top-title">菜谱推荐</text>
 		</view>
 		<view class="recipe-banner">
-			<text class="banner-label">可用食材</text>
-			<text v-for="(x, idx) in pantryTags" :key="idx" class="pill-food">{{ x }}</text>
+			<view class="condition-row"><text class="banner-label">食材</text><view class="condition-content"><text v-for="(x, idx) in pantryTags" :key="idx" class="pill-food">{{ x }}</text></view></view>
+			<view class="condition-row"><text class="banner-label">偏好</text><text class="condition-text">{{ generationPreferences.tastePreference || '家常' }} · {{ generationPreferences.cookingTimeLabel || currentCookingTimeLabel }}</text></view>
 		</view>
 		<view class="control-row">
 			<text
@@ -25,9 +26,12 @@
 				</view>
 			</picker>
 		</view>
-		<view v-if="taskId" class="task-status">
+		<view v-if="taskId || recipes.length" class="task-status">
 			<text class="task-title">{{ taskStatusText }}</text>
-			<text class="task-count">{{ recipes.length }}/{{ taskTotalCount }}</text>
+			<view class="task-status-actions">
+				<text class="task-count">{{ recipes.length }}/{{ taskTotalCount }}</text>
+				<view v-if="!isTaskGenerating && recipes.length" class="change-batch-btn" :class="{ disabled: isChangingBatch }" @click="changeRecipeBatch"><text class="change-batch-icon">↻</text><text>{{ isChangingBatch ? '更换中' : '换一批' }}</text></view>
+			</view>
 		</view>
 		<view class="recipe-card" v-for="item in displayRecipes" :key="item.id" @click="openDetail(item)">
 			<view class="recipe-avatar">
@@ -64,8 +68,9 @@
 <script>
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
-import { getRecipeTask } from '@/api/modules/recipes'
+import { createRecipeTask, getRecipeTask } from '@/api/modules/recipes'
 import { getIngredientList } from '@/api/modules/ingredients'
+import { getCurrentUserId } from '@/utils/current-user'
 
 export default {
 	components: { BottomNav, IngredientIcon },
@@ -83,11 +88,14 @@ export default {
 			selectedCookingTime: 30,
 			recipes: [],
 			profileApplied: null,
+			generationPreferences: {},
 			taskId: '',
 			taskStatus: '',
 			taskMessage: '',
 			taskTotalCount: 6,
-			taskPollTimer: null
+			taskPollTimer: null,
+			excludedRecipeNames: [],
+			isChangingBatch: false
 		}
 	},
 	computed: {
@@ -102,7 +110,7 @@ export default {
 			return !!this.taskId && ['pending', 'generating'].includes(`${this.taskStatus || ''}`)
 		},
 		taskStatusText() {
-			if (!this.taskId) return ''
+			if (!this.taskId) return this.recipes.length ? '菜谱生成完成' : ''
 			const generatedCount = this.recipes.length
 			const totalCount = Number(this.taskTotalCount || 6)
 			if (this.taskStatus === 'done') {
@@ -170,6 +178,13 @@ export default {
 		}
 	},
 	methods: {
+		backToGenerate() {
+			const pages = getCurrentPages()
+			const previous = Array.isArray(pages) && pages.length > 1 ? pages[pages.length - 2] : null
+			const previousRoute = `${previous?.route || ''}`.replace(/^\//, '')
+			if (previousRoute === 'pages/recipe/generate') { uni.navigateBack(); return }
+			uni.redirectTo({ url: '/pages/recipe/generate', fail: () => uni.reLaunch({ url: '/pages/recipe/generate' }) })
+		},
 		ensureShareMenu() {
 			// Some clients require explicit menu registration for share entries.
 			if (typeof uni === 'undefined' || typeof uni.showShareMenu !== 'function') return
@@ -242,6 +257,11 @@ export default {
 			} else if (Array.isArray(pantry) && pantry.length) {
 				this.pantryNames = pantry
 			}
+			const preferences = uni.getStorageSync('latestRecipePreferences')
+			this.generationPreferences = preferences && typeof preferences === 'object' ? preferences : {}
+			if (Object.prototype.hasOwnProperty.call(this.generationPreferences, 'cookingTime')) {
+				this.selectedCookingTime = Number(this.generationPreferences.cookingTime || 0)
+			}
 
 			const generated = uni.getStorageSync('latestGeneratedRecipes')
 			const profileApplied = uni.getStorageSync('latestRecipeProfileApplied')
@@ -260,7 +280,7 @@ export default {
 			try {
 				const res = await getIngredientList()
 				const names = this.unwrapListPayload(res).map((item) => `${item?.name || ''}`.trim()).filter(Boolean)
-				if (names.length) this.pantryNames = names
+				this.pantryNames = names
 			} catch (_) {}
 		},
 		applyGeneratedRecipes(generated) {
@@ -281,6 +301,52 @@ export default {
 				sourceIndex: idx,
 				raw: item
 			}))
+		},
+		async changeRecipeBatch() {
+			if (this.isTaskGenerating || this.isChangingBatch || !this.recipes.length) return
+			const storedIngredients = uni.getStorageSync('latestPantryIngredients')
+			const ingredients = Array.isArray(storedIngredients) && storedIngredients.length
+				? storedIngredients
+				: this.pantryNames.map((name) => ({ name, quantity: 1, unit: '份' }))
+			if (!ingredients.length) {
+				uni.showToast({ title: '未找到本次食材条件', icon: 'none' })
+				return
+			}
+			const excludeNames = [...new Set([
+				...this.excludedRecipeNames,
+				...this.recipes.map((item) => `${item?.name || ''}`.trim()).filter(Boolean)
+			])].slice(-30)
+			this.isChangingBatch = true
+			try {
+				const taskRes = await createRecipeTask({
+					userId: getCurrentUserId(),
+					ingredients,
+					tastePreference: this.generationPreferences.tastePreference || '家常',
+					cookingTime: Number(this.generationPreferences.cookingTime ?? this.selectedCookingTime ?? 30) || 120,
+					count: 6,
+					excludeNames,
+					groundNamesToKnowledge: true,
+					requestNonce: `change_${Date.now()}`
+				})
+				const nextTaskId = `${taskRes?.data?.taskId || taskRes?.taskId || ''}`.trim()
+				if (!nextTaskId) throw new Error('未创建新的菜谱任务')
+				this.stopTaskPolling()
+				this.excludedRecipeNames = excludeNames
+				this.taskId = nextTaskId
+				this.taskStatus = 'pending'
+				this.taskMessage = ''
+				this.taskTotalCount = 6
+				this.recipes = []
+				this.profileApplied = null
+				uni.setStorageSync('latestGeneratedRecipes', [])
+				uni.setStorageSync('latestRecipeProfileApplied', null)
+				this.startTaskPolling()
+			} catch (error) {
+				console.error('换一批菜谱失败', error)
+				uni.showToast({ title: '暂时无法换一批，请稍后再试', icon: 'none' })
+			} finally {
+				this.isChangingBatch = false
+			}
 		},
 		startTaskPolling() {
 			this.stopTaskPolling()
@@ -365,7 +431,7 @@ export default {
 			if (item && item.raw) {
 				uni.setStorageSync('latestRecipeDetail', item.raw)
 			}
-			this.safeNavigate(`/pages/recipe/detail?name=${encodeURIComponent(item.name)}`)
+			this.safeNavigate(`/pages/recipe/detail?name=${encodeURIComponent(item.name)}&fromResult=1`)
 		}
 	}
 }
@@ -379,8 +445,8 @@ export default {
 
 .top {
 	display: flex;
-	justify-content: space-between;
 	align-items: center;
+	gap: 10rpx;
 	margin-bottom: 14rpx;
 }
 
@@ -389,20 +455,37 @@ export default {
 	font-weight: 700;
 }
 
+.back-left { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 999rpx; }
+.back-arrow { color: #c7ced9; font-size: 30px; line-height: 1; transform: translateY(-1px); }
+
 .recipe-banner {
 	border-radius: 14px;
-	padding: 12rpx 14rpx;
+	padding: 18rpx;
 	background: linear-gradient(135deg, #f4f8f5, #f8fbf8);
 	border: 1rpx solid #e2ebe4;
 	margin-bottom: 22rpx;
 }
 
-.banner-label {
-	display: block;
-	font-size: 12px;
-	color: #66756b;
-	margin-bottom: 6rpx;
+.condition-row {
+	display: grid;
+	grid-template-columns: 66rpx 1fr;
+	align-items: center;
+	gap: 10rpx;
+	min-height: 42rpx;
 }
+
+.condition-content {
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.banner-label {
+	display: inline-block;
+	font-size: 10px;
+	color: #66756b;
+}
+
+.condition-text { color: #506157; font-size: 11px; }
 
 .pill-food {
 	display: inline-block;
@@ -510,6 +593,11 @@ export default {
 	color: #3f9a4e;
 	font-weight: 700;
 }
+
+.task-status-actions { display: flex; align-items: center; gap: 12rpx; }
+.change-batch-btn { display: inline-flex; align-items: center; gap: 5rpx; padding: 7rpx 13rpx; border: 1rpx solid #cfe5d3; border-radius: 999rpx; color: #469852; background: #fff; font-size: 10px; font-weight: 700; line-height: 1; }
+.change-batch-btn.disabled { opacity: .55; }
+.change-batch-icon { font-size: 14px; font-weight: 500; line-height: 1; }
 
 .recipe-avatar {
 	width: 60px;

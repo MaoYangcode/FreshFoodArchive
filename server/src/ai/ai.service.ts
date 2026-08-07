@@ -616,6 +616,7 @@ export class AiService {
     const excludeNames = this.normalizeStringArray(payload?.excludeNames)
     const requestNonce = `${payload?.requestNonce || ''}`.trim()
     const batchFocus = `${payload?.batchFocus || ''}`.trim()
+    const groundNamesToKnowledge = payload?.groundNamesToKnowledge === true
     const summaryOnly = payload?.summaryOnly === true
     const allowRecipeMockFallback = payload?.allowMockFallback !== false
     const userId = Math.max(Number(payload?.userId || 1), 1)
@@ -641,8 +642,16 @@ export class AiService {
 
     if (!ingredients.length) return { recipes: [], profileApplied }
     const pantryNames = ingredients.map((x: any) => `${x?.name || ''}`.trim()).filter(Boolean)
+    const focusIngredients = ingredients.filter((item: any) => {
+      const name = `${item?.name || ''}`.trim()
+      const category = `${item?.category || ''}`.trim()
+      return name && category !== '调味品' && !this.isAutoRepairableSeasoning(name)
+    })
+    const effectiveFocusIngredients = focusIngredients.length ? focusIngredients : ingredients
+    const focusPantryNames = effectiveFocusIngredients.map((x: any) => `${x?.name || ''}`.trim()).filter(Boolean)
+    const seasoningIngredients = ingredients.filter((item: any) => !effectiveFocusIngredients.includes(item))
     const knowledgeHits = await this.recipeKnowledge.search({
-      ingredients: pantryNames,
+      ingredients: focusPantryNames,
       limit: Math.max(count * 4, 12),
       maxDuration: cookingTime,
       taste: tastePreference,
@@ -662,7 +671,7 @@ export class AiService {
       return { recipes: combined, profileApplied }
     }
 
-    const ingredientText = ingredients
+    const formatIngredientList = (items: any[]) => items
       .map((x: any) => {
         const name = `${x?.name || ''}`.trim()
         const quantity = x?.quantity !== undefined ? `${x.quantity}` : ''
@@ -671,7 +680,9 @@ export class AiService {
       })
       .filter(Boolean)
       .join('、')
-    const uniquePantryNames = Array.from(new Set(pantryNames.map((x) => this.normalizeTextForCompare(x)))).filter(Boolean)
+    const ingredientText = formatIngredientList(effectiveFocusIngredients)
+    const seasoningText = formatIngredientList(seasoningIngredients)
+    const uniquePantryNames = Array.from(new Set(focusPantryNames.map((x) => this.normalizeTextForCompare(x)))).filter(Boolean)
     const isSingleIngredientMode = uniquePantryNames.length === 1
     const singleIngredientGuidance = isSingleIngredientMode
       ? [
@@ -697,14 +708,17 @@ export class AiService {
       `已展示菜谱名（禁止重复）：${excludeNames.length ? excludeNames.join('、') : '无'}`,
       batchFocus ? `本批菜式方向：${batchFocus}` : '',
       `本次生成随机标识：${requestNonce || 'none'}`,
-      `食材：${ingredientText}`,
+      `优先使用的主要食材：${ingredientText}`,
+      `家中现有调味料（仅表示可以使用，不要求每道菜都使用，也不得为了使用它们而改变菜名）：${seasoningText || '未单独提供'}`,
       targetQuery ? `用户想要的菜谱或菜式方向：${targetQuery}。如果这是明确菜名，结果必须优先围绕该菜名；如果是宽泛方向，结果都应符合该方向。` : '',
       '以下内容来自知识库检索，只能作为菜式事实和烹饪思路参考；不得原样复制其中残缺、模板化或不自然的步骤：',
       knowledgeReferenceText || '未检索到可用参考，请按可靠的家庭烹饪常识生成。',
       singleIngredientGuidance,
       '菜谱合理性要求（必须遵守）：',
       '1) 菜名必须是常见家常菜，不要生造菜名，不要出现明显违和组合（如“苹果炒土豆”）。',
+      groundNamesToKnowledge ? '1.1) 本次是“换一批”：菜名必须直接选自知识库检索参考中的已有菜名，只允许“番茄/西红柿”等同义词规范化，不得拼接、改造或新造菜名。' : '',
       '2) 每道菜至少命中 1 种库存食材（库存优先）。',
+      '2.1) 不要求一道菜同时使用全部主要食材；胡椒粉、食用油、盐、酱油等调味料不能作为菜式主题，也不要出现在生造菜名中。',
       '3) ingredients 必须一次列全这道菜真正会使用的主料、辅料和调味料，不得只写冰箱已有食材；不要加入仅装饰或可有可无的食材。',
       '4) 不要为了凑数量输出不符合常理的菜。',
       '5) 同一批结果要尽量多样：优先覆盖不同库存食材，不要多数菜都围绕同一个主食材。',
@@ -757,6 +771,14 @@ export class AiService {
     const recipeSource = list.length ? list : fallbackRecipes
     const normalizedCandidates = recipeSource.map((item: any, idx: number) => this.normalizeRecipe(item, idx, summaryOnly))
     let recipes = await this.repairRecipeCandidates(normalizedCandidates, summaryOnly, knowledgeReferenceText)
+    const groundedKnowledgeNames = new Set(knowledgeHits.map((hit) => this.normalizeRecipeNameForDedupe(hit.recipe.name)).filter(Boolean))
+    if (groundNamesToKnowledge && groundedKnowledgeNames.size) {
+      const beforeGrounding = recipes.length
+      recipes = recipes.filter((recipe) => groundedKnowledgeNames.has(this.normalizeRecipeNameForDedupe(recipe.name)))
+      if (recipes.length < beforeGrounding) {
+        this.logger.warn(`recipe-name-grounding removed=${beforeGrounding - recipes.length}, kept=${recipes.length}, references=${groundedKnowledgeNames.size}`)
+      }
+    }
     recipes = this.dedupeRecipesByName(recipes)
     const recipesBeforeExclude = recipes.slice()
     if (excludeNames.length) {
@@ -765,9 +787,9 @@ export class AiService {
     }
     const recipesBeforeAnyStrictFilter = recipes.slice()
     const recipesBeforePantryFilter = recipes.slice()
-    const pantryFiltered = recipes.filter((x) => this.recipeUsesPantryIngredients(x, pantryNames))
+    const pantryFiltered = recipes.filter((x) => this.recipeUsesPantryIngredients(x, focusPantryNames))
     if (!pantryFiltered.length && recipesBeforePantryFilter.length) {
-      this.logger.warn(`Pantry filter removed all AI recipes, fallback to unfiltered AI candidates. pantry=[${pantryNames.join(',')}]`)
+      this.logger.warn(`Pantry filter removed all AI recipes, fallback to unfiltered AI candidates. pantry=[${focusPantryNames.join(',')}]`)
       recipes = recipesBeforePantryFilter
     } else {
       recipes = pantryFiltered
@@ -796,7 +818,8 @@ export class AiService {
         `忌口食材（硬约束，必须严格避开）：${avoidances.length ? avoidances.join('、') : '无'}`,
         '规则：任何菜谱名称、食材列表、步骤、tips 中都不允许出现忌口食材或其同义表述。',
         `期望总烹饪时长（分钟）：${cookingTime}`,
-        `食材：${ingredientText}`,
+        `优先使用的主要食材：${ingredientText}`,
+        `家中现有调味料（仅表示可以使用，不要求每道菜都使用，也不得用于拼接菜名）：${seasoningText || '未单独提供'}`,
         targetQuery ? `用户想要的菜谱或菜式方向：${targetQuery}。` : '',
         '以下知识库检索内容仅供参考，不得照抄残缺或模板化表达：',
         knowledgeReferenceText || '无可用知识库参考。',
@@ -804,7 +827,9 @@ export class AiService {
         singleIngredientGuidance,
         '菜谱合理性要求（必须遵守）：',
         '1) 菜名必须是常见家常菜，不要生造菜名，不要出现明显违和组合（如“苹果炒土豆”）。',
+        groundNamesToKnowledge ? '1.1) 本次是“换一批”：菜名必须直接选自知识库检索参考中的已有菜名，不得拼接、改造或新造菜名。' : '',
         '2) 每道菜至少命中 1 种库存食材（库存优先）。',
+        '2.1) 不要求一道菜同时使用全部主要食材；调味料不能作为菜式主题，也不要出现在生造菜名中。',
         '3) ingredients 必须一次列全这道菜真正会使用的主料、辅料和调味料，不得只写冰箱已有食材；不要加入仅装饰或可有可无的食材。',
         '4) 不要为了凑数量输出不符合常理的菜。',
         '5) 同一批结果要尽量多样：优先覆盖不同库存食材，不要多数菜都围绕同一个主食材。',
@@ -844,7 +869,10 @@ export class AiService {
       const retryList = this.pickRecipeArray(retryParsed)
       const retryCandidates = retryList.map((item: any, idx: number) => this.normalizeRecipe(item, recipes.length + idx, summaryOnly))
       const retryNormalized = await this.repairRecipeCandidates(retryCandidates, summaryOnly, knowledgeReferenceText)
-      const retryDeduped = this.dedupeRecipesByName(retryNormalized)
+      const retryGrounded = groundNamesToKnowledge && groundedKnowledgeNames.size
+        ? retryNormalized.filter((recipe) => groundedKnowledgeNames.has(this.normalizeRecipeNameForDedupe(recipe.name)))
+        : retryNormalized
+      const retryDeduped = this.dedupeRecipesByName(retryGrounded)
       const retryRecipes = this.filterRecipesByAvoidances(retryDeduped, avoidances)
       removedByAvoidanceCount += Math.max(retryDeduped.length - retryRecipes.length, 0)
       const seen = new Set([...excludeNames.map((x) => this.normalizeRecipeNameForDedupe(x)), ...recipes.map((x) => this.normalizeRecipeNameForDedupe(x.name))])
@@ -1693,6 +1721,9 @@ export class AiService {
 
   private normalizeRecipeNameForDedupe(text: unknown) {
     return this.normalizeTextForCompare(text)
+      .replace(/西红柿/g, '番茄')
+      .replace(/马铃薯/g, '土豆')
+      .replace(/炒鸡蛋/g, '炒蛋')
       .replace(/馅(?=饺子)/g, '')
       .replace(/水饺/g, '饺子')
   }
