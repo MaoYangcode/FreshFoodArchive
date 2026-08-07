@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, Res, UploadedFile, UseInterceptors } from '@nestjs/common'
+import { Body, Controller, Get, Logger, Param, Post, Req, Res, UploadedFile, UseInterceptors } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
 import { memoryStorage } from 'multer'
 import { AiService } from './ai.service'
@@ -6,21 +6,13 @@ import { AiService } from './ai.service'
 const MAX_IMAGE_SIZE = 8 * 1024 * 1024
 const MAX_AUDIO_SIZE = 12 * 1024 * 1024
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp'])
-const ALLOWED_AUDIO_TYPES = new Set([
-  'audio/wav',
-  'audio/x-wav',
-  'audio/mpeg',
-  'audio/mp3',
-  'audio/aac',
-  'audio/mp4',
-  'audio/x-m4a',
-  'audio/webm',
-])
+const ALLOWED_AUDIO_TYPES = new Set(['audio/wav', 'audio/x-wav', 'audio/mpeg', 'audio/mp3', 'audio/aac', 'audio/mp4', 'audio/x-m4a', 'audio/webm'])
 const ALLOWED_AUDIO_EXT = ['.wav', '.mp3', '.m4a', '.aac', '.webm']
 
 @Controller('ai')
 export class AiController {
   constructor(private readonly aiService: AiService) {}
+  private readonly logger = new Logger(AiController.name)
 
   @Post('recognize-ingredient')
   @UseInterceptors(
@@ -118,6 +110,23 @@ export class AiController {
     }
   }
 
+  @Post('search-recipes')
+  async searchRecipes(@Req() req: any, @Body() body: any) {
+    try {
+      const result = await this.aiService.searchRecipes({
+        ...(body || {}),
+        userId: Number(req?.userId || 1),
+      })
+      return { code: 0, message: 'ok', data: result }
+    } catch (error: any) {
+      return {
+        code: 10028,
+        message: error?.message || '菜谱查询失败',
+        data: null,
+      }
+    }
+  }
+
   @Post('generate-recipe-detail')
   async generateRecipeDetail(@Req() req: any, @Body() body: any) {
     try {
@@ -127,6 +136,8 @@ export class AiController {
       })
       return { code: 0, message: 'ok', data: { recipe } }
     } catch (error: any) {
+      const name = `${body?.recipe?.name || body?.name || ''}`.trim() || 'unknown'
+      this.logger.warn(`generate-recipe-detail failed name=${name}, error=${error?.message || error}`)
       return {
         code: 10025,
         message: error?.message || '菜谱详情生成失败',
@@ -144,7 +155,13 @@ export class AiController {
       })
       return { code: 0, message: 'ok', data: { recipe } }
     } catch (error: any) {
-      return { code: 10026, message: error?.message || '菜谱步骤生成失败', data: null }
+      const name = `${body?.recipe?.name || body?.name || ''}`.trim() || 'unknown'
+      this.logger.warn(`generate-recipe-steps failed name=${name}, error=${error?.message || error}`)
+      return {
+        code: 10026,
+        message: error?.message || '菜谱步骤生成失败',
+        data: null,
+      }
     }
   }
 
@@ -157,7 +174,13 @@ export class AiController {
       })
       return { code: 0, message: 'ok', data: { nutrition } }
     } catch (error: any) {
-      return { code: 10027, message: error?.message || '营养数据生成失败', data: null }
+      const name = `${body?.recipe?.name || body?.name || ''}`.trim() || 'unknown'
+      this.logger.warn(`generate-recipe-nutrition failed name=${name}, error=${error?.message || error}`)
+      return {
+        code: 10027,
+        message: error?.message || '营养数据生成失败',
+        data: null,
+      }
     }
   }
 
@@ -172,7 +195,11 @@ export class AiController {
 
   @Get('recipe-knowledge-status')
   getRecipeKnowledgeStatus() {
-    return { code: 0, message: 'ok', data: this.aiService.getRecipeKnowledgeStatus() }
+    return {
+      code: 0,
+      message: 'ok',
+      data: this.aiService.getRecipeKnowledgeStatus(),
+    }
   }
 
   @Post('recognize-audio')
@@ -190,7 +217,11 @@ export class AiController {
     const name = `${file.originalname || ''}`.toLowerCase()
     const extOk = ALLOWED_AUDIO_EXT.some((ext) => name.endsWith(ext))
     if (!ALLOWED_AUDIO_TYPES.has(mime) && !extOk && mime !== 'application/octet-stream') {
-      return { code: 10042, message: '仅支持 wav/mp3/m4a/aac/webm', data: null }
+      return {
+        code: 10042,
+        message: '仅支持 wav/mp3/m4a/aac/webm',
+        data: null,
+      }
     }
     if (Number(file.size || 0) > MAX_AUDIO_SIZE) {
       return { code: 10042, message: '语音大小不能超过 12MB', data: null }

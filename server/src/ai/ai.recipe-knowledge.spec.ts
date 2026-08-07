@@ -55,17 +55,33 @@ describe('AiService recipe RAG loop', () => {
   })
 
   it('uses retrieved knowledge as model context instead of returning it directly', async () => {
-    const modelCall = jest.spyOn(service as any, 'callDashScope').mockResolvedValue(JSON.stringify({
-      recipes: [
-        summary('番茄炒鸡蛋盖饭', [{ name: '番茄', quantity: 2, unit: '个' }, { name: '鸡蛋', quantity: 2, unit: '个' }, { name: '米饭', quantity: 300, unit: '克' }]),
-        summary('西红柿鸡蛋汤', [{ name: '西红柿', quantity: 2, unit: '个' }, { name: '鸡蛋', quantity: 1, unit: '个' }]),
-        summary('番茄鸡蛋面', [{ name: '番茄', quantity: 1, unit: '个' }, { name: '鸡蛋', quantity: 1, unit: '个' }, { name: '面条', quantity: 150, unit: '克' }]),
-      ],
-    }))
+    const modelCall = jest.spyOn(service as any, 'callDashScope').mockResolvedValue(
+      JSON.stringify({
+        recipes: [
+          summary('番茄炒鸡蛋盖饭', [
+            { name: '番茄', quantity: 2, unit: '个' },
+            { name: '鸡蛋', quantity: 2, unit: '个' },
+            { name: '米饭', quantity: 300, unit: '克' },
+          ]),
+          summary('西红柿鸡蛋汤', [
+            { name: '西红柿', quantity: 2, unit: '个' },
+            { name: '鸡蛋', quantity: 1, unit: '个' },
+          ]),
+          summary('番茄鸡蛋面', [
+            { name: '番茄', quantity: 1, unit: '个' },
+            { name: '鸡蛋', quantity: 1, unit: '个' },
+            { name: '面条', quantity: 150, unit: '克' },
+          ]),
+        ],
+      }),
+    )
 
     const result = await service.generateRecipeList({
       userId: 1,
-      ingredients: [{ name: '番茄', quantity: 2, unit: '个' }, { name: '鸡蛋', quantity: 3, unit: '个' }],
+      ingredients: [
+        { name: '番茄', quantity: 2, unit: '个' },
+        { name: '鸡蛋', quantity: 3, unit: '个' },
+      ],
       cookingTime: 30,
       tastePreference: '家常',
       count: 3,
@@ -81,12 +97,18 @@ describe('AiService recipe RAG loop', () => {
   })
 
   it('always asks the model to generate final steps from knowledge references', async () => {
-    const modelCall = jest.spyOn(service as any, 'callDashScope').mockResolvedValue(JSON.stringify({
-      recipe: { steps: detail().steps, tips: detail().tips },
-    }))
+    const modelCall = jest.spyOn(service as any, 'callDashScope').mockResolvedValue(
+      JSON.stringify({
+        recipe: { steps: detail().steps, tips: detail().tips },
+      }),
+    )
     const result = await service.generateRecipeSteps({
       userId: 1,
-      recipe: { knowledgeId: 'recipe_0001', name: '番茄炒蛋', ingredients: detail().ingredients },
+      recipe: {
+        knowledgeId: 'recipe_0001',
+        name: '番茄炒蛋',
+        ingredients: detail().ingredients,
+      },
     })
 
     expect(result.steps).toHaveLength(4)
@@ -100,17 +122,81 @@ describe('AiService recipe RAG loop', () => {
     expect(modelCall.mock.calls[0][4]).toBe(1800)
   })
 
+  it('keeps the recommendation ingredient set locked and only accepts explicit additions', async () => {
+    const lockedIngredients = [
+      { name: '番茄', quantity: 2, unit: '个' },
+      { name: '鸡蛋', quantity: 3, unit: '个' },
+      { name: '食盐', quantity: 2, unit: '克' },
+    ]
+    jest.spyOn(service as any, 'callDashScope').mockResolvedValue(
+      JSON.stringify({
+        recipe: {
+          ingredients: [
+            { name: '番茄', quantity: 99, unit: '个' },
+            { name: '鸡蛋', quantity: 1, unit: '个' },
+          ],
+          requiredIngredientAdditions: [{ name: '食用油', quantity: 15, unit: '毫升', reason: '炒制需要' }],
+          steps: ['番茄洗净切块，鸡蛋打入碗中并充分搅散备用。', '锅中加入食用油烧热，倒入鸡蛋炒至凝固后盛出。', '原锅加入番茄翻炒至出汁，再倒回鸡蛋翻炒均匀。', '加入食盐调味，继续翻炒片刻后关火装盘。'],
+          tips: '鸡蛋不要炒得过老。',
+        },
+      }),
+    )
+
+    const result = await service.generateRecipeSteps({
+      userId: 1,
+      recipe: summary('番茄炒蛋', lockedIngredients),
+    })
+
+    expect(result.ingredients.find((item) => item.name === '番茄')?.quantity).toBe(2)
+    expect(result.ingredients.find((item) => item.name === '鸡蛋')?.quantity).toBe(3)
+    expect(result.ingredients.find((item) => item.name === '食用油')?.quantity).toBe(15)
+    expect(result.ingredientSetLocked).toBe(true)
+  })
+
+  it('automatically writes an omitted optional seasoning into the steps', async () => {
+    const ingredients = [
+      { name: '茄子', quantity: 2, unit: '个' },
+      { name: '食用油', quantity: 20, unit: '毫升' },
+      { name: '生抽', quantity: 10, unit: '毫升' },
+      { name: '白糖', quantity: 5, unit: '克' },
+    ]
+    const modelCall = jest.spyOn(service as any, 'callDashScope').mockResolvedValue(
+      JSON.stringify({
+        recipe: {
+          requiredIngredientAdditions: [],
+          steps: ['茄子洗净切成滚刀块，放入清水中浸泡后沥干。', '锅中加入食用油烧热，放入茄子煎至表面微黄。', '沿锅边加入生抽，翻炒均匀后加少量清水烧至茄子软嫩。', '待汤汁逐渐收浓后翻拌均匀，关火装盘即可。'],
+          tips: '茄子沥干后再下锅可以减少溅油。',
+        },
+      }),
+    )
+
+    const result = await service.generateRecipeSteps({
+      userId: 1,
+      recipe: summary('红烧茄子', ingredients),
+    })
+
+    expect(modelCall).toHaveBeenCalledTimes(1)
+    expect(result.steps.join('')).toContain('白糖')
+  })
+
   it('regenerates recommendation summaries when quantities or units are missing', async () => {
-    const modelCall = jest.spyOn(service as any, 'callDashScope')
-      .mockResolvedValueOnce(JSON.stringify({
-        recipes: [summary('番茄炒蛋', [{ name: '番茄', quantity: 2, unit: '' }])],
-      }))
-      .mockResolvedValueOnce(JSON.stringify({
-        recipes: [summary('番茄炒蛋', [
-          { name: '番茄', quantity: 2, unit: '个' },
-          { name: '鸡蛋', quantity: 3, unit: '个' },
-        ])],
-      }))
+    const modelCall = jest
+      .spyOn(service as any, 'callDashScope')
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          recipes: [summary('番茄炒蛋', [{ name: '番茄', quantity: 2, unit: '' }])],
+        }),
+      )
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          recipes: [
+            summary('番茄炒蛋', [
+              { name: '番茄', quantity: 2, unit: '个' },
+              { name: '鸡蛋', quantity: 3, unit: '个' },
+            ]),
+          ],
+        }),
+      )
 
     const result = await service.generateRecipeList({
       userId: 1,
@@ -127,22 +213,31 @@ describe('AiService recipe RAG loop', () => {
   })
 
   it('regenerates a named staple dish when its required staple is missing', async () => {
-    const modelCall = jest.spyOn(service as any, 'callDashScope')
-      .mockResolvedValueOnce(JSON.stringify({
-        recipes: [summary('茄丁焖面', [
-          { name: '茄子', quantity: 2, unit: '个' },
-          { name: '番茄', quantity: 1, unit: '个' },
-          { name: '食用油', quantity: 15, unit: '毫升' },
-        ])],
-      }))
-      .mockResolvedValueOnce(JSON.stringify({
-        recipes: [summary('茄丁焖面', [
-          { name: '茄子', quantity: 2, unit: '个' },
-          { name: '鲜面条', quantity: 240, unit: '克' },
-          { name: '番茄', quantity: 1, unit: '个' },
-          { name: '食用油', quantity: 15, unit: '毫升' },
-        ])],
-      }))
+    const modelCall = jest
+      .spyOn(service as any, 'callDashScope')
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          recipes: [
+            summary('茄丁焖面', [
+              { name: '茄子', quantity: 2, unit: '个' },
+              { name: '番茄', quantity: 1, unit: '个' },
+              { name: '食用油', quantity: 15, unit: '毫升' },
+            ]),
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          recipes: [
+            summary('茄丁焖面', [
+              { name: '茄子', quantity: 2, unit: '个' },
+              { name: '鲜面条', quantity: 240, unit: '克' },
+              { name: '番茄', quantity: 1, unit: '个' },
+              { name: '食用油', quantity: 15, unit: '毫升' },
+            ]),
+          ],
+        }),
+      )
 
     const result = await service.generateRecipeList({
       userId: 1,
@@ -173,17 +268,17 @@ describe('AiService recipe RAG loop', () => {
         requiredIngredients: ['鸡胸肉', '花生米'],
       },
     }
-    const modelCall = jest.spyOn(service as any, 'callDashScope')
+    const modelCall = jest
+      .spyOn(service as any, 'callDashScope')
       .mockResolvedValueOnce(JSON.stringify({ recipes: [planned] }))
-      .mockResolvedValueOnce(JSON.stringify({
-        recipe: {
-          plan: planned.plan,
-          ingredients: [
-            ...planned.ingredients,
-            { name: '花生米', quantity: 50, unit: '克' },
-          ],
-        },
-      }))
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          recipe: {
+            plan: planned.plan,
+            ingredients: [...planned.ingredients, { name: '花生米', quantity: 50, unit: '克' }],
+          },
+        }),
+      )
 
     const result = await service.generateRecipeList({
       userId: 1,
@@ -202,11 +297,7 @@ describe('AiService recipe RAG loop', () => {
   it('rejects template steps and retries before returning the detail', async () => {
     const bad = {
       ...detail('拔丝土豆'),
-      steps: [
-        '土豆切块后放入锅中炸熟。',
-        '本步骤操作要求：取出土豆，完成后进入下一步。',
-        '重新倒入土豆翻炒后装盘。',
-      ],
+      steps: ['土豆切块后放入锅中炸熟。', '本步骤操作要求：取出土豆，完成后进入下一步。', '重新倒入土豆翻炒后装盘。'],
     }
     const good = {
       ...detail('拔丝土豆'),
@@ -224,7 +315,8 @@ describe('AiService recipe RAG loop', () => {
         '关火后撒入白芝麻翻匀，立即装盘并趁热食用。',
       ],
     }
-    const modelCall = jest.spyOn(service as any, 'callDashScope')
+    const modelCall = jest
+      .spyOn(service as any, 'callDashScope')
       .mockResolvedValueOnce(JSON.stringify({ recipe: bad }))
       .mockResolvedValueOnce(JSON.stringify({ recipe: good }))
 
@@ -265,7 +357,8 @@ describe('AiService recipe RAG loop', () => {
         '在切口处撒入胡椒粉，放回烤箱继续烤约3分钟，闻到香味后取出装盘。',
       ],
     }
-    const modelCall = jest.spyOn(service as any, 'callDashScope')
+    const modelCall = jest
+      .spyOn(service as any, 'callDashScope')
       .mockResolvedValueOnce(JSON.stringify({ recipe: bad }))
       .mockResolvedValueOnce(JSON.stringify({ recipe: good }))
 
@@ -280,7 +373,7 @@ describe('AiService recipe RAG loop', () => {
     expect(result.steps.join('')).toContain('表皮起皱')
   })
 
-  it('generates steps and nutrition concurrently before returning a complete detail', async () => {
+  it('uses the finalized step ingredients when generating nutrition', async () => {
     let stepsFinishedAt = 0
     let nutritionFinishedAt = 0
     const modelCall = jest.spyOn(service as any, 'callDashScope').mockImplementation(async (_model, messages) => {
@@ -303,7 +396,7 @@ describe('AiService recipe RAG loop', () => {
     expect(modelCall).toHaveBeenCalledTimes(2)
     expect(stepsFinishedAt).toBeGreaterThan(0)
     expect(nutritionFinishedAt).toBeGreaterThan(0)
-    expect(Math.abs(stepsFinishedAt - nutritionFinishedAt)).toBeLessThan(25)
+    expect(nutritionFinishedAt).toBeGreaterThanOrEqual(stepsFinishedAt)
     expect(result.steps).toHaveLength(4)
     expect(result.nutrition?.calories).toBe(328)
     expect(result.detailReady).toBe(true)
@@ -320,15 +413,15 @@ describe('AiService recipe RAG loop', () => {
       const pair = names[Math.min(callIndex, names.length - 1)]
       callIndex += 1
       return JSON.stringify({
-        recipes: pair.map((name) => summary(name, [
-          { name: '番茄', quantity: 1, unit: '个' },
-          { name: '鸡蛋', quantity: 2, unit: '个' },
-          ...(/面/u.test(name) ? [{ name: '面条', quantity: 150, unit: '克' }] : []),
-          ...(/盖饭|炒饭|焖饭|烩饭|拌饭|饭团|煲仔饭/u.test(name)
-            ? [{ name: '米饭', quantity: 200, unit: '克' }]
-            : []),
-          ...(/粥/u.test(name) ? [{ name: '大米', quantity: 100, unit: '克' }] : []),
-        ])),
+        recipes: pair.map((name) =>
+          summary(name, [
+            { name: '番茄', quantity: 1, unit: '个' },
+            { name: '鸡蛋', quantity: 2, unit: '个' },
+            ...(/面/u.test(name) ? [{ name: '面条', quantity: 150, unit: '克' }] : []),
+            ...(/盖饭|炒饭|焖饭|烩饭|拌饭|饭团|煲仔饭/u.test(name) ? [{ name: '米饭', quantity: 200, unit: '克' }] : []),
+            ...(/粥/u.test(name) ? [{ name: '大米', quantity: 100, unit: '克' }] : []),
+          ]),
+        ),
       })
     })
 

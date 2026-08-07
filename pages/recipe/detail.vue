@@ -44,6 +44,16 @@
 					<text class="detail-loading-meta">{{ detailAutoRetryCount ? '系统正在自动调整内容，请稍候…' : '正在结合知识库校验火候、时间和食材使用…' }}</text>
 				</view>
 			</view>
+			<view v-else-if="fromFavorite && favoriteSyncing && !hasRecipeDetail" class="detail-loading-card">
+				<view class="detail-loading-dot"></view>
+				<view>
+					<text class="detail-loading-title">正在读取收藏内容</text>
+					<text class="detail-loading-meta">稍后只会根据当前冰箱重新核对食材</text>
+				</view>
+			</view>
+			<view v-else-if="fromFavorite && !hasRecipeDetail" class="detail-error-card favorite-legacy-card">
+				<text class="detail-error-text">这份早期收藏没有保存详细步骤，已保留菜名和食材信息，不会自动重新生成。</text>
+			</view>
 			<view v-else-if="stepsError" class="detail-error-card">
 				<text class="detail-error-text">{{ stepsError }}</text>
 			</view>
@@ -178,7 +188,7 @@ import {
 	syncFavoriteRecipes
 } from '@/utils/user-data-sync'
 
-const RECIPE_DETAIL_QUALITY_VERSION = 4
+const RECIPE_DETAIL_QUALITY_VERSION = 5
 const RECIPE_DETAIL_CACHE_PREFIX = `FFA_RECIPE_DETAIL_V${RECIPE_DETAIL_QUALITY_VERSION}_`
 const DETAIL_AUTO_RETRY_LIMIT = 2
 
@@ -192,6 +202,7 @@ export default {
 			planSourceId: '',
 			planSourceDate: '',
 			favorited: false,
+			favoriteSyncing: false,
 			stepsLoading: false,
 			nutritionLoading: false,
 			stepsError: '',
@@ -251,7 +262,7 @@ export default {
 			return this.hasRecipeDetail && this.hasNutrition && this.ingredientDisplayItems.length > 0
 		},
 		hasIngredientSection() {
-			return this.hasRecipeDetail && this.ingredientDisplayItems.length > 0
+			return this.ingredientDisplayItems.length > 0
 		},
 		availableIngredientItems() {
 			return this.ingredientDisplayItems.filter((item) => item.isMissing === false)
@@ -307,9 +318,12 @@ export default {
 		this.fromResult = !!(query && query.fromResult === '1')
 		this.planSourceId = query?.planId ? decodeURIComponent(query.planId) : ''
 		this.planSourceDate = query?.planDate ? decodeURIComponent(query.planDate) : ''
+		const queryName = query?.name ? decodeURIComponent(query.name) : ''
 		const cached = uni.getStorageSync('latestRecipeDetail')
-		if (cached && typeof cached === 'object') this.applyRecipeFromRaw(cached)
-		if (query && query.name) this.recipe.name = decodeURIComponent(query.name)
+		const cacheMatchesQuery = !queryName || this.normalizeName(cached?.name) === this.normalizeName(queryName)
+		if (cached && typeof cached === 'object' && (!this.fromFavorite || cacheMatchesQuery)) this.applyRecipeFromRaw(cached)
+		if (queryName) this.recipe.name = queryName
+		this.favoriteSyncing = this.fromFavorite
 		this.syncFavoriteState(this.fromFavorite)
 		this.ensureRecipeDetail()
 	},
@@ -527,6 +541,13 @@ export default {
 				Number(nutrition?.calories) > 0 && !!`${nutrition?.analysis || ''}`.trim()
 		},
 		async ensureRecipeDetail(force = false) {
+			if (this.fromFavorite) {
+				this.stepsLoading = false
+				this.nutritionLoading = false
+				this.stepsError = ''
+				this.nutritionError = ''
+				return
+			}
 			if ((this.stepsLoading || this.nutritionLoading) && !force) return
 			if (!force) {
 				const cached = this.readDetailCache()
@@ -736,7 +757,11 @@ export default {
 				this.completedCount = 0
 				this.lastCompletedAt = ''
 				this.syncFavoriteState(this.fromFavorite)
-			} catch (_) {}
+			} catch (_) {
+				this.syncFavoriteState(this.fromFavorite)
+			} finally {
+				this.favoriteSyncing = false
+			}
 		},
 		canonicalIngredientName(text) {
 			const name = this.normalizeName(text)

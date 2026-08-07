@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { randomUUID } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
-import {
-  RecipeKnowledgeHit,
-  RecipeKnowledgeService,
-} from '../recipe-knowledge/recipe-knowledge.service'
+import { RecipeKnowledgeHit, RecipeKnowledgeService } from '../recipe-knowledge/recipe-knowledge.service'
 
 type RecognizedIngredient = {
   name: string
@@ -38,6 +35,8 @@ type GeneratedRecipe = {
   matchedIngredients?: string[]
   missingIngredients?: string[]
   plan?: RecipePlan
+  ingredientSetLocked?: boolean
+  ingredientSetVersion?: number
 }
 
 type RecipeNutrition = {
@@ -97,13 +96,7 @@ type VoiceRecognizeResult = {
   }>
 }
 
-type AssistantIntent =
-  | 'inventory_add'
-  | 'inventory_consume'
-  | 'inventory_read'
-  | 'expiry_read'
-  | 'recipe_request'
-  | 'unknown'
+type AssistantIntent = 'inventory_add' | 'inventory_consume' | 'inventory_read' | 'expiry_read' | 'recipe_search' | 'recipe_request' | 'unknown'
 
 type AssistantCommand = {
   intent: AssistantIntent
@@ -122,10 +115,12 @@ type AssistantCommand = {
     location?: string
   }
   recipe: {
+    query?: string
     ingredients: string[]
     maxDuration?: number
     difficulty?: string
     taste?: string
+    avoidances?: string[]
   }
   reply: string
   confidence: number
@@ -140,23 +135,23 @@ export class AiService {
   ) {}
   private readonly logger = new Logger(AiService.name)
   private readonly recipeTasks = new Map<string, RecipeGenerateTask>()
-  private readonly speechAudio = new Map<string, {
-    sourceUrl: string
-    expiresAt: number
-    buffer?: Buffer
-    contentType?: string
-  }>()
+  private readonly speechAudio = new Map<
+    string,
+    {
+      sourceUrl: string
+      expiresAt: number
+      buffer?: Buffer
+      contentType?: string
+    }
+  >()
 
   private readonly apiKey = process.env.DASHSCOPE_API_KEY || ''
   private readonly endpoint = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
-  private readonly asrEndpoint =
-    process.env.DASHSCOPE_ASR_ENDPOINT ||
-    'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation'
+  private readonly asrEndpoint = process.env.DASHSCOPE_ASR_ENDPOINT || 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation'
   private readonly visionModel = process.env.DASHSCOPE_VISION_MODEL || 'qwen3.6-flash'
   private readonly textModel = process.env.DASHSCOPE_TEXT_MODEL || 'qwen2.5-14b-instruct'
   private readonly asrModel = process.env.DASHSCOPE_ASR_MODEL || 'qwen3-asr-flash'
-  private readonly allowMockFallback =
-    `${process.env.AI_RECOGNIZE_FALLBACK_TO_MOCK || ''}`.trim() === '1'
+  private readonly allowMockFallback = `${process.env.AI_RECOGNIZE_FALLBACK_TO_MOCK || ''}`.trim() === '1'
   private readonly validCategories = new Set(['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'])
   private readonly ingredientAliasMap: Record<string, string> = {
     西红柿: '番茄',
@@ -297,9 +292,7 @@ export class AiService {
     current.status = current.recipes.length ? 'done' : 'failed'
     current.message = current.recipes.length >= current.totalCount ? '菜谱生成完成' : '已生成部分菜谱'
     current.updatedAt = Date.now()
-    this.logger.log(
-      `recipe-task-total taskId=${taskId}, returned=${current.doneCount}, total=${current.totalCount}, errors=${current.errors.length}`,
-    )
+    this.logger.log(`recipe-task-total taskId=${taskId}, returned=${current.doneCount}, total=${current.totalCount}, errors=${current.errors.length}`)
   }
 
   private makeRecipeBatchSizes(totalCount: number, preferredSize: number) {
@@ -313,13 +306,7 @@ export class AiService {
     return sizes
   }
 
-  private async runRecipeGenerateBatch(
-    taskId: string,
-    payload: any,
-    batchCount: number,
-    batchIndex: number,
-    batchFocus: string,
-  ) {
+  private async runRecipeGenerateBatch(taskId: string, payload: any, batchCount: number, batchIndex: number, batchFocus: string) {
     const task = this.recipeTasks.get(taskId)
     if (!task) return
     const existingNames = task.recipes.map((x) => x.name).filter(Boolean)
@@ -351,9 +338,7 @@ export class AiService {
     current.profileApplied = result.profileApplied || current.profileApplied
     current.message = current.doneCount >= current.totalCount ? '菜谱生成完成' : `已生成 ${current.doneCount}/${current.totalCount}`
     current.updatedAt = Date.now()
-    this.logger.log(
-      `recipe-task-batch taskId=${taskId}, batch=${batchIndex + 1}, requested=${batchCount}, accepted=${current.doneCount}, focus=${batchFocus}`,
-    )
+    this.logger.log(`recipe-task-batch taskId=${taskId}, batch=${batchIndex + 1}, requested=${batchCount}, accepted=${current.doneCount}, focus=${batchFocus}`)
   }
 
   async recognizeIngredientFromImage(file: any): Promise<RecognizedIngredient[]> {
@@ -481,22 +466,13 @@ export class AiService {
         false,
       )
       const parsed = this.parseJson(content)
-      const text = (
-        `${parsed?.text || parsed?.result || parsed?.transcript || ''}`.trim() ||
-        `${content || ''}`.trim()
-      )
-        .replace(/\s+/g, ' ')
-        .trim()
+      const text = (`${parsed?.text || parsed?.result || parsed?.transcript || ''}`.trim() || `${content || ''}`.trim()).replace(/\s+/g, ' ').trim()
       const fallback = this.parseVoiceTextFallback(text)
       const parsedSingle = this.parseVoiceSingleItem(`${parsed?.name || ''}`.trim())
       const name = parsedSingle.name || fallback.name
       const quantity = this.normalizeVoiceQuantity(parsed?.quantity ?? parsedSingle.quantity ?? fallback.quantity)
       const unit = `${parsed?.unit || parsedSingle.unit || ''}`.trim() || fallback.unit
-      const items = this.normalizeVoiceItems(
-        Array.isArray(parsed?.items) ? parsed.items : [],
-        fallback.items || [],
-        { name, quantity, unit },
-      )
+      const items = this.normalizeVoiceItems(Array.isArray(parsed?.items) ? parsed.items : [], fallback.items || [], { name, quantity, unit })
       return {
         text,
         name,
@@ -514,7 +490,7 @@ export class AiService {
     if (!transcript) return this.buildAssistantCommandFallback('')
 
     const schema = {
-      intent: 'inventory_add | inventory_consume | inventory_read | expiry_read | recipe_request | unknown',
+      intent: 'inventory_add | inventory_consume | inventory_read | expiry_read | recipe_search | recipe_request | unknown',
       items: [
         {
           name: '食材名',
@@ -525,8 +501,19 @@ export class AiService {
           expireDate: '2026-07-28',
         },
       ],
-      query: { target: '鸡蛋', scope: 'all | target | expiring', location: '冷藏 | 冷冻' },
-      recipe: { ingredients: ['番茄'], maxDuration: 20, difficulty: '简单', taste: '清淡' },
+      query: {
+        target: '鸡蛋',
+        scope: 'all | target | expiring',
+        location: '冷藏 | 冷冻',
+      },
+      recipe: {
+        query: '番茄炒蛋',
+        ingredients: ['番茄'],
+        maxDuration: 20,
+        difficulty: '简单',
+        taste: '清淡',
+        avoidances: ['辣'],
+      },
       reply: '准备向用户展示的简短确认语',
       confidence: 0.95,
     }
@@ -534,13 +521,15 @@ export class AiService {
       '你是冰箱库存与菜谱语音助手的指令解析器。只返回 JSON，不要执行任何操作。',
       `用户原话：${transcript}`,
       `今天日期：${new Date().toISOString().slice(0, 10)}`,
-      '意图说明：inventory_add=食材入库；inventory_consume=取出、吃掉、喝掉或用掉食材；inventory_read=查询或朗读库存；expiry_read=查询或朗读临期/过期食材；recipe_request=请求菜谱；unknown=无法判断。',
+      '意图说明：inventory_add=食材入库；inventory_consume=取出、吃掉、喝掉或用掉食材；inventory_read=查询或朗读库存；expiry_read=查询或朗读临期/过期食材；recipe_search=查询已有菜谱；recipe_request=明确要求AI生成或推荐一批新菜谱；unknown=无法判断。',
       '提取用户明确说出的食材、数量、单位、存放位置和日期。没有说出的字段不要猜测。',
       '“喝完了、吃完了、用完了”属于 inventory_consume，但数量可以留空，后续必须确认。',
       '“冰箱里有什么、还剩多少、朗读库存”属于 inventory_read。',
       '库存查询如果明确说了冷藏区或冷冻区，在 query.location 中原样返回“冷藏”或“冷冻”。',
       '“有什么快过期、读一下临期食材”属于 expiry_read。',
-      '菜谱请求要提取指定食材、最长用时、难度和口味。',
+      '“找番茄炒蛋、找一些鸡肉菜谱、有没有二十分钟内能做好的菜、找不辣的土豆做法、用茄子和鸡蛋能做什么”都属于 recipe_search。',
+      '菜谱查询要提取明确菜名到 recipe.query，原料条件到 ingredients，最长用时、难度、口味和忌口分别填写；“不辣”在 avoidances 中填写“辣”。',
+      '只有明确要求“生成、重新生成、AI生成、推荐一批新菜谱”时才使用 recipe_request。',
       'reply 使用简短自然的中文，说明你理解到了什么；不要声称已经完成入库、出库或删除。',
       `JSON 结构：${JSON.stringify(schema)}`,
     ].join('\n')
@@ -550,7 +539,10 @@ export class AiService {
       const content = await this.callDashScope(
         this.textModel,
         [
-          { role: 'system', content: '你是结构化语音指令解析助手，只输出 JSON。' },
+          {
+            role: 'system',
+            content: '你是结构化语音指令解析助手，只输出 JSON。',
+          },
           { role: 'user', content: prompt },
         ],
         true,
@@ -569,17 +561,14 @@ export class AiService {
     const value = `${text || ''}`.replace(/\s+/g, ' ').trim().slice(0, 600)
     if (!value) throw new Error('朗读文字为空')
     if (!this.apiKey) throw new Error('语音合成服务未配置')
-    const payload = await this.postDashScopeJson(
-      'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
-      {
-        model: process.env.AI_TTS_MODEL || 'qwen3-tts-flash',
-        input: {
-          text: value,
-          voice: process.env.AI_TTS_VOICE || 'Cherry',
-          language_type: 'Chinese',
-        },
+    const payload = await this.postDashScopeJson('https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation', {
+      model: process.env.AI_TTS_MODEL || 'qwen3-tts-flash',
+      input: {
+        text: value,
+        voice: process.env.AI_TTS_VOICE || 'Cherry',
+        language_type: 'Chinese',
       },
-    )
+    })
     const rawUrl = `${payload?.output?.audio?.url || ''}`.trim()
     if (!rawUrl) throw new Error(payload?.message || '语音合成未返回音频')
     for (const [key, audio] of this.speechAudio.entries()) {
@@ -621,6 +610,7 @@ export class AiService {
     const count = Math.min(Math.max(Number(payload?.count || 6), 1), 10)
     const cookingTime = Number(payload?.cookingTime || 30)
     const tastePreference = `${payload?.tastePreference || '家常'}`
+    const targetQuery = `${payload?.targetQuery || ''}`.trim()
     const excludeNames = this.normalizeStringArray(payload?.excludeNames)
     const requestNonce = `${payload?.requestNonce || ''}`.trim()
     const batchFocus = `${payload?.batchFocus || ''}`.trim()
@@ -629,8 +619,10 @@ export class AiService {
     const userId = Math.max(Number(payload?.userId || 1), 1)
     const profile = await this.loadUserProfileForRecipe(userId)
     const profileMs = Date.now() - startedAt
-    const avoidances = profile.avoidances
-    const dietPreferences = profile.dietPreferences
+    const avoidances = [...new Set([...profile.avoidances, ...this.normalizeStringArray(payload?.avoidances)])]
+    // “清淡” is now a per-generation taste choice, not a persistent diet goal.
+    // Ignore legacy profile values so they do not conflict with the current taste.
+    const dietPreferences = profile.dietPreferences.filter((item) => item !== '清淡')
     const cookwareNote = profile.note
     const profileApplied: ProfileApplied = {
       userId,
@@ -646,9 +638,7 @@ export class AiService {
     }
 
     if (!ingredients.length) return { recipes: [], profileApplied }
-    const pantryNames = ingredients
-      .map((x: any) => `${x?.name || ''}`.trim())
-      .filter(Boolean)
+    const pantryNames = ingredients.map((x: any) => `${x?.name || ''}`.trim()).filter(Boolean)
     const knowledgeHits = await this.recipeKnowledge.search({
       ingredients: pantryNames,
       limit: Math.max(count * 4, 12),
@@ -662,8 +652,7 @@ export class AiService {
       if (!allowRecipeMockFallback) {
         throw new Error('DASHSCOPE_API_KEY 未配置')
       }
-      const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
-        .map((item, idx) => this.normalizeRecipe(item, idx, summaryOnly))
+      const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances).map((item, idx) => this.normalizeRecipe(item, idx, summaryOnly))
       const combined = this.dedupeRecipesByName(mocked).slice(0, count)
       profileApplied.generatedCount = combined.length
       profileApplied.removedByAvoidanceCount = Math.max(count - combined.length, 0)
@@ -688,12 +677,10 @@ export class AiService {
           '允许补充常见主料、辅料和调味料来让菜成立，不要因为库存只有一种食材而反复犹豫或返回空。',
           '6 道菜应覆盖不同做法，例如快炒、炖/焖、汤、主食/馅料、蒸/煮、凉拌/快手菜；不要只换调料重复同一种菜。',
         ].join('\n')
-      : [
-          '多食材场景：优先覆盖不同库存食材，保持菜式多样。',
-        ].join('\n')
+      : ['多食材场景：优先覆盖不同库存食材，保持菜式多样。'].join('\n')
 
     const outputSchema = summaryOnly
-      ? '{"recipes":[{"id":"ai_001","name":"茄丁焖面","duration":30,"difficulty":"简单","plan":{"dishType":"面食","cookingMethod":"焖","requiredIngredients":["面条","茄子"]},"ingredients":[{"name":"面条","quantity":240,"unit":"克"},{"name":"茄子","quantity":2,"unit":"个"}]}]}'
+      ? '{"recipes":[{"id":"ai_001","name":"茄丁焖面","duration":30,"difficulty":"简单","servings":2,"plan":{"dishType":"面食","cookingMethod":"焖","requiredIngredients":["面条","茄子"]},"ingredients":[{"name":"面条","quantity":240,"unit":"克"},{"name":"茄子","quantity":2,"unit":"个"},{"name":"食用油","quantity":15,"unit":"毫升"},{"name":"食盐","quantity":2,"unit":"克"}]}]}'
       : '{"recipes":[{"id":"ai_001","name":"番茄炒蛋","duration":15,"difficulty":"简单","plan":{"dishType":"家常菜","cookingMethod":"炒","requiredIngredients":["番茄","鸡蛋"]},"matchScore":95,"coverImage":"","ingredients":[{"name":"番茄","quantity":2,"unit":"个"},{"name":"鸡蛋","quantity":3,"unit":"个"}],"steps":["步骤1","步骤2"],"tips":"可选"}]}'
     const prompt = [
       '你是家庭烹饪助手。仅返回 JSON，不要附带解释文本。',
@@ -709,22 +696,24 @@ export class AiService {
       batchFocus ? `本批菜式方向：${batchFocus}` : '',
       `本次生成随机标识：${requestNonce || 'none'}`,
       `食材：${ingredientText}`,
+      targetQuery ? `用户想要的菜谱或菜式方向：${targetQuery}。如果这是明确菜名，结果必须优先围绕该菜名；如果是宽泛方向，结果都应符合该方向。` : '',
       '以下内容来自知识库检索，只能作为菜式事实和烹饪思路参考；不得原样复制其中残缺、模板化或不自然的步骤：',
       knowledgeReferenceText || '未检索到可用参考，请按可靠的家庭烹饪常识生成。',
       singleIngredientGuidance,
       '菜谱合理性要求（必须遵守）：',
       '1) 菜名必须是常见家常菜，不要生造菜名，不要出现明显违和组合（如“苹果炒土豆”）。',
       '2) 每道菜至少命中 1 种库存食材（库存优先）。',
-      '3) 允许补充 1-3 种常见缺失食材来让菜谱成立（如“土豆炖牛肉”可补充牛肉）。',
+      '3) ingredients 必须一次列全这道菜真正会使用的主料、辅料和调味料，不得只写冰箱已有食材；不要加入仅装饰或可有可无的食材。',
       '4) 不要为了凑数量输出不符合常理的菜。',
       '5) 同一批结果要尽量多样：优先覆盖不同库存食材，不要多数菜都围绕同一个主食材。',
       '6) 菜名和做法不得语义重复，例如“白菜猪肉饺子”和“白菜猪肉馅饺子”属于同一道菜，只能保留一个。',
       '7) 菜名中的核心主食和主料必须出现在 ingredients 中，例如“焖面”必须有面条，“炒饭”必须有米饭，“饺子”必须有饺子皮或面粉；不得出现菜名有、食材却没有的情况。',
       '8) 先填写 plan 锁定菜品类型、主要烹饪方式和成立这道菜不可缺少的核心食材；plan.requiredIngredients 中每一项必须出现在 ingredients 中。',
+      '9) servings 默认按2人份填写；ingredients 的 quantity 必须是对应 servings 的总用量，后续详情会锁定使用这份清单。',
       'JSON 结构：',
       outputSchema,
       'difficulty 仅可取：简单、中等、困难。',
-      summaryOnly ? '本次只生成列表摘要，不要返回 steps、tips、matchScore、nutrition 等详情字段。' : 'matchScore 范围 0-100。',
+      summaryOnly ? '本次只生成列表摘要，不要返回 steps、tips、matchScore、nutrition 等详情字段；但 ingredients 必须是可以直接用于后续步骤、菜篮子和库存核对的完整定稿清单。' : 'matchScore 范围 0-100。',
       summaryOnly ? '' : 'steps 按实际烹饪需要返回，不限制步数；每一步都要具体可执行（包含关键动作或火候信息）。',
       '如果无法生成，返回 {"recipes":[]}',
     ].join('\n')
@@ -741,7 +730,7 @@ export class AiService {
         ],
         true,
         0.2,
-        summaryOnly ? 900 : 2200,
+        summaryOnly ? 1100 : 2200,
       )
       dashScopeMs = Date.now() - dashScopeStartedAt
     } catch (err) {
@@ -752,8 +741,7 @@ export class AiService {
       if (!allowRecipeMockFallback) {
         throw new Error(err?.message || '菜谱生成服务调用失败')
       }
-      const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
-        .map((item, idx) => this.normalizeRecipe(item, idx, summaryOnly))
+      const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances).map((item, idx) => this.normalizeRecipe(item, idx, summaryOnly))
       const combined = this.dedupeRecipesByName(mocked).slice(0, count)
       profileApplied.generatedCount = combined.length
       profileApplied.removedByAvoidanceCount = Math.max(count - combined.length, 0)
@@ -765,8 +753,7 @@ export class AiService {
     const list = this.pickRecipeArray(parsed)
     const fallbackRecipes = !list.length ? this.parseRecipeArrayFallback(content) : []
     const recipeSource = list.length ? list : fallbackRecipes
-    const normalizedCandidates = recipeSource
-      .map((item: any, idx: number) => this.normalizeRecipe(item, idx, summaryOnly))
+    const normalizedCandidates = recipeSource.map((item: any, idx: number) => this.normalizeRecipe(item, idx, summaryOnly))
     let recipes = await this.repairRecipeCandidates(normalizedCandidates, summaryOnly, knowledgeReferenceText)
     recipes = this.dedupeRecipesByName(recipes)
     const recipesBeforeExclude = recipes.slice()
@@ -778,9 +765,7 @@ export class AiService {
     const recipesBeforePantryFilter = recipes.slice()
     const pantryFiltered = recipes.filter((x) => this.recipeUsesPantryIngredients(x, pantryNames))
     if (!pantryFiltered.length && recipesBeforePantryFilter.length) {
-      this.logger.warn(
-        `Pantry filter removed all AI recipes, fallback to unfiltered AI candidates. pantry=[${pantryNames.join(',')}]`,
-      )
+      this.logger.warn(`Pantry filter removed all AI recipes, fallback to unfiltered AI candidates. pantry=[${pantryNames.join(',')}]`)
       recipes = recipesBeforePantryFilter
     } else {
       recipes = pantryFiltered
@@ -810,6 +795,7 @@ export class AiService {
         '规则：任何菜谱名称、食材列表、步骤、tips 中都不允许出现忌口食材或其同义表述。',
         `期望总烹饪时长（分钟）：${cookingTime}`,
         `食材：${ingredientText}`,
+        targetQuery ? `用户想要的菜谱或菜式方向：${targetQuery}。` : '',
         '以下知识库检索内容仅供参考，不得照抄残缺或模板化表达：',
         knowledgeReferenceText || '无可用知识库参考。',
         `本次生成随机标识：${requestNonce || Date.now()}`,
@@ -817,12 +803,13 @@ export class AiService {
         '菜谱合理性要求（必须遵守）：',
         '1) 菜名必须是常见家常菜，不要生造菜名，不要出现明显违和组合（如“苹果炒土豆”）。',
         '2) 每道菜至少命中 1 种库存食材（库存优先）。',
-        '3) 允许补充 1-3 种常见缺失食材来让菜谱成立（如“土豆炖牛肉”可补充牛肉）。',
+        '3) ingredients 必须一次列全这道菜真正会使用的主料、辅料和调味料，不得只写冰箱已有食材；不要加入仅装饰或可有可无的食材。',
         '4) 不要为了凑数量输出不符合常理的菜。',
         '5) 同一批结果要尽量多样：优先覆盖不同库存食材，不要多数菜都围绕同一个主食材。',
         '6) 菜名和做法不得语义重复，例如“白菜猪肉饺子”和“白菜猪肉馅饺子”属于同一道菜，只能保留一个。',
         '7) 菜名中的核心主食和主料必须出现在 ingredients 中，例如“焖面”必须有面条，“炒饭”必须有米饭，“饺子”必须有饺子皮或面粉；不得出现菜名有、食材却没有的情况。',
         '8) 先填写 plan 锁定菜品类型、主要烹饪方式和成立这道菜不可缺少的核心食材；plan.requiredIngredients 中每一项必须出现在 ingredients 中。',
+        '9) servings 默认按2人份填写；ingredients 的 quantity 必须是对应 servings 的总用量，后续详情会锁定使用这份清单。',
         'JSON 结构：',
         outputSchema,
         'difficulty 仅可取：简单、中等、困难。',
@@ -841,7 +828,7 @@ export class AiService {
           ],
           true,
           excludeNames.length ? 0.55 : 0.2,
-          summaryOnly ? 900 : 2200,
+          summaryOnly ? 1100 : 2200,
         )
         retryDashScopeMs = Date.now() - retryStartedAt
       } catch (_) {
@@ -849,22 +836,16 @@ export class AiService {
         retryContent = ''
       }
       if (retryDashScopeMs) {
-        this.logger.log(
-          `recipe-retry-stats remain=${remain}, ingredientCount=${pantryNames.length}, singleIngredient=${isSingleIngredientMode}, dashScopeMs=${retryDashScopeMs}`,
-        )
+        this.logger.log(`recipe-retry-stats remain=${remain}, ingredientCount=${pantryNames.length}, singleIngredient=${isSingleIngredientMode}, dashScopeMs=${retryDashScopeMs}`)
       }
       const retryParsed = this.parseJson(retryContent)
       const retryList = this.pickRecipeArray(retryParsed)
-      const retryCandidates = retryList
-        .map((item: any, idx: number) => this.normalizeRecipe(item, recipes.length + idx, summaryOnly))
+      const retryCandidates = retryList.map((item: any, idx: number) => this.normalizeRecipe(item, recipes.length + idx, summaryOnly))
       const retryNormalized = await this.repairRecipeCandidates(retryCandidates, summaryOnly, knowledgeReferenceText)
       const retryDeduped = this.dedupeRecipesByName(retryNormalized)
       const retryRecipes = this.filterRecipesByAvoidances(retryDeduped, avoidances)
       removedByAvoidanceCount += Math.max(retryDeduped.length - retryRecipes.length, 0)
-      const seen = new Set([
-        ...excludeNames.map((x) => this.normalizeRecipeNameForDedupe(x)),
-        ...recipes.map((x) => this.normalizeRecipeNameForDedupe(x.name)),
-      ])
+      const seen = new Set([...excludeNames.map((x) => this.normalizeRecipeNameForDedupe(x)), ...recipes.map((x) => this.normalizeRecipeNameForDedupe(x.name))])
       for (const item of retryRecipes) {
         const key = this.normalizeRecipeNameForDedupe(item.name)
         if (!key || seen.has(key)) continue
@@ -877,43 +858,101 @@ export class AiService {
     let finalRecipes = recipes.slice(0, count)
     if (!finalRecipes.length) {
       if (recipesBeforeAnyStrictFilter.length) {
-        this.logger.warn(
-          `Strict filters removed all AI recipes, fallback to unfiltered AI candidates. pantry=[${pantryNames.join(',')}]`,
-        )
+        this.logger.warn(`Strict filters removed all AI recipes, fallback to unfiltered AI candidates. pantry=[${pantryNames.join(',')}]`)
         finalRecipes = recipesBeforeAnyStrictFilter.slice(0, count)
       }
     }
     if (!finalRecipes.length) {
       const snippet = `${content || ''}`.replace(/\s+/g, ' ').slice(0, 180)
-      this.logger.warn(
-        `DashScope returned empty recipes after filtering, fallback to mock recipes. pantry=[${pantryNames.join(',')}], contentSnippet=${snippet}`,
-      )
+      this.logger.warn(`DashScope returned empty recipes after filtering, fallback to mock recipes. pantry=[${pantryNames.join(',')}], contentSnippet=${snippet}`)
       if (!allowRecipeMockFallback) {
         throw new Error('AI 未生成可用菜谱，请重试')
       }
-      const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances)
-        .map((item, idx) => this.normalizeRecipe(item, idx, summaryOnly))
+      const mocked = this.filterRecipesByAvoidances(this.mockRecipes(ingredients, count), avoidances).map((item, idx) => this.normalizeRecipe(item, idx, summaryOnly))
       finalRecipes = mocked.slice(0, count)
     }
     const retrievalMode = knowledgeHits[0]?.retrievalMode || 'no-reference'
-    finalRecipes = this.dedupeRecipesByName(finalRecipes).slice(0, count).map((recipe) => ({
-      ...recipe,
-      retrievalSource: `rag-model:${retrievalMode}`,
-    }))
+    finalRecipes = this.dedupeRecipesByName(finalRecipes)
+      .slice(0, count)
+      .map((recipe) => ({
+        ...recipe,
+        retrievalSource: `rag-model:${retrievalMode}`,
+      }))
     profileApplied.generatedCount = finalRecipes.length
     profileApplied.removedByAvoidanceCount = removedByAvoidanceCount
     profileApplied.reducedByAvoidance = finalRecipes.length < count && removedByAvoidanceCount > 0
-    this.logger.log(
-      `recipe-generate-total requested=${count}, returned=${finalRecipes.length}, ingredientCount=${pantryNames.length}, singleIngredient=${isSingleIngredientMode}, totalMs=${Date.now() - startedAt}`,
-    )
+    this.logger.log(`recipe-generate-total requested=${count}, returned=${finalRecipes.length}, ingredientCount=${pantryNames.length}, singleIngredient=${isSingleIngredientMode}, totalMs=${Date.now() - startedAt}`)
     return { recipes: finalRecipes, profileApplied }
   }
 
+  async searchRecipes(payload: any) {
+    const userId = Math.max(Number(payload?.userId || 1), 1)
+    const profile = await this.loadUserProfileForRecipe(userId)
+    const ingredients = this.normalizeStringArray(payload?.ingredients)
+    const query = `${payload?.query || ''}`.trim()
+    const requestAvoidances = this.normalizeStringArray(payload?.avoidances)
+    const avoidances = [...new Set([...profile.avoidances, ...requestAvoidances])]
+    const hits = await this.recipeKnowledge.search({
+      query,
+      ingredients,
+      allowEmpty: true,
+      requireAllIngredients: ingredients.length > 1,
+      limit: Math.min(Math.max(Number(payload?.limit || 6), 1), 12),
+      maxDuration: Number(payload?.maxDuration || 0) || undefined,
+      difficulty: `${payload?.difficulty || ''}`.trim() || undefined,
+      taste: `${payload?.taste || ''}`.trim() || undefined,
+      avoidances,
+    })
+    const recipes = hits.map((hit) => {
+      const source = hit.recipe
+      return {
+        id: source.id,
+        knowledgeId: source.id,
+        name: source.name,
+        duration: source.durationMinutes,
+        difficulty: source.difficulty,
+        servings: source.servings,
+        ingredients: (source.ingredients || []).map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          unit: item.unit,
+        })),
+        steps: (source.steps || []).map((step) => step.description).filter(Boolean),
+        tips: (source.tips || []).join('；'),
+        nutrition: source.nutritionPerServing
+          ? {
+              calories: source.nutritionPerServing.calories,
+              protein: source.nutritionPerServing.protein,
+              fat: source.nutritionPerServing.fat,
+              carbohydrates: source.nutritionPerServing.carbohydrates,
+              fiber: source.nutritionPerServing.fiber,
+              sodium: source.nutritionPerServing.sodium,
+              analysis: `${source.name}每人份营养数据来自菜谱知识库估算。`,
+            }
+          : undefined,
+        matchScore: hit.score,
+        matchedIngredients: hit.matchedIngredients,
+        missingIngredients: hit.missingIngredients,
+        retrievalSource: hit.retrievalMode,
+      }
+    })
+    return {
+      recipes,
+      query: {
+        query,
+        ingredients,
+        maxDuration: Number(payload?.maxDuration || 0) || undefined,
+        avoidances,
+      },
+    }
+  }
+
   async generateRecipeDetail(payload: any): Promise<GeneratedRecipe> {
-    const [stepsDetail, nutrition] = await Promise.all([
-      this.generateRecipeSteps(payload),
-      this.generateRecipeNutrition(payload),
-    ])
+    const stepsDetail = await this.generateRecipeSteps(payload)
+    const nutrition = await this.generateRecipeNutrition({
+      ...(payload || {}),
+      recipe: stepsDetail,
+    })
     const detail: GeneratedRecipe = {
       ...stepsDetail,
       nutrition,
@@ -921,7 +960,7 @@ export class AiService {
     }
     const issues = this.getRecipeDetailQualityIssues(detail, true)
     if (issues.length) throw new Error(`菜谱详情未通过质量校验：${issues.join('；')}`)
-    this.logger.log(`recipe-detail-quality-pass name=${detail.name}, source=parallel-sections`)
+    this.logger.log(`recipe-detail-quality-pass name=${detail.name}, source=locked-ingredients`)
     return detail
   }
 
@@ -931,8 +970,7 @@ export class AiService {
     const name = `${summary?.name || ''}`.trim()
     if (!name) throw new Error('菜谱名称为空')
 
-    const knowledgeRecipe = this.recipeKnowledge.findByIdOrName(summary?.knowledgeId || summary?.id || name)
-      || this.recipeKnowledge.findByIdOrName(name)
+    const knowledgeRecipe = this.recipeKnowledge.findByIdOrName(summary?.knowledgeId || summary?.id || name) || this.recipeKnowledge.findByIdOrName(name)
     const userId = Math.max(Number(payload?.userId || 1), 1)
     const profile = await this.loadUserProfileForRecipe(userId)
     const summaryIngredients = Array.isArray(summary?.ingredients) ? summary.ingredients : []
@@ -976,7 +1014,7 @@ export class AiService {
       .map((item: any) => `${item?.name || ''}${item?.quantity ?? ''}${item?.unit || ''}`.trim())
       .filter(Boolean)
       .join('、')
-    const schema = '{"recipe":{"steps":["具体可执行步骤1","具体可执行步骤2","具体可执行步骤3"],"tips":"烹饪提示"}}'
+    const schema = '{"recipe":{"requiredIngredientAdditions":[{"name":"确实缺少的必要食材","quantity":1,"unit":"个","reason":"缺少后无法完成菜品"}],"steps":["具体可执行步骤1","具体可执行步骤2","具体可执行步骤3"],"tips":"烹饪提示"}}'
 
     if (!this.apiKey) throw new Error('DASHSCOPE_API_KEY 未配置，无法生成最终菜谱')
     let qualityFeedback = ''
@@ -988,15 +1026,17 @@ export class AiService {
         '知识库内容仅作为事实与烹饪思路参考，最终内容必须由你重新组织和补全，禁止直接照抄残缺步骤。',
         '知识库检索参考：',
         knowledgeReferenceText || '未检索到直接参考，请使用可靠的家庭烹饪常识。',
-        `列表摘要食材：${ingredientText || '请结合知识库参考补全合理食材'}`,
+        `系统已锁定的完整食材：${ingredientText || '无'}`,
         `已锁定菜谱计划：菜品类型=${plan.dishType}；主要做法=${plan.cookingMethod}；核心食材=${plan.requiredIngredients.join('、') || '以食材清单为准'}`,
         `预计用时：${Math.max(Number(summary?.duration || 15), 1)} 分钟`,
         `难度：${summary?.difficulty || '简单'}`,
         `饮食偏好（尽量贴合）：${profile.dietPreferences.length ? profile.dietPreferences.join('、') : '无特别偏好'}`,
         `可用厨具：${profile.note || '常见家用厨具'}`,
         `忌口食材（绝对不能出现）：${profile.avoidances.length ? profile.avoidances.join('、') : '无'}`,
-        '食材清单已由系统锁定并会自动拼接，JSON 中不要重复输出菜名、食材、份数、用时和难度，只生成 steps 与 tips。',
-        '所有锁定食材都必须在步骤中实际使用，不得增加、删除或替换食材。',
+        '食材清单已由推荐阶段定稿；只生成 steps 与 tips，不得重新输出、替换、删除或修改锁定食材。',
+        '只有发现缺少鸡蛋、淀粉等“不补就无法完成这道菜”的必要食材时，才可放入 requiredIngredientAdditions；最多补充4项，并写明正数 quantity、明确 unit 和 reason。',
+        '不得把可选装饰、可替代调味料或仅用于丰富口味的食材列为补充项；没有必要补充时返回空数组。',
+        'steps 必须使用全部锁定食材和全部必要补充食材，不得使用清单以外的食材。',
         '步骤数量按实际操作组织，家常菜通常5至9步；连续的小动作应合并，不要为了增加步数拆开洗、擦、取出、静置、装盘等自然衔接动作。',
         '食材总量已经在食材清单中给出，步骤中不要机械重复食材总数量；只有分次使用时才写该次用量。',
         '只保留真正影响成败的关键数字，例如火候、烤箱温度、合理的时间范围和必要的切配厚度；成熟程度优先写颜色、软硬、香气、沸腾状态等直观判断。',
@@ -1007,13 +1047,18 @@ export class AiService {
         '所有文字使用简体中文；时间写“秒/分钟”，温度可使用℃。',
         qualityFeedback ? `上一次结果未通过校验，必须修正：${qualityFeedback}` : '',
         `JSON 结构：${schema}`,
-      ].filter(Boolean).join('\n')
+      ]
+        .filter(Boolean)
+        .join('\n')
 
       const modelStartedAt = Date.now()
       const content = await this.callDashScope(
         this.textModel,
         [
-          { role: 'system', content: '你是结构化 JSON 菜谱详情生成助手，必须通过完整性和可执行性校验。' },
+          {
+            role: 'system',
+            content: '你是结构化 JSON 菜谱详情生成助手，必须通过完整性和可执行性校验。',
+          },
           { role: 'user', content: prompt },
         ],
         true,
@@ -1023,20 +1068,32 @@ export class AiService {
       const parsed = this.parseJson(content)
       const list = this.pickRecipeArray(parsed)
       const detailSource = parsed?.recipe || list[0] || parsed
-      const recipe = this.normalizeRecipe({
-        ...summary,
-        ...(detailSource || {}),
-        id: summary?.id || detailSource?.id,
-        name,
-        ingredients,
+      const proposedAdditions = this.pickRequiredIngredientAdditions(detailSource, ingredients)
+      const finalIngredients = this.mergeLockedRecipeIngredients(ingredients, proposedAdditions)
+      let recipe = this.normalizeRecipe(
+        {
+          ...summary,
+          ...(detailSource || {}),
+          id: summary?.id || detailSource?.id,
+          name,
+        ingredients: finalIngredients,
         plan,
-      }, 0, false)
+        nutrition: undefined,
+        ingredientSetLocked: true,
+          ingredientSetVersion: 1,
+        },
+        0,
+        false,
+      )
+      recipe = this.repairMinorRecipeDetailConsistency(recipe)
       lastIssues = this.getRecipeDetailQualityIssues(recipe, false)
       if (this.recipeContainsAvoidance(recipe, profile.avoidances)) lastIssues.push('包含用户忌口食材')
       if (!lastIssues.length) {
         recipe.detailReady = false
         recipe.retrievalSource = `rag-model:${referenceHits[0]?.retrievalMode || 'no-reference'}`
-        this.logger.log(`recipe-steps-quality-pass name=${name}, attempt=${attempt + 1}, references=${Math.min(referenceHits.length, 3)}, promptChars=${prompt.length}, retrievalMs=${retrievalMs}, modelMs=${Date.now() - modelStartedAt}, totalMs=${Date.now() - startedAt}`)
+        this.logger.log(
+          `recipe-steps-quality-pass name=${name}, attempt=${attempt + 1}, references=${Math.min(referenceHits.length, 3)}, promptChars=${prompt.length}, retrievalMs=${retrievalMs}, modelMs=${Date.now() - modelStartedAt}, totalMs=${Date.now() - startedAt}`,
+        )
         return recipe
       }
       qualityFeedback = [...new Set(lastIssues)].join('；')
@@ -1050,22 +1107,24 @@ export class AiService {
     const name = `${summary?.name || ''}`.trim()
     const ingredients = Array.isArray(summary?.ingredients) ? summary.ingredients : []
     if (!name || !ingredients.length) throw new Error('菜谱名称或食材为空，无法估算营养')
-    const recipe = this.normalizeRecipe({
-      ...summary,
-      name,
-      ingredients,
-      servings: Math.max(1, Number(summary?.servings || 2)),
-      steps: [],
-    }, 0, false)
+    const recipe = this.normalizeRecipe(
+      {
+        ...summary,
+        name,
+        ingredients,
+        servings: Math.max(1, Number(summary?.servings || 2)),
+        steps: [],
+      },
+      0,
+      false,
+    )
     const nutrition = await this.ensureRecipeNutrition(recipe)
     if (!nutrition || !this.isRecipeNutritionComplete(nutrition)) throw new Error('营养数据生成失败，请重试')
     return nutrition
   }
 
   private normalizeRecipe(item: any, idx: number, summaryOnly = false): GeneratedRecipe {
-    const steps = Array.isArray(item?.steps)
-      ? item.steps.map((s: any) => `${s || ''}`.trim()).filter(Boolean)
-      : []
+    const steps = Array.isArray(item?.steps) ? item.steps.map((s: any) => `${s || ''}`.trim()).filter(Boolean) : []
     const name = `${item?.name || ''}`.trim()
     const ingredients = Array.isArray(item?.ingredients)
       ? item.ingredients
@@ -1080,18 +1139,18 @@ export class AiService {
       id: `${item?.id || `ai_${idx + 1}`}`,
       name,
       duration: Math.max(Number(item?.duration || 15), 1),
-      difficulty: ['简单', '中等', '困难'].includes(`${item?.difficulty || ''}`)
-        ? `${item.difficulty}`
-        : '简单',
+      difficulty: ['简单', '中等', '困难'].includes(`${item?.difficulty || ''}`) ? `${item.difficulty}` : '简单',
       matchScore: summaryOnly ? undefined : Math.max(0, Math.min(100, Number(item?.matchScore || 85))),
       coverImage: `${item?.coverImage || ''}`,
       ingredients,
       steps: summaryOnly ? [] : steps,
       tips: summaryOnly ? '' : `${item?.tips || ''}`.trim(),
-      servings: summaryOnly ? undefined : Math.max(1, Math.min(12, Number(item?.servings || 2))),
+      servings: Math.max(1, Math.min(12, Number(item?.servings || 2))),
       nutrition: summaryOnly ? undefined : this.normalizeRecipeNutrition(item?.nutrition),
       detailReady: !summaryOnly && steps.length > 0,
       plan: this.normalizeRecipePlan(item?.plan, name, ingredients),
+      ingredientSetLocked: item?.ingredientSetLocked === true || summaryOnly,
+      ingredientSetVersion: Math.max(1, Number(item?.ingredientSetVersion || 1)),
     }
   }
 
@@ -1100,8 +1159,7 @@ export class AiService {
     const nameRequirements = this.getRecipeNameRequirements(name)
     const ingredientNames = ingredients.map((item) => `${item?.name || ''}`.trim()).filter(Boolean)
     const nameRequired = nameRequirements.map((requirement) => {
-      return ingredientNames.find((ingredient) => requirement.ingredient.test(this.normalizeTextForCompare(ingredient)))
-        || requirement.preferred
+      return ingredientNames.find((ingredient) => requirement.ingredient.test(this.normalizeTextForCompare(ingredient))) || requirement.preferred
     })
     const normalizedName = this.normalizeIngredientTextForMatch(name)
     const namedIngredients = ingredientNames.filter((ingredient) => {
@@ -1141,53 +1199,53 @@ export class AiService {
   }
 
   private buildKnowledgeReferenceContext(hits: RecipeKnowledgeHit[], limit: number, includeSteps: boolean, stepLimit = 6) {
-    return (Array.isArray(hits) ? hits : []).slice(0, Math.max(1, limit)).map((hit, index) => {
-      const recipe = hit.recipe
-      const ingredients = recipe.ingredients
-        .map((item) => `${item.name}${item.rawAmount || `${item.quantity ?? ''}${item.unit || ''}`}`.trim())
-        .filter(Boolean)
-        .join('、')
-      const stepText = includeSteps
-        ? recipe.steps.slice(0, Math.max(1, stepLimit)).map((step) => step.description).filter(Boolean).join('；')
-        : ''
-      return [
-        `[参考${index + 1}] ${recipe.name}`,
-        `菜系/做法：${recipe.cuisine || '家常'}/${recipe.methods.join('、') || '常见做法'}`,
-        `用时/份数：${recipe.durationMinutes}分钟/${recipe.servings}人份`,
-        `食材：${ingredients}`,
-        includeSteps ? `原始做法线索：${stepText}` : '',
-        `检索匹配：${hit.matchedIngredients.join('、') || '语义相关'}`,
-      ].filter(Boolean).join('；')
-    }).join('\n')
+    return (Array.isArray(hits) ? hits : [])
+      .slice(0, Math.max(1, limit))
+      .map((hit, index) => {
+        const recipe = hit.recipe
+        const ingredients = recipe.ingredients
+          .map((item) => `${item.name}${item.rawAmount || `${item.quantity ?? ''}${item.unit || ''}`}`.trim())
+          .filter(Boolean)
+          .join('、')
+        const stepText = includeSteps
+          ? recipe.steps
+              .slice(0, Math.max(1, stepLimit))
+              .map((step) => step.description)
+              .filter(Boolean)
+              .join('；')
+          : ''
+        return [
+          `[参考${index + 1}] ${recipe.name}`,
+          `菜系/做法：${recipe.cuisine || '家常'}/${recipe.methods.join('、') || '常见做法'}`,
+          `用时/份数：${recipe.durationMinutes}分钟/${recipe.servings}人份`,
+          `食材：${ingredients}`,
+          includeSteps ? `原始做法线索：${stepText}` : '',
+          `检索匹配：${hit.matchedIngredients.join('、') || '语义相关'}`,
+        ]
+          .filter(Boolean)
+          .join('；')
+      })
+      .join('\n')
   }
 
-  private async repairRecipeCandidates(
-    candidates: GeneratedRecipe[],
-    summaryOnly: boolean,
-    knowledgeReferenceText: string,
-  ) {
-    const repaired = await Promise.all((Array.isArray(candidates) ? candidates : []).map(async (recipe) => {
-      const issues = this.getRecipeSummaryQualityIssues(recipe)
-      if (!issues.length) return recipe
-      if (!recipe.name || !this.apiKey) return null
-      try {
-        return await this.repairRecipeSummary(recipe, issues, summaryOnly, knowledgeReferenceText)
-      } catch (error: any) {
-        this.logger.warn(`recipe-summary-local-repair-failed name=${recipe.name}, issues=${issues.join('；')}, error=${error?.message || error}`)
-        return null
-      }
-    }))
-    return repaired
-      .filter((recipe): recipe is GeneratedRecipe => Boolean(recipe))
-      .filter((recipe) => this.isRecipeListItemComplete(recipe, summaryOnly))
+  private async repairRecipeCandidates(candidates: GeneratedRecipe[], summaryOnly: boolean, knowledgeReferenceText: string) {
+    const repaired = await Promise.all(
+      (Array.isArray(candidates) ? candidates : []).map(async (recipe) => {
+        const issues = this.getRecipeSummaryQualityIssues(recipe)
+        if (!issues.length) return recipe
+        if (!recipe.name || !this.apiKey) return null
+        try {
+          return await this.repairRecipeSummary(recipe, issues, summaryOnly, knowledgeReferenceText)
+        } catch (error: any) {
+          this.logger.warn(`recipe-summary-local-repair-failed name=${recipe.name}, issues=${issues.join('；')}, error=${error?.message || error}`)
+          return null
+        }
+      }),
+    )
+    return repaired.filter((recipe): recipe is GeneratedRecipe => Boolean(recipe)).filter((recipe) => this.isRecipeListItemComplete(recipe, summaryOnly))
   }
 
-  private async repairRecipeSummary(
-    recipe: GeneratedRecipe,
-    issues: string[],
-    summaryOnly: boolean,
-    knowledgeReferenceText: string,
-  ) {
+  private async repairRecipeSummary(recipe: GeneratedRecipe, issues: string[], summaryOnly: boolean, knowledgeReferenceText: string) {
     const plan = this.normalizeRecipePlan(recipe.plan, recipe.name, recipe.ingredients)
     const prompt = [
       '你是菜谱摘要局部修复助手。仅返回 JSON，不要解释。',
@@ -1207,7 +1265,10 @@ export class AiService {
     const content = await this.callDashScope(
       this.textModel,
       [
-        { role: 'system', content: '你只负责局部修复单道菜的计划和食材，不得重写整份菜谱。' },
+        {
+          role: 'system',
+          content: '你只负责局部修复单道菜的计划和食材，不得重写整份菜谱。',
+        },
         { role: 'user', content: prompt },
       ],
       true,
@@ -1217,18 +1278,22 @@ export class AiService {
     const parsed = this.parseJson(content)
     const list = this.pickRecipeArray(parsed)
     const source = parsed?.recipe || list[0] || parsed
-    const repaired = this.normalizeRecipe({
-      ...recipe,
-      ingredients: source?.ingredients,
-      plan: source?.plan || plan,
-      id: recipe.id,
-      name: recipe.name,
-      duration: recipe.duration,
-      difficulty: recipe.difficulty,
-      steps: recipe.steps,
-      tips: recipe.tips,
-      nutrition: recipe.nutrition,
-    }, 0, summaryOnly)
+    const repaired = this.normalizeRecipe(
+      {
+        ...recipe,
+        ingredients: source?.ingredients,
+        plan: source?.plan || plan,
+        id: recipe.id,
+        name: recipe.name,
+        duration: recipe.duration,
+        difficulty: recipe.difficulty,
+        steps: recipe.steps,
+        tips: recipe.tips,
+        nutrition: recipe.nutrition,
+      },
+      0,
+      summaryOnly,
+    )
     const remainingIssues = this.getRecipeSummaryQualityIssues(repaired)
     if (remainingIssues.length) throw new Error(`局部修复后仍不完整：${remainingIssues.join('；')}`)
     this.logger.log(`recipe-summary-local-repair-pass name=${recipe.name}, repaired=${issues.join('；')}`)
@@ -1242,14 +1307,94 @@ export class AiService {
     if (!Array.isArray(recipe?.ingredients) || !recipe.ingredients.length) {
       issues.push('缺少食材')
     } else {
-      const invalidIngredients = recipe.ingredients.filter((item) =>
-        !item?.name || !item?.unit || !Number.isFinite(Number(item?.quantity)) || Number(item.quantity) <= 0,
-      )
+      const invalidIngredients = recipe.ingredients.filter((item) => !item?.name || !item?.unit || !Number.isFinite(Number(item?.quantity)) || Number(item.quantity) <= 0)
       if (invalidIngredients.length) issues.push('食材用量或单位不完整')
     }
     issues.push(...this.getRecipeNameIngredientIssues(recipe))
     issues.push(...this.getRecipePlanIssues(recipe))
     return [...new Set(issues)]
+  }
+
+  private pickRequiredIngredientAdditions(source: any, lockedIngredients: GeneratedRecipe['ingredients']): GeneratedRecipe['ingredients'] {
+    const explicit = Array.isArray(source?.requiredIngredientAdditions) ? source.requiredIngredientAdditions : Array.isArray(source?.required_ingredient_additions) ? source.required_ingredient_additions : []
+    // Keep compatibility with older model responses that returned a full ingredients array.
+    // Only ingredients not already present are treated as proposed additions; locked values always win.
+    const legacy = explicit.length || !Array.isArray(source?.ingredients) ? [] : source.ingredients
+    const lockedKeys = new Set((lockedIngredients || []).map((item) => this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name))).filter(Boolean))
+    const additions: GeneratedRecipe['ingredients'] = []
+    for (const item of [...explicit, ...legacy]) {
+      const name = `${item?.name || ''}`.trim()
+      const key = this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(name))
+      const quantity = Number(item?.quantity)
+      const unit = `${item?.unit || ''}`.trim()
+      if (!name || !key || lockedKeys.has(key)) continue
+      if (!Number.isFinite(quantity) || quantity <= 0 || !unit) continue
+      lockedKeys.add(key)
+      additions.push({ name, quantity, unit })
+      if (additions.length >= 4) break
+    }
+    return additions
+  }
+
+  private mergeLockedRecipeIngredients(lockedIngredients: GeneratedRecipe['ingredients'], additions: GeneratedRecipe['ingredients']) {
+    const output = (lockedIngredients || []).map((item) => ({ ...item }))
+    const keys = new Set(output.map((item) => this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name))).filter(Boolean))
+    for (const item of additions || []) {
+      const key = this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name))
+      if (!key || keys.has(key)) continue
+      keys.add(key)
+      output.push({ ...item })
+    }
+    return output
+  }
+
+  private getUnusedRecipeIngredients(recipe: GeneratedRecipe) {
+    const steps = Array.isArray(recipe?.steps) ? recipe.steps : []
+    const stepText = this.normalizeTextForCompare(steps.join(' '))
+    return (recipe.ingredients || []).filter((item) => {
+      const ingredient = this.normalizeTextForCompare(item.name)
+      const simplified = ingredient
+        .replace(/^(新鲜|纯|适量)/u, '')
+        .replace(/^食用(?=油|盐)/u, '')
+        .replace(/(片|丝|块|丁|段|末)$/u, '')
+      return ingredient && !stepText.includes(ingredient) && (!simplified || !stepText.includes(simplified))
+    })
+  }
+
+  private isAutoRepairableSeasoning(name: string) {
+    return /^(?:食用油|花生油|菜籽油|玉米油|橄榄油|食盐|盐|白糖|白砂糖|冰糖|生抽|老抽|酱油|蚝油|陈醋|米醋|香醋|醋|料酒|胡椒粉|白胡椒粉|黑胡椒粉|鸡精|味精)$/u.test(`${name || ''}`.trim())
+  }
+
+  private repairMinorRecipeDetailConsistency(recipe: GeneratedRecipe) {
+    const unused = this.getUnusedRecipeIngredients(recipe)
+    if (!unused.length || unused.length > 4) return recipe
+    const requiredKeys = new Set(
+      this.normalizeStringArray(recipe?.plan?.requiredIngredients)
+        .map((name) => this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(name)))
+        .filter(Boolean),
+    )
+    if (
+      unused.some((item) => {
+        const key = this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name))
+        return requiredKeys.has(key) || !this.isAutoRepairableSeasoning(item.name)
+      })
+    )
+      return recipe
+
+    const oilNames = unused.filter((item) => /油$/u.test(item.name)).map((item) => item.name)
+    const seasoningNames = unused.filter((item) => !/油$/u.test(item.name)).map((item) => item.name)
+    const steps = [...(recipe.steps || [])]
+    if (oilNames.length && steps.length) {
+      const cookingIndex = steps.findIndex((step) => /锅|炒|煎|炸|烧|焖|炖/u.test(step))
+      const index = cookingIndex >= 0 ? cookingIndex : Math.min(1, steps.length - 1)
+      steps[index] = `锅中加入${oilNames.join('、')}加热后，${steps[index].replace(/^锅中/u, '')}`
+    }
+    if (seasoningNames.length && steps.length) {
+      const index = steps.length - 1
+      steps[index] = `烹饪接近完成时加入${seasoningNames.join('、')}调味并拌匀，${steps[index]}`
+    }
+    this.logger.log(`recipe-detail-auto-repair name=${recipe.name}, unusedSeasonings=${unused.map((item) => item.name).join('、')}`)
+    return { ...recipe, steps }
   }
 
   private isRecipeListItemComplete(recipe: GeneratedRecipe, summaryOnly: boolean) {
@@ -1264,9 +1409,7 @@ export class AiService {
     if (!Array.isArray(recipe?.ingredients) || !recipe.ingredients.length) {
       issues.push('缺少食材')
     } else {
-      const invalidIngredients = recipe.ingredients.filter((item) =>
-        !item?.name || !item?.unit || !Number.isFinite(Number(item?.quantity)) || Number(item.quantity) <= 0,
-      )
+      const invalidIngredients = recipe.ingredients.filter((item) => !item?.name || !item?.unit || !Number.isFinite(Number(item?.quantity)) || Number(item.quantity) <= 0)
       if (invalidIngredients.length) issues.push('食材用量或单位不完整')
     }
     issues.push(...this.getRecipeNameIngredientIssues(recipe))
@@ -1296,20 +1439,26 @@ export class AiService {
     if (plannedMethodCheck && !plannedMethodCheck.step.test(stepText)) {
       issues.push(`步骤未体现计划做法：${plannedMethod}`)
     }
-    const unusedIngredients = (recipe.ingredients || []).filter((item) => {
-      const ingredient = this.normalizeTextForCompare(item.name)
-      const simplified = ingredient
-        .replace(/^(新鲜|纯|适量)/u, '')
-        .replace(/^食用(?=油|盐)/u, '')
-        .replace(/(片|丝|块|丁|段|末)$/u, '')
-      return ingredient && !stepText.includes(ingredient) && (!simplified || !stepText.includes(simplified))
+    const unusedIngredients = this.getUnusedRecipeIngredients(recipe)
+    if (unusedIngredients.length)
+      issues.push(
+        `步骤未使用食材：${unusedIngredients
+          .slice(0, 4)
+          .map((item) => item.name)
+          .join('、')}`,
+      )
+    const declaredIngredientKeys = (recipe.ingredients || []).map((item) => this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name))).filter(Boolean)
+    const commonStepIngredients = ['鸡蛋', '鸭蛋', '淀粉', '面粉', '面包糠', '牛奶', '奶油', '豆腐', '米饭', '大米', '食用油', '橄榄油', '酱油', '生抽', '老抽', '蚝油', '醋', '白糖', '葱', '姜', '蒜', '胡椒粉']
+    const undeclaredIngredients = commonStepIngredients.filter((name) => {
+      const normalized = this.normalizeTextForCompare(name)
+      const key = this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(name))
+      const isDeclared = declaredIngredientKeys.some((declared) => declared === key || declared.includes(key) || key.includes(declared))
+      return stepText.includes(normalized) && !isDeclared
     })
-    if (unusedIngredients.length) issues.push(`步骤未使用食材：${unusedIngredients.slice(0, 4).map((item) => item.name).join('、')}`)
+    if (undeclaredIngredients.length) issues.push(`步骤使用但食材清单未列出：${undeclaredIngredients.slice(0, 4).join('、')}`)
     if (requireNutrition) {
       const nutrition = recipe?.nutrition
-      const values = nutrition
-        ? [nutrition.calories, nutrition.protein, nutrition.fat, nutrition.carbohydrates, nutrition.fiber, nutrition.sodium]
-        : []
+      const values = nutrition ? [nutrition.calories, nutrition.protein, nutrition.fat, nutrition.carbohydrates, nutrition.fiber, nutrition.sodium] : []
       if (!nutrition || values.length !== 6 || values.some((value) => !Number.isFinite(Number(value)) || Number(value) < 0)) {
         issues.push('六项营养数据不完整')
       } else if (Number(nutrition.calories) <= 0 || !`${nutrition.analysis || ''}`.trim()) {
@@ -1322,11 +1471,36 @@ export class AiService {
   private getRecipeNameRequirements(nameValue: unknown) {
     const name = this.normalizeTextForCompare(nameValue)
     const requirements = [
-      { dish: /焖面|炒面|拌面|汤面|面条|拉面|刀削面|乌冬面|意大利面|意面/u, ingredient: /面条|挂面|鲜面|切面|拉面|刀削面|乌冬面|意大利面|意面|面粉/u, label: '面条或面粉', preferred: '面条' },
-      { dish: /盖饭|炒饭|焖饭|烩饭|拌饭|饭团|煲仔饭/u, ingredient: /米饭|大米|糙米|小米/u, label: '米饭或大米', preferred: '米饭' },
-      { dish: /粥/u, ingredient: /大米|糙米|小米|燕麦|米饭/u, label: '米或谷物', preferred: '大米' },
-      { dish: /饺子|馄饨|包子|锅贴|馅饼/u, ingredient: /面粉|饺子皮|馄饨皮|包子皮|面皮/u, label: '面粉或面皮', preferred: '面粉' },
-      { dish: /酸辣粉|炒粉|汤粉|米粉|粉丝/u, ingredient: /粉条|米粉|粉丝|河粉|红薯粉/u, label: '粉条或米粉', preferred: '米粉' },
+      {
+        dish: /焖面|炒面|拌面|汤面|面条|拉面|刀削面|乌冬面|意大利面|意面/u,
+        ingredient: /面条|挂面|鲜面|切面|拉面|刀削面|乌冬面|意大利面|意面|面粉/u,
+        label: '面条或面粉',
+        preferred: '面条',
+      },
+      {
+        dish: /盖饭|炒饭|焖饭|烩饭|拌饭|饭团|煲仔饭/u,
+        ingredient: /米饭|大米|糙米|小米/u,
+        label: '米饭或大米',
+        preferred: '米饭',
+      },
+      {
+        dish: /粥/u,
+        ingredient: /大米|糙米|小米|燕麦|米饭/u,
+        label: '米或谷物',
+        preferred: '大米',
+      },
+      {
+        dish: /饺子|馄饨|包子|锅贴|馅饼/u,
+        ingredient: /面粉|饺子皮|馄饨皮|包子皮|面皮/u,
+        label: '面粉或面皮',
+        preferred: '面粉',
+      },
+      {
+        dish: /酸辣粉|炒粉|汤粉|米粉|粉丝/u,
+        ingredient: /粉条|米粉|粉丝|河粉|红薯粉/u,
+        label: '粉条或米粉',
+        preferred: '米粉',
+      },
       { dish: /年糕/u, ingredient: /年糕/u, label: '年糕', preferred: '年糕' },
       { dish: /豆腐/u, ingredient: /豆腐/u, label: '豆腐', preferred: '豆腐' },
     ]
@@ -1335,9 +1509,7 @@ export class AiService {
 
   private getRecipeNameIngredientIssues(recipe: GeneratedRecipe) {
     const name = this.normalizeTextForCompare(recipe?.name)
-    const ingredientText = this.normalizeTextForCompare(
-      (Array.isArray(recipe?.ingredients) ? recipe.ingredients : []).map((item) => item?.name || '').join('、'),
-    )
+    const ingredientText = this.normalizeTextForCompare((Array.isArray(recipe?.ingredients) ? recipe.ingredients : []).map((item) => item?.name || '').join('、'))
     if (!name || !ingredientText) return []
     return this.getRecipeNameRequirements(name)
       .filter((rule) => !rule.ingredient.test(ingredientText))
@@ -1349,9 +1521,7 @@ export class AiService {
     if (!plan?.dishType || !plan?.cookingMethod) return ['菜谱计划不完整']
     const required = this.normalizeStringArray(plan.requiredIngredients)
     if (!required.length) return ['菜谱计划缺少核心食材']
-    const ingredientKeys = (recipe.ingredients || []).map((item) =>
-      this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name)),
-    ).filter(Boolean)
+    const ingredientKeys = (recipe.ingredients || []).map((item) => this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name))).filter(Boolean)
     const missing = required.filter((name) => {
       const key = this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(name))
       return key && !ingredientKeys.some((ingredient) => ingredient === key || ingredient.includes(key) || key.includes(ingredient))
@@ -1365,16 +1535,8 @@ export class AiService {
 
   private isRecipeNutritionComplete(nutrition: RecipeNutrition | undefined) {
     if (!nutrition) return false
-    const values = [
-      nutrition.calories,
-      nutrition.protein,
-      nutrition.fat,
-      nutrition.carbohydrates,
-      nutrition.fiber,
-      nutrition.sodium,
-    ]
-    return values.every((value) => Number.isFinite(Number(value)) && Number(value) >= 0) &&
-      Number(nutrition.calories) > 0 && Boolean(`${nutrition.analysis || ''}`.trim())
+    const values = [nutrition.calories, nutrition.protein, nutrition.fat, nutrition.carbohydrates, nutrition.fiber, nutrition.sodium]
+    return values.every((value) => Number.isFinite(Number(value)) && Number(value) >= 0) && Number(nutrition.calories) > 0 && Boolean(`${nutrition.analysis || ''}`.trim())
   }
 
   private async ensureRecipeNutrition(recipe: GeneratedRecipe) {
@@ -1392,7 +1554,10 @@ export class AiService {
         const content = await this.callDashScope(
           this.textModel,
           [
-            { role: 'system', content: '你是严谨的家庭菜谱营养估算助手，只返回结构化 JSON。' },
+            {
+              role: 'system',
+              content: '你是严谨的家庭菜谱营养估算助手，只返回结构化 JSON。',
+            },
             {
               role: 'user',
               content: [
@@ -1454,7 +1619,11 @@ export class AiService {
       },
     })
     if (!user) {
-      return { note: '', dietPreferences: [] as string[], avoidances: [] as string[] }
+      return {
+        note: '',
+        dietPreferences: [] as string[],
+        avoidances: [] as string[],
+      }
     }
     return {
       note: `${user.note || ''}`.trim(),
@@ -1475,12 +1644,7 @@ export class AiService {
 
   private recipeContainsAvoidance(recipe: GeneratedRecipe, avoidances: string[]) {
     if (!avoidances.length) return false
-    const haystack = [
-      recipe.name,
-      ...(Array.isArray(recipe.ingredients) ? recipe.ingredients.map((x) => x?.name || '') : []),
-      ...(Array.isArray(recipe.steps) ? recipe.steps : []),
-      recipe.tips || '',
-    ]
+    const haystack = [recipe.name, ...(Array.isArray(recipe.ingredients) ? recipe.ingredients.map((x) => x?.name || '') : []), ...(Array.isArray(recipe.steps) ? recipe.steps : []), recipe.tips || '']
       .join(' ')
       .replace(/\s+/g, '')
       .toLowerCase()
@@ -1586,18 +1750,12 @@ export class AiService {
     for (const key of keys) {
       if (key && nameText.includes(key)) return key
     }
-    const ingredientText = this.normalizeIngredientTextForMatch(
-      Array.isArray(recipe?.ingredients) ? recipe.ingredients.map((x) => `${x?.name || ''}`).join(' ') : '',
-    )
+    const ingredientText = this.normalizeIngredientTextForMatch(Array.isArray(recipe?.ingredients) ? recipe.ingredients.map((x) => `${x?.name || ''}`).join(' ') : '')
     for (const key of keys) {
       if (key && ingredientText.includes(key)) return key
     }
     const allText = this.normalizeIngredientTextForMatch(
-      [
-        `${recipe?.name || ''}`,
-        ...(Array.isArray(recipe?.ingredients) ? recipe.ingredients.map((x) => `${x?.name || ''}`) : []),
-        ...(Array.isArray(recipe?.steps) ? recipe.steps.map((x) => `${x || ''}`) : []),
-      ].join(' '),
+      [`${recipe?.name || ''}`, ...(Array.isArray(recipe?.ingredients) ? recipe.ingredients.map((x) => `${x?.name || ''}`) : []), ...(Array.isArray(recipe?.steps) ? recipe.steps.map((x) => `${x || ''}`) : [])].join(' '),
     )
     for (const key of keys) {
       if (key && allText.includes(key)) return key
@@ -1609,17 +1767,7 @@ export class AiService {
     if (!parsed) return []
     if (Array.isArray(parsed)) return parsed
 
-    const directKeys = [
-      'recipes',
-      'list',
-      'items',
-      'data',
-      'result',
-      'output',
-      'dishes',
-      '菜谱',
-      '菜谱列表',
-    ]
+    const directKeys = ['recipes', 'list', 'items', 'data', 'result', 'output', 'dishes', '菜谱', '菜谱列表']
     for (const key of directKeys) {
       if (Array.isArray(parsed?.[key])) return parsed[key]
       if (parsed?.[key] && Array.isArray(parsed[key]?.recipes)) return parsed[key].recipes
@@ -1652,11 +1800,7 @@ export class AiService {
   private recipeUsesPantryIngredients(recipe: GeneratedRecipe, pantryNames: string[]) {
     const names = Array.isArray(pantryNames) ? pantryNames : []
     if (!names.length) return true
-    const haystackRaw = [
-      `${recipe?.name || ''}`,
-      ...(Array.isArray(recipe?.ingredients) ? recipe.ingredients.map((x) => `${x?.name || ''}`) : []),
-      ...(Array.isArray(recipe?.steps) ? recipe.steps.map((x) => `${x || ''}`) : []),
-    ].join(' ')
+    const haystackRaw = [`${recipe?.name || ''}`, ...(Array.isArray(recipe?.ingredients) ? recipe.ingredients.map((x) => `${x?.name || ''}`) : []), ...(Array.isArray(recipe?.steps) ? recipe.steps.map((x) => `${x || ''}`) : [])].join(' ')
     const haystack = this.normalizeIngredientTextForMatch(haystackRaw)
     const pantryKeys = this.collectIngredientMatchKeys(names)
     return pantryKeys.some((key) => key && haystack.includes(key))
@@ -1664,13 +1808,16 @@ export class AiService {
 
   private collectIngredientMatchKeys(names: string[]) {
     const list = Array.isArray(names) ? names : []
-    const reverseAliasMap = Object.keys(this.ingredientAliasMap).reduce((acc, key) => {
-      const value = `${this.ingredientAliasMap[key] || ''}`.trim()
-      if (!value) return acc
-      if (!acc[value]) acc[value] = []
-      acc[value].push(key)
-      return acc
-    }, {} as Record<string, string[]>)
+    const reverseAliasMap = Object.keys(this.ingredientAliasMap).reduce(
+      (acc, key) => {
+        const value = `${this.ingredientAliasMap[key] || ''}`.trim()
+        if (!value) return acc
+        if (!acc[value]) acc[value] = []
+        acc[value].push(key)
+        return acc
+      },
+      {} as Record<string, string[]>,
+    )
     const keys = new Set<string>()
     for (const name of list) {
       const raw = `${name || ''}`.trim()
@@ -1686,20 +1833,12 @@ export class AiService {
     return Array.from(keys)
   }
 
-  private async callDashScope(
-    model: string,
-    messages: any[],
-    forceJson = false,
-    temperature = 0.2,
-    maxTokens = 800,
-  ): Promise<string> {
+  private async callDashScope(model: string, messages: any[], forceJson = false, temperature = 0.2, maxTokens = 800): Promise<string> {
     const modelName = `${model || ''}`.toLowerCase()
     const isAsrModel = modelName.includes('asr')
     if (isAsrModel) {
       const response = await this.callDashScopeAsr(model, messages)
-      return this.extractMessageText(
-        response?.output?.choices?.[0]?.message?.content || response?.choices?.[0]?.message?.content,
-      )
+      return this.extractMessageText(response?.output?.choices?.[0]?.message?.content || response?.choices?.[0]?.message?.content)
     }
 
     const body: any = {
@@ -1711,9 +1850,7 @@ export class AiService {
     if (forceJson) {
       body.response_format = { type: 'json_object' }
     }
-    const hasVisualInput = messages.some((message: any) =>
-      Array.isArray(message?.content) && message.content.some((part: any) => part?.type === 'image_url'),
-    )
+    const hasVisualInput = messages.some((message: any) => Array.isArray(message?.content) && message.content.some((part: any) => part?.type === 'image_url'))
     if (hasVisualInput && /^(qwen3\.6|qwen3\.5|qwen3-vl)/.test(modelName)) {
       body.enable_thinking = false
     }
@@ -1789,11 +1926,7 @@ export class AiService {
 
     const payload = await response.json().catch(() => ({}))
     if (!response.ok) {
-      const msg =
-        payload?.error?.message ||
-        payload?.message ||
-        payload?.output?.message ||
-        `DashScope request failed: ${response.status}`
+      const msg = payload?.error?.message || payload?.message || payload?.output?.message || `DashScope request failed: ${response.status}`
       throw new Error(msg)
     }
     return payload
@@ -1825,7 +1958,11 @@ export class AiService {
 
     const block =
       raw.match(/```json\s*([\s\S]*?)```/i)?.[1] ||
-      raw.match(/```[\s\S]*?```/i)?.[0]?.replace(/^```[a-zA-Z]*\s*/, '').replace(/```$/, '').trim() ||
+      raw
+        .match(/```[\s\S]*?```/i)?.[0]
+        ?.replace(/^```[a-zA-Z]*\s*/, '')
+        .replace(/```$/, '')
+        .trim() ||
       raw.match(/\{[\s\S]*\}/)?.[0] ||
       raw.match(/\[[\s\S]*\]/)?.[0]
     if (!block) return {}
@@ -1953,16 +2090,10 @@ export class AiService {
   }
 
   private normalizeAssistantCommand(source: any, transcript: string): AssistantCommand {
-    const allowedIntents = new Set<AssistantIntent>([
-      'inventory_add',
-      'inventory_consume',
-      'inventory_read',
-      'expiry_read',
-      'recipe_request',
-      'unknown',
-    ])
+    const allowedIntents = new Set<AssistantIntent>(['inventory_add', 'inventory_consume', 'inventory_read', 'expiry_read', 'recipe_search', 'recipe_request', 'unknown'])
     const rawIntent = `${source?.intent || ''}`.trim() as AssistantIntent
-    const intent = allowedIntents.has(rawIntent) ? rawIntent : this.detectAssistantIntent(transcript)
+    const detectedIntent = this.detectAssistantIntent(transcript)
+    const intent = detectedIntent === 'recipe_search' || detectedIntent === 'recipe_request' ? detectedIntent : allowedIntents.has(rawIntent) ? rawIntent : detectedIntent
     const items = (Array.isArray(source?.items) ? source.items : [])
       .map((item: any) => {
         const name = this.canonicalizeIngredientName(this.cleanIngredientName(`${item?.name || ''}`))
@@ -1978,10 +2109,11 @@ export class AiService {
         }
       })
       .filter((item) => !!item.name)
-    const recipeIngredients = Array.isArray(source?.recipe?.ingredients)
-      ? source.recipe.ingredients.map((name: any) => `${name || ''}`.trim()).filter(Boolean)
-      : []
+    const recipeIngredients = Array.isArray(source?.recipe?.ingredients) ? source.recipe.ingredients.map((name: any) => `${name || ''}`.trim()).filter(Boolean) : []
+    const recipeAvoidances = Array.isArray(source?.recipe?.avoidances) ? source.recipe.avoidances.map((name: any) => `${name || ''}`.trim()).filter(Boolean) : []
+    const deterministicRecipe: AssistantCommand['recipe'] = intent === 'recipe_search' || intent === 'recipe_request' ? this.buildAssistantCommandFallback(transcript).recipe : { ingredients: [], avoidances: [] }
     const maxDuration = Number(source?.recipe?.maxDuration)
+    const resolvedMaxDuration = Number.isFinite(maxDuration) && maxDuration > 0 ? maxDuration : Number(deterministicRecipe.maxDuration || 0)
     const confidenceValue = Number(source?.confidence)
     const command: AssistantCommand = {
       intent,
@@ -1990,20 +2122,18 @@ export class AiService {
       query: {
         target: `${source?.query?.target || ''}`.trim() || undefined,
         scope: `${source?.query?.scope || ''}`.trim() || undefined,
-        location: `${source?.query?.location || ''}`.includes('冷冻')
-          ? '冷冻'
-          : (`${source?.query?.location || ''}`.includes('冷藏') ? '冷藏' : undefined),
+        location: `${source?.query?.location || ''}`.includes('冷冻') ? '冷冻' : `${source?.query?.location || ''}`.includes('冷藏') ? '冷藏' : undefined,
       },
       recipe: {
-        ingredients: recipeIngredients,
-        maxDuration: Number.isFinite(maxDuration) && maxDuration > 0 ? maxDuration : undefined,
-        difficulty: `${source?.recipe?.difficulty || ''}`.trim() || undefined,
-        taste: `${source?.recipe?.taste || ''}`.trim() || undefined,
+        query: `${source?.recipe?.query || deterministicRecipe.query || ''}`.trim() || undefined,
+        ingredients: recipeIngredients.length ? recipeIngredients : deterministicRecipe.ingredients,
+        maxDuration: Number.isFinite(resolvedMaxDuration) && resolvedMaxDuration > 0 ? resolvedMaxDuration : undefined,
+        difficulty: `${source?.recipe?.difficulty || deterministicRecipe.difficulty || ''}`.trim() || undefined,
+        taste: `${source?.recipe?.taste || deterministicRecipe.taste || ''}`.trim() || undefined,
+        avoidances: [...new Set([...recipeAvoidances, ...(deterministicRecipe.avoidances || [])])],
       },
       reply: `${source?.reply || ''}`.trim(),
-      confidence: Number.isFinite(confidenceValue)
-        ? Number(Math.max(0, Math.min(1, confidenceValue)).toFixed(2))
-        : 0.7,
+      confidence: Number.isFinite(confidenceValue) ? Number(Math.max(0, Math.min(1, confidenceValue)).toFixed(2)) : 0.7,
       requiresConfirmation: intent === 'inventory_add' || intent === 'inventory_consume',
     }
     if (!command.reply) command.reply = this.buildAssistantReply(command)
@@ -2019,61 +2149,58 @@ export class AiService {
         .trim(),
     )
     const parsedItems = Array.isArray(fallback.items) ? fallback.items : []
-    const items = (parsedItems.length ? parsedItems : (fallback.name ? [fallback] : []))
+    const items = (parsedItems.length ? parsedItems : fallback.name ? [fallback] : [])
       .map((item: any) => ({
         name: `${item?.name || ''}`.trim(),
         quantity: item?.quantity,
         unit: `${item?.unit || ''}`.trim() || undefined,
       }))
       .filter((item) => !!item.name)
-    const inventoryTargetMatch = transcript.match(
-      /(?:查一下|查查|查询|查看|告诉我)?\s*([^，。！？?\s]{1,12}?)(?:还有多少|还剩多少|剩多少|有多少)/,
-    )
-    const inventoryTargetAfterMatch = transcript.match(
-      /(?:还有|还剩|剩下|有)\s*(?:多少|几个|几颗|几盒|几袋|几瓶|几份)\s*([^，。！？?\s]{1,12})/,
-    )
+    const inventoryTargetMatch = transcript.match(/(?:查一下|查查|查询|查看|告诉我)?\s*([^，。！？?\s]{1,12}?)(?:还有多少|还剩多少|剩多少|有多少)/)
+    const inventoryTargetAfterMatch = transcript.match(/(?:还有|还剩|剩下|有)\s*(?:多少|几个|几颗|几盒|几袋|几瓶|几份)\s*([^，。！？?\s]{1,12})/)
     const inventoryTarget = `${inventoryTargetMatch?.[1] || inventoryTargetAfterMatch?.[1] || ''}`
       .replace(/^(冰箱里|库存里|冰箱|库存)/, '')
       .replace(/(呢|吗|呀|啊)$/, '')
       .trim()
-    const inventoryLocation = transcript.includes('冷冻')
-      ? '冷冻'
-      : (transcript.includes('冷藏') ? '冷藏' : undefined)
-    const expiryTargetMatch = transcript.match(
-      /(?:查一下|查查|查询|查看|告诉我)?\s*([^，。！？?\s]{1,12}?)(?:什么时候过期|多久过期|快过期了吗|是否过期)/,
-    )
-    const expiryTarget = `${expiryTargetMatch?.[1] || ''}`
-      .replace(/^(冰箱里|库存里|冰箱|库存)/, '')
+    const inventoryLocation = transcript.includes('冷冻') ? '冷冻' : transcript.includes('冷藏') ? '冷藏' : undefined
+    const expiryTargetMatch = transcript.match(/(?:查一下|查查|查询|查看|告诉我)?\s*([^，。！？?\s]{1,12}?)(?:什么时候过期|多久过期|快过期了吗|是否过期)/)
+    const expiryTarget = `${expiryTargetMatch?.[1] || ''}`.replace(/^(冰箱里|库存里|冰箱|库存)/, '').trim()
+    const recipeSearchMatch = transcript.match(/(?:帮我)?(?:找|搜索|查找|查询)(?:一下|一些|几道|几种)?\s*([^，。！？?]+?)(?:菜谱|做法)?$/)
+    const recipeSearchTarget = `${recipeSearchMatch?.[1] || ''}`
+      .replace(/^(不辣的|不放辣的|不加辣的)/, '')
+      .replace(/(菜谱|做法)$/, '')
       .trim()
-    const recipeIngredientMatch = transcript.match(
-      /(?:用|拿)\s*(.+?)\s*(?:做|推荐|生成|来一道|来个)/,
-    )
+    const recipeNameQuery = /炒|炖|煮|蒸|煎|烤|拌|炸|汤|粥|饭|面|饼|羹|炒蛋/u.test(recipeSearchTarget) ? recipeSearchTarget : ''
+    const recipeIngredientMatch = transcript.match(/(?:用|拿)\s*(.+?)\s*(?:能做什么|可以做什么|做|推荐|生成|来一道|来个)/)
     const recipeIngredientText = `${recipeIngredientMatch?.[1] || ''}`.trim()
-    const recipeIngredients = recipeIngredientText
-      ? recipeIngredientText.split(/[、，,和与跟及+\s]+/).map((name) => name.trim()).filter(Boolean)
+    const recipeIngredientsFromUse = recipeIngredientText
+      ? recipeIngredientText
+          .split(/[、，,和与跟及+\s]+/)
+          .map((name) => name.trim())
+          .filter(Boolean)
       : []
-    const durationMatch = transcript.match(/(\d+)\s*分钟/)
-    const maxDuration = Number(durationMatch?.[1])
+    const recipeIngredients = [...new Set([...recipeIngredientsFromUse, ...(!recipeNameQuery && recipeSearchTarget ? [recipeSearchTarget] : [])])]
+    const durationMatch = transcript.match(/([零一二两三四五六七八九十百\d]+)\s*分钟/)
+    const maxDuration = this.normalizeVoiceQuantity(durationMatch?.[1])
     const difficulty = ['简单', '中等', '困难'].find((value) => transcript.includes(value))
     const taste = ['清淡', '香辣', '麻辣', '酸甜', '咸鲜'].find((value) => transcript.includes(value))
+    const recipeAvoidances = /(不辣|不要辣|不放辣|不加辣|不能吃辣)/.test(transcript) ? ['辣'] : []
     const command: AssistantCommand = {
       intent,
       transcript,
       items: intent === 'inventory_add' || intent === 'inventory_consume' ? items : [],
       query: {
-        target: intent === 'inventory_read'
-          ? (inventoryTarget || undefined)
-          : (intent === 'expiry_read' ? (expiryTarget || undefined) : undefined),
-        scope: intent === 'expiry_read' ? 'expiring' : (intent === 'inventory_read' ? 'all' : undefined),
+        target: intent === 'inventory_read' ? inventoryTarget || undefined : intent === 'expiry_read' ? expiryTarget || undefined : undefined,
+        scope: intent === 'expiry_read' ? 'expiring' : intent === 'inventory_read' ? 'all' : undefined,
         location: intent === 'inventory_read' ? inventoryLocation : undefined,
       },
       recipe: {
-        ingredients: intent === 'recipe_request' ? recipeIngredients : [],
-        maxDuration: intent === 'recipe_request' && Number.isFinite(maxDuration) && maxDuration > 0
-          ? maxDuration
-          : undefined,
-        difficulty: intent === 'recipe_request' ? difficulty : undefined,
-        taste: intent === 'recipe_request' ? taste : undefined,
+        query: intent === 'recipe_search' ? recipeNameQuery || undefined : undefined,
+        ingredients: intent === 'recipe_request' || intent === 'recipe_search' ? recipeIngredients : [],
+        maxDuration: (intent === 'recipe_request' || intent === 'recipe_search') && Number.isFinite(maxDuration) && Number(maxDuration) > 0 ? maxDuration : undefined,
+        difficulty: intent === 'recipe_request' || intent === 'recipe_search' ? difficulty : undefined,
+        taste: intent === 'recipe_request' || intent === 'recipe_search' ? taste : undefined,
+        avoidances: intent === 'recipe_search' ? recipeAvoidances : [],
       },
       reply: '',
       confidence: intent === 'unknown' ? 0.2 : 0.55,
@@ -2087,7 +2214,8 @@ export class AiService {
     const value = `${text || ''}`.replace(/\s+/g, '')
     if (!value) return 'unknown'
     if (/(临期|快过期|即将过期|已经过期|过期食材|什么时候过期|多久过期|是否过期)/.test(value)) return 'expiry_read'
-    if (/(菜谱|做什么菜|吃什么|推荐.*菜|怎么做)/.test(value)) return 'recipe_request'
+    if (/(生成|重新生成|AI生成|推荐).*(菜谱|一道|几道|一批|新菜|什么菜)/i.test(value)) return 'recipe_request'
+    if (/(找|搜索|查找|查询).*(菜谱|做法|菜|饭|汤|粥|面|饼|炒蛋|鸡肉|土豆)|有没有.*(?:分钟)?.*菜|用.+(?:能|可以)?做什么|菜谱|做什么菜|吃什么|怎么做/.test(value)) return 'recipe_search'
     if (/(取出|拿出|出库|用了|用掉|吃了|吃掉|喝了|喝掉|喝完|吃完|用完|减掉|扣掉)/.test(value)) {
       return 'inventory_consume'
     }
@@ -2099,14 +2227,17 @@ export class AiService {
   }
 
   private buildAssistantReply(command: AssistantCommand) {
-    const names = command.items.map((item) => {
-      const amount = item.quantity ? `${item.quantity}${item.unit || ''}` : ''
-      return `${item.name}${amount}`
-    }).join('、')
+    const names = command.items
+      .map((item) => {
+        const amount = item.quantity ? `${item.quantity}${item.unit || ''}` : ''
+        return `${item.name}${amount}`
+      })
+      .join('、')
     if (command.intent === 'inventory_add') return names ? `我识别到准备入库：${names}，请确认信息。` : '我听到了入库需求，请补充食材信息。'
     if (command.intent === 'inventory_consume') return names ? `我识别到准备取出：${names}，请确认数量。` : '我听到了出库需求，请补充食材和数量。'
     if (command.intent === 'inventory_read') return '我识别到库存查询需求，下一步将读取冰箱库存。'
     if (command.intent === 'expiry_read') return '我识别到临期食材查询需求，下一步将读取临期库存。'
+    if (command.intent === 'recipe_search') return '我识别到菜谱查询需求，正在查找符合条件的菜谱。'
     if (command.intent === 'recipe_request') return '我识别到菜谱推荐需求，下一步将根据条件生成菜谱。'
     return '我还不能确定你的指令，请换一种说法再试一次。'
   }
@@ -2162,13 +2293,16 @@ export class AiService {
       .replace(/^(今天|刚才|刚刚|已经|我)\s*/g, '')
       .replace(/\s+/g, ' ')
       .trim()
-    if (!cleaned) return { name: '', quantity: undefined as number | undefined, unit: undefined as string | undefined }
+    if (!cleaned)
+      return {
+        name: '',
+        quantity: undefined as number | undefined,
+        unit: undefined as string | undefined,
+      }
     const unitPattern = '(个|颗|斤|公斤|千克|克|袋|包|瓶|盒|罐|把|根|条|片|块|份|毫升|升)'
     const qtyPattern = '([零一二两三四五六七八九十百千万\\d]+(?:\\.\\d+)?)'
     // 名称在前：番茄两个 / 番茄 2 个
-    const nameFirst = cleaned.match(
-      new RegExp(`^([\\u4e00-\\u9fa5A-Za-z]+?)\\s*${qtyPattern}?\\s*${unitPattern}?$`),
-    )
+    const nameFirst = cleaned.match(new RegExp(`^([\\u4e00-\\u9fa5A-Za-z]+?)\\s*${qtyPattern}?\\s*${unitPattern}?$`))
     if (nameFirst) {
       const [, rawName = '', rawQty = '', rawUnit = ''] = nameFirst
       return {
@@ -2178,9 +2312,7 @@ export class AiService {
       }
     }
     // 数量在前：两个番茄 / 2个土豆
-    const qtyFirst = cleaned.match(
-      new RegExp(`^${qtyPattern}\\s*${unitPattern}?\\s*([\\u4e00-\\u9fa5A-Za-z]+)$`),
-    )
+    const qtyFirst = cleaned.match(new RegExp(`^${qtyPattern}\\s*${unitPattern}?\\s*([\\u4e00-\\u9fa5A-Za-z]+)$`))
     if (qtyFirst) {
       const [, rawQty = '', rawUnit = '', rawName = ''] = qtyFirst
       return {
@@ -2239,19 +2371,13 @@ export class AiService {
     return undefined
   }
 
-  private normalizeVoiceItems(
-    modelItems: any[],
-    fallbackItems: Array<{ name: string; quantity?: number; unit?: string }>,
-    single: { name: string; quantity?: number; unit?: string },
-  ) {
+  private normalizeVoiceItems(modelItems: any[], fallbackItems: Array<{ name: string; quantity?: number; unit?: string }>, single: { name: string; quantity?: number; unit?: string }) {
     const source = Array.isArray(modelItems) && modelItems.length ? modelItems : fallbackItems
     const normalized = source
       .map((x) => {
         const parsedName = this.parseVoiceSingleItem(`${x?.name || ''}`)
         const rawCategory = `${x?.category || ''}`.trim()
-        const category = this.validCategories.has(rawCategory)
-          ? rawCategory
-          : this.inferCategoryByName(parsedName.name)
+        const category = this.validCategories.has(rawCategory) ? rawCategory : this.inferCategoryByName(parsedName.name)
         return {
           name: parsedName.name,
           quantity: this.normalizeVoiceQuantity(x?.quantity ?? parsedName.quantity),
@@ -2278,9 +2404,7 @@ export class AiService {
     const fallbackList = this.parseIngredientsFallback(content)
     const mergedList = [...(Array.isArray(structuredList) ? structuredList : []), ...(Array.isArray(fallbackList) ? fallbackList : [])]
 
-    const normalized = mergedList
-      .map((item: any) => this.normalizeRecognizedIngredient(item))
-      .filter((x: RecognizedIngredient) => !!x.name && !this.isNoiseIngredientName(x.name))
+    const normalized = mergedList.map((item: any) => this.normalizeRecognizedIngredient(item)).filter((x: RecognizedIngredient) => !!x.name && !this.isNoiseIngredientName(x.name))
 
     const seen = new Set<string>()
     return normalized.filter((item) => {
@@ -2358,12 +2482,7 @@ export class AiService {
 
   private async runIngredientLoosePass(dataUrl: string): Promise<RecognizedIngredient[]> {
     try {
-      const prompt = [
-        '识别这张食材图片中所有你能看到的食材名称。',
-        '不要返回 JSON，只返回纯文本，一行一个食材名。',
-        '尽量完整，不要只返回 4 条左右；可包含低置信度候选。',
-        '只输出食材名称，不要解释。',
-      ].join('\n')
+      const prompt = ['识别这张食材图片中所有你能看到的食材名称。', '不要返回 JSON，只返回纯文本，一行一个食材名。', '尽量完整，不要只返回 4 条左右；可包含低置信度候选。', '只输出食材名称，不要解释。'].join('\n')
       const content = await this.callDashScope(
         this.visionModel,
         [
@@ -2388,12 +2507,7 @@ export class AiService {
 
   private async runReceiptLoosePass(dataUrl: string): Promise<RecognizedIngredient[]> {
     try {
-      const prompt = [
-        '识别这张购物小票里与食材相关的商品名称。',
-        '不要返回 JSON，只返回纯文本，一行一个食材名。',
-        '尽量完整，不要只返回 4 条左右；忽略金额、门店、时间、合计。',
-        '只输出食材名称，不要解释。',
-      ].join('\n')
+      const prompt = ['识别这张购物小票里与食材相关的商品名称。', '不要返回 JSON，只返回纯文本，一行一个食材名。', '尽量完整，不要只返回 4 条左右；忽略金额、门店、时间、合计。', '只输出食材名称，不要解释。'].join('\n')
       const content = await this.callDashScope(
         this.visionModel,
         [
@@ -2416,10 +2530,7 @@ export class AiService {
     }
   }
 
-  private async runIngredientContinuePass(
-    dataUrl: string,
-    existedNames: string[],
-  ): Promise<RecognizedIngredient[]> {
+  private async runIngredientContinuePass(dataUrl: string, existedNames: string[]): Promise<RecognizedIngredient[]> {
     try {
       const existed = Array.isArray(existedNames) ? existedNames.filter(Boolean) : []
       const prompt = [
@@ -2451,10 +2562,7 @@ export class AiService {
     }
   }
 
-  private async runReceiptContinuePass(
-    dataUrl: string,
-    existedNames: string[],
-  ): Promise<RecognizedIngredient[]> {
+  private async runReceiptContinuePass(dataUrl: string, existedNames: string[]): Promise<RecognizedIngredient[]> {
     try {
       const existed = Array.isArray(existedNames) ? existedNames.filter(Boolean) : []
       const prompt = [
@@ -2487,10 +2595,7 @@ export class AiService {
     }
   }
 
-  private mergeRecognizedIngredients(
-    base: RecognizedIngredient[],
-    extra: RecognizedIngredient[],
-  ): RecognizedIngredient[] {
+  private mergeRecognizedIngredients(base: RecognizedIngredient[], extra: RecognizedIngredient[]): RecognizedIngredient[] {
     const merged = [...(Array.isArray(base) ? base : []), ...(Array.isArray(extra) ? extra : [])]
     const seen = new Set<string>()
     const output: RecognizedIngredient[] = []
@@ -2508,19 +2613,7 @@ export class AiService {
     if (!parsed) return []
     if (Array.isArray(parsed)) return parsed
 
-    const candidateKeys = [
-      'ingredients',
-      'items',
-      'list',
-      'data',
-      'result',
-      'foods',
-      'foodItems',
-      'food_items',
-      '食材',
-      '食材列表',
-      '条目',
-    ]
+    const candidateKeys = ['ingredients', 'items', 'list', 'data', 'result', 'foods', 'foodItems', 'food_items', '食材', '食材列表', '条目']
     for (const key of candidateKeys) {
       if (Array.isArray(parsed?.[key])) return parsed[key]
     }
@@ -2540,18 +2633,7 @@ export class AiService {
       .map((s) => s.trim())
       .filter(Boolean)
 
-    const blacklist = new Set([
-      'json',
-      'ingredients',
-      'items',
-      'name',
-      'category',
-      'confidence',
-      'quantity',
-      'unit',
-      '无法识别',
-      '未识别',
-    ])
+    const blacklist = new Set(['json', 'ingredients', 'items', 'name', 'category', 'confidence', 'quantity', 'unit', '无法识别', '未识别'])
 
     const tokens = rawTokens.filter((t) => {
       const lower = t.toLowerCase()
@@ -2574,28 +2656,14 @@ export class AiService {
   }
 
   private normalizeRecognizedIngredient(item: any): RecognizedIngredient {
-    const rawName = `${
-      item?.name ||
-      item?.ingredient ||
-      item?.food ||
-      item?.title ||
-      item?.名称 ||
-      item?.食材 ||
-      item?.食材名称 ||
-      item?.品名 ||
-      item?.商品名 ||
-      ''
-    }`.trim()
+    const rawName = `${item?.name || item?.ingredient || item?.food || item?.title || item?.名称 || item?.食材 || item?.食材名称 || item?.品名 || item?.商品名 || ''}`.trim()
     const name = this.canonicalizeIngredientName(this.cleanIngredientName(rawName))
     const rawCategory = `${item?.category || item?.type || item?.分类 || item?.类别 || ''}`.trim()
-    const category =
-      (this.validCategories.has(rawCategory) ? rawCategory : this.inferCategoryByName(name)) || '其他'
+    const category = (this.validCategories.has(rawCategory) ? rawCategory : this.inferCategoryByName(name)) || '其他'
     const quantityRaw = Number(item?.quantity ?? item?.amount ?? item?.数量)
     const quantity = Number.isFinite(quantityRaw) && quantityRaw > 0 ? quantityRaw : undefined
     const confidenceRaw = Number(item?.confidence ?? item?.score ?? item?.置信度)
-    const confidence = Number.isFinite(confidenceRaw)
-      ? Number(Math.max(0, Math.min(1, confidenceRaw)).toFixed(2))
-      : undefined
+    const confidence = Number.isFinite(confidenceRaw) ? Number(Math.max(0, Math.min(1, confidenceRaw)).toFixed(2)) : undefined
     const unit = `${item?.unit || item?.uom || item?.单位 || ''}`.trim() || undefined
 
     return {
@@ -2623,9 +2691,34 @@ export class AiService {
     text = text.replace(/^(有机|精品|优选|新鲜|鲜切|冷冻|冷藏|散装|国产|进口)\s*/g, '').trim()
 
     const noiseFragments = [
-      '合计', '小计', '实收', '应收', '找零', '优惠', '折扣', '会员', '积分', '扫码', '支付',
-      '微信', '支付宝', '银联', '收银', '门店', '店号', '交易', '订单', '单号', '时间', '日期',
-      '电话', '地址', '税', '发票', '谢谢惠顾', '欢迎下次'
+      '合计',
+      '小计',
+      '实收',
+      '应收',
+      '找零',
+      '优惠',
+      '折扣',
+      '会员',
+      '积分',
+      '扫码',
+      '支付',
+      '微信',
+      '支付宝',
+      '银联',
+      '收银',
+      '门店',
+      '店号',
+      '交易',
+      '订单',
+      '单号',
+      '时间',
+      '日期',
+      '电话',
+      '地址',
+      '税',
+      '发票',
+      '谢谢惠顾',
+      '欢迎下次',
     ]
     for (const n of noiseFragments) {
       if (text.includes(n)) return ''
@@ -2689,7 +2782,10 @@ export class AiService {
 
   private mockRecipes(ingredients: any[], count: number): GeneratedRecipe[] {
     const top = ingredients.slice(0, 2)
-    const topText = top.map((x: any) => x?.name).filter(Boolean).join('、')
+    const topText = top
+      .map((x: any) => x?.name)
+      .filter(Boolean)
+      .join('、')
     return Array.from({ length: count }).map((_, idx) => ({
       id: `ai_${idx + 1}`,
       name: idx === 0 ? `${topText || '家常'}快手炒` : `家常推荐菜谱 ${idx + 1}`,
