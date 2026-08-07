@@ -56,6 +56,9 @@ export type RecipeKnowledgeDocument = {
 
 export type RecipeKnowledgeSearchOptions = {
   ingredients: string[]
+  query?: string
+  allowEmpty?: boolean
+  requireAllIngredients?: boolean
   limit?: number
   maxDuration?: number
   difficulty?: string
@@ -149,7 +152,7 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
       avoidances: this.uniqueStrings(options.avoidances || []),
       excludeNames: this.uniqueStrings(options.excludeNames || []),
     }
-    if (!normalized.ingredients.length) return []
+    if (!normalized.ingredients.length && !`${normalized.query || ''}`.trim() && !normalized.allowEmpty) return []
 
     const cacheKey = this.buildSearchCacheKey(normalized)
     const cached = this.getCached(this.searchCache, cacheKey)
@@ -173,7 +176,7 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
 
   private async searchUncached(options: NormalizedSearchOptions) {
     const startedAt = Date.now()
-    if (this.neo4jUri && this.neo4jPassword) {
+    if (options.ingredients.length && !options.query && this.neo4jUri && this.neo4jPassword) {
       try {
         const hits = await this.searchNeo4j(options)
         if (hits.length) {
@@ -361,6 +364,7 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
     const taste = this.normalizeText(options.taste)
     const difficulty = `${options.difficulty || ''}`.trim()
     const maxDuration = Math.max(0, Number(options.maxDuration || 0))
+    const query = this.normalizeIngredient(options.query)
     const hits: RecipeKnowledgeHit[] = []
 
     for (const recipe of recipes) {
@@ -369,27 +373,35 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
         recipe.name,
         ...(recipe.aliases || []),
         ...(recipe.ingredients || []).flatMap((item) => [item.name, item.normalizedName]),
+        ...(recipe.taste || []),
+        ...(recipe.methods || []),
+        ...(recipe.dietTags || []),
         ...(recipe.allergens || []),
       ].join(' '))
       if (avoidances.some((value) => value && searchable.includes(value))) continue
       if (maxDuration && recipe.durationMinutes > maxDuration) continue
+      if (query && !searchable.includes(query) && !query.includes(this.normalizeIngredient(recipe.name))) continue
 
       const matchedPantry = pantry.filter((value) => (recipe.ingredients || []).some((item) => this.ingredientMatches(value, item.normalizedName || item.name)))
-      if (!matchedPantry.length) continue
+      if (pantry.length && !matchedPantry.length) continue
+      if (options.requireAllIngredients && pantry.length && matchedPantry.length < pantry.length) continue
       const matchedIngredients = (recipe.ingredients || [])
         .filter((item) => pantry.some((value) => this.ingredientMatches(value, item.normalizedName || item.name)))
         .map((item) => item.name)
       const missingIngredients = (recipe.ingredients || [])
         .filter((item) => item.required && item.role !== '调味料' && !pantry.some((value) => this.ingredientMatches(value, item.normalizedName || item.name)))
         .map((item) => item.name)
-      const pantryCoverage = matchedPantry.length / pantry.length
+      const pantryCoverage = pantry.length ? matchedPantry.length / pantry.length : 1
       const requiredIngredients = (recipe.ingredients || []).filter((item) => item.required && item.role !== '调味料')
       const requiredMatchedCount = requiredIngredients.length - missingIngredients.length
-      const recipeCoverage = requiredIngredients.length ? Math.max(0, requiredMatchedCount / requiredIngredients.length) : 1
+      const recipeCoverage = pantry.length && requiredIngredients.length ? Math.max(0, requiredMatchedCount / requiredIngredients.length) : 1
       const timeScore = maxDuration ? Math.max(0, 1 - Math.max(0, recipe.durationMinutes - maxDuration) / Math.max(maxDuration, 1)) : 1
       const difficultyScore = difficulty ? (recipe.difficulty === difficulty ? 1 : 0.4) : 1
       const tasteScore = taste && (recipe.taste || []).some((value) => this.normalizeText(value).includes(taste)) ? 1 : taste ? 0.3 : 1
-      const semanticScore = semanticScores.get(recipe.id) ?? 0.55
+      const queryScore = query
+        ? (this.normalizeIngredient(recipe.name) === query ? 1 : searchable.includes(query) ? 0.9 : 0.7)
+        : 0
+      const semanticScore = query ? queryScore : (semanticScores.get(recipe.id) ?? 0.55)
       const missingPenalty = Math.min(missingIngredients.length * 0.03, 0.18)
       const total = pantryCoverage * 0.28 + recipeCoverage * 0.2 + semanticScore * 0.2 + timeScore * 0.1 + difficultyScore * 0.05 + tasteScore * 0.04 + Number(recipe.quality?.score || 0.8) * 0.13 - missingPenalty
       hits.push({
@@ -431,6 +443,9 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
   private buildSearchCacheKey(options: NormalizedSearchOptions) {
     return JSON.stringify({
       ingredients: [...options.ingredients].map((value) => this.normalizeIngredient(value)).sort(),
+      query: this.normalizeIngredient(options.query),
+      allowEmpty: options.allowEmpty === true,
+      requireAllIngredients: options.requireAllIngredients === true,
       maxDuration: Number(options.maxDuration || 0),
       difficulty: `${options.difficulty || ''}`,
       taste: this.normalizeText(options.taste),
