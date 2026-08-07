@@ -1085,6 +1085,7 @@ export class AiService {
         0,
         false,
       )
+      recipe = this.repairUndeclaredStepIngredients(recipe)
       recipe = this.repairMinorRecipeDetailConsistency(recipe)
       lastIssues = this.getRecipeDetailQualityIssues(recipe, false)
       if (this.recipeContainsAvoidance(recipe, profile.avoidances)) lastIssues.push('包含用户忌口食材')
@@ -1365,6 +1366,53 @@ export class AiService {
     return /^(?:食用油|花生油|菜籽油|玉米油|橄榄油|食盐|盐|白糖|白砂糖|冰糖|生抽|老抽|酱油|蚝油|陈醋|米醋|香醋|醋|料酒|胡椒粉|白胡椒粉|黑胡椒粉|鸡精|味精)$/u.test(`${name || ''}`.trim())
   }
 
+  private getUndeclaredCommonStepIngredients(recipe: GeneratedRecipe) {
+    const defaults: Array<{ name: string; quantity: number; unit: string }> = [
+      { name: '鸡蛋', quantity: 1, unit: '个' },
+      { name: '鸭蛋', quantity: 1, unit: '个' },
+      { name: '淀粉', quantity: 15, unit: '克' },
+      { name: '面粉', quantity: 50, unit: '克' },
+      { name: '面包糠', quantity: 30, unit: '克' },
+      { name: '牛奶', quantity: 50, unit: '毫升' },
+      { name: '奶油', quantity: 20, unit: '克' },
+      { name: '豆腐', quantity: 200, unit: '克' },
+      { name: '米饭', quantity: 200, unit: '克' },
+      { name: '大米', quantity: 100, unit: '克' },
+      { name: '食用油', quantity: 10, unit: '毫升' },
+      { name: '橄榄油', quantity: 10, unit: '毫升' },
+      { name: '酱油', quantity: 10, unit: '毫升' },
+      { name: '生抽', quantity: 10, unit: '毫升' },
+      { name: '老抽', quantity: 5, unit: '毫升' },
+      { name: '蚝油', quantity: 10, unit: '克' },
+      { name: '醋', quantity: 10, unit: '毫升' },
+      { name: '白糖', quantity: 5, unit: '克' },
+      { name: '葱', quantity: 10, unit: '克' },
+      { name: '姜', quantity: 5, unit: '克' },
+      { name: '蒜', quantity: 5, unit: '瓣' },
+      { name: '胡椒粉', quantity: 1, unit: '克' },
+    ]
+    const stepText = this.normalizeTextForCompare((recipe.steps || []).join(' '))
+    const declaredKeys = (recipe.ingredients || [])
+      .map((item) => this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name)))
+      .filter(Boolean)
+    return defaults.filter((item) => {
+      const normalized = this.normalizeTextForCompare(item.name)
+      const key = this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name))
+      const isDeclared = declaredKeys.some((declared) => declared === key || declared.includes(key) || key.includes(declared))
+      return stepText.includes(normalized) && !isDeclared
+    })
+  }
+
+  private repairUndeclaredStepIngredients(recipe: GeneratedRecipe) {
+    const additions = this.getUndeclaredCommonStepIngredients(recipe).slice(0, 4)
+    if (!additions.length) return recipe
+    this.logger.log(`recipe-detail-auto-add name=${recipe.name}, ingredients=${additions.map((item) => item.name).join('、')}`)
+    return {
+      ...recipe,
+      ingredients: this.mergeLockedRecipeIngredients(recipe.ingredients || [], additions),
+    }
+  }
+
   private repairMinorRecipeDetailConsistency(recipe: GeneratedRecipe) {
     const unused = this.getUnusedRecipeIngredients(recipe)
     if (!unused.length || unused.length > 4) return recipe
@@ -1447,15 +1495,8 @@ export class AiService {
           .map((item) => item.name)
           .join('、')}`,
       )
-    const declaredIngredientKeys = (recipe.ingredients || []).map((item) => this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(item.name))).filter(Boolean)
-    const commonStepIngredients = ['鸡蛋', '鸭蛋', '淀粉', '面粉', '面包糠', '牛奶', '奶油', '豆腐', '米饭', '大米', '食用油', '橄榄油', '酱油', '生抽', '老抽', '蚝油', '醋', '白糖', '葱', '姜', '蒜', '胡椒粉']
-    const undeclaredIngredients = commonStepIngredients.filter((name) => {
-      const normalized = this.normalizeTextForCompare(name)
-      const key = this.normalizeIngredientTextForMatch(this.canonicalizeIngredientName(name))
-      const isDeclared = declaredIngredientKeys.some((declared) => declared === key || declared.includes(key) || key.includes(declared))
-      return stepText.includes(normalized) && !isDeclared
-    })
-    if (undeclaredIngredients.length) issues.push(`步骤使用但食材清单未列出：${undeclaredIngredients.slice(0, 4).join('、')}`)
+    const undeclaredIngredients = this.getUndeclaredCommonStepIngredients(recipe)
+    if (undeclaredIngredients.length) issues.push(`步骤使用但食材清单未列出：${undeclaredIngredients.slice(0, 4).map((item) => item.name).join('、')}`)
     if (requireNutrition) {
       const nutrition = recipe?.nutrition
       const values = nutrition ? [nutrition.calories, nutrition.protein, nutrition.fat, nutrition.carbohydrates, nutrition.fiber, nutrition.sodium] : []

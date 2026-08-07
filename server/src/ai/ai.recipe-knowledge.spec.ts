@@ -179,6 +179,38 @@ describe('AiService recipe RAG loop', () => {
     expect(result.steps.join('')).toContain('白糖')
   })
 
+  it('adds a clearly used structural ingredient when the model omits it from additions', async () => {
+    const ingredients = [
+      { name: '番茄', quantity: 2, unit: '个' },
+      { name: '土豆', quantity: 1, unit: '个' },
+      { name: '食用油', quantity: 5, unit: '毫升' },
+      { name: '食盐', quantity: 2, unit: '克' },
+      { name: '胡椒粉', quantity: 0.5, unit: '克' },
+    ]
+    const modelCall = jest.spyOn(service as any, 'callDashScope').mockResolvedValue(
+      JSON.stringify({
+        recipe: {
+          requiredIngredientAdditions: [],
+          steps: [
+            '番茄洗净切块，土豆去皮切成小块备用。',
+            '土豆放入蒸锅，中火蒸约15分钟至能轻松压碎。',
+            '番茄加入食用油翻炒至软烂出汁，再压成细腻的泥。',
+            '将土豆泥与番茄泥混合，加入淀粉、食盐和胡椒粉拌匀后即可食用。',
+          ],
+          tips: '土豆蒸透后更容易压成细腻的泥。',
+        },
+      }),
+    )
+
+    const result = await service.generateRecipeSteps({
+      userId: 1,
+      recipe: summary('蒸番茄土豆泥', ingredients),
+    })
+
+    expect(modelCall).toHaveBeenCalledTimes(1)
+    expect(result.ingredients).toEqual(expect.arrayContaining([expect.objectContaining({ name: '淀粉', quantity: 15, unit: '克' })]))
+  })
+
   it('regenerates recommendation summaries when quantities or units are missing', async () => {
     const modelCall = jest
       .spyOn(service as any, 'callDashScope')

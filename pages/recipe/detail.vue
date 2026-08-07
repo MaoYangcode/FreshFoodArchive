@@ -40,8 +40,8 @@
 			<view v-if="stepsLoading" class="detail-loading-card">
 				<view class="detail-loading-dot"></view>
 				<view>
-					<text class="detail-loading-title">{{ detailAutoRetryCount ? '正在重新生成详细步骤' : '正在生成详细步骤' }}</text>
-					<text class="detail-loading-meta">{{ detailAutoRetryCount ? '系统正在自动调整内容，请稍候…' : '正在结合知识库校验火候、时间和食材使用…' }}</text>
+					<text class="detail-loading-title">正在生成详细步骤</text>
+					<text class="detail-loading-meta">正在结合知识库校验火候、时间和食材使用…</text>
 				</view>
 			</view>
 			<view v-else-if="fromFavorite && favoriteSyncing && !hasRecipeDetail" class="detail-loading-card">
@@ -190,7 +190,6 @@ import {
 
 const RECIPE_DETAIL_QUALITY_VERSION = 5
 const RECIPE_DETAIL_CACHE_PREFIX = `FFA_RECIPE_DETAIL_V${RECIPE_DETAIL_QUALITY_VERSION}_`
-const DETAIL_AUTO_RETRY_LIMIT = 2
 
 export default {
 	components: { BottomNav, IngredientIcon, NutritionIcon, RecipeDateCalendar },
@@ -209,8 +208,6 @@ export default {
 			nutritionError: '',
 			pendingNutrition: null,
 			nutritionRevealTimer: null,
-			detailRetryTimer: null,
-			detailAutoRetryCount: 0,
 			detailRequestId: 0,
 			completedCount: 0,
 			lastCompletedAt: '',
@@ -335,7 +332,6 @@ export default {
 	onUnload() {
 		this.detailRequestId += 1
 		if (this.nutritionRevealTimer) clearTimeout(this.nutritionRevealTimer)
-		if (this.detailRetryTimer) clearTimeout(this.detailRetryTimer)
 		if (this.recipeAudioContext) {
 			this.recipeAudioContext.stop()
 			this.recipeAudioContext.destroy()
@@ -629,26 +625,12 @@ export default {
 			await Promise.allSettled([stepsRequest, nutritionRequest])
 			if (requestId !== this.detailRequestId) return
 			if (stepsFailed || nutritionFailed) {
-				if (this.detailAutoRetryCount < DETAIL_AUTO_RETRY_LIMIT) {
-					this.detailAutoRetryCount += 1
-					this.stepsLoading = true
-					this.nutritionLoading = true
-					this.stepsError = ''
-					this.nutritionError = ''
-					this.detailRetryTimer = setTimeout(() => {
-						this.detailRetryTimer = null
-						if (requestId !== this.detailRequestId) return
-						this.ensureRecipeDetail(true)
-					}, 450)
-					return
-				}
 				this.stepsLoading = false
 				this.nutritionLoading = false
 				if (stepsFailed) this.stepsError = '这份菜谱暂时无法完成生成，请稍后再查看'
 				if (nutritionFailed && this.hasRecipeDetail) this.nutritionError = '营养信息暂时无法完成生成，请稍后再查看'
 				return
 			}
-			this.detailAutoRetryCount = 0
 		},
 		revealPendingNutrition() {
 			if (!this.hasRecipeDetail || !this.pendingNutrition || !this.isNutritionComplete(this.pendingNutrition)) return
@@ -892,8 +874,11 @@ export default {
 				.filter((item) => Number(item.quantity) > 0)
 				.map((item) => ({ id: item.id, quantity: Number(item.quantity) }))
 			this.completionSubmitting = true
+			let inventoryUpdated = !payload.length
 			try {
-				if (payload.length) await consumeIngredientsBatch(payload)
+				// 完成状态是用户行为记录，不应被库存扣减结果阻断。
+				this.completionDone = true
+				this.completionModalVisible = false
 				if (this.favorited) {
 					const updated = markFavoriteRecipeCompleted(this.recipe.name)
 					if (updated) {
@@ -912,12 +897,24 @@ export default {
 					markMealPlanCompleted(this.planSourceId)
 					try { await completeMealPlanOnServer(this.planSourceId) } catch (_) {}
 				}
+				if (payload.length) {
+					try {
+						await consumeIngredientsBatch(payload)
+						inventoryUpdated = true
+						await this.loadPantryNames()
+					} catch (error) {
+						console.warn('制作已完成，但库存扣减失败', error)
+					}
+				}
+				uni.showToast({
+					title: !payload.length ? '已标记制作完成' : (inventoryUpdated ? '制作完成，库存已更新' : '已标记完成，库存更新失败'),
+					icon: inventoryUpdated ? 'success' : 'none'
+				})
+			} catch (error) {
 				this.completionDone = true
 				this.completionModalVisible = false
-				await this.loadPantryNames()
-				uni.showToast({ title: payload.length ? '制作完成，库存已更新' : '已标记制作完成', icon: 'success' })
-			} catch (error) {
-				uni.showToast({ title: `${error?.message || '库存扣减失败，请重试'}`, icon: 'none' })
+				console.warn('完成记录同步失败', error)
+				uni.showToast({ title: '已标记完成，同步稍后重试', icon: 'none' })
 			} finally {
 				this.completionSubmitting = false
 			}
