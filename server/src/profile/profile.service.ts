@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 
@@ -10,6 +10,8 @@ const DEFAULT_PROFILE = {
   avoidances: [] as string[],
   note: '',
 }
+
+const MAX_AVATAR_LENGTH = 2_000_000
 
 @Injectable()
 export class ProfileService {
@@ -36,7 +38,11 @@ export class ProfileService {
   }
 
   private normalizeAvatar(value: unknown) {
-    return `${value || ''}`.trim().slice(0, 2000000)
+    const avatar = `${value || ''}`.trim()
+    if (avatar.length > MAX_AVATAR_LENGTH) {
+      throw new BadRequestException('头像图片过大，请重新选择')
+    }
+    return avatar
   }
 
   private async ensureUserExists(userId: number) {
