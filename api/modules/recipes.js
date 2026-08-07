@@ -28,6 +28,15 @@ export function getRecipeTask(taskId) {
 	})
 }
 
+export function searchRecipes(payload) {
+	return request({
+		url: '/ai/search-recipes',
+		method: 'POST',
+		data: payload,
+		timeout: 20000
+	})
+}
+
 export function getRecipeDetail(payload) {
 	return request({
 		url: '/ai/generate-recipe-detail',
@@ -57,14 +66,14 @@ export function getRecipeNutrition(payload) {
 
 export function getFavoriteRecipes() {
 	return request({
-		url: '/api/favorites/recipes',
+		url: '/favorite-recipes',
 		method: 'GET'
 	})
 }
 
 export function addFavoriteRecipe(payload) {
 	return request({
-		url: '/api/favorites/recipes',
+		url: '/favorite-recipes',
 		method: 'POST',
 		data: payload
 	})

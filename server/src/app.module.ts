@@ -10,9 +10,11 @@ import { ProfileModule } from './profile/profile.module'
 import { ShelfLifeModule } from './shelf-life/shelf-life.module'
 import { AuthModule } from './auth/auth.module'
 import { RecipeKnowledgeModule } from './recipe-knowledge/recipe-knowledge.module'
+import { FavoritesModule } from './favorites/favorites.module'
+import { MealPlansModule } from './meal-plans/meal-plans.module'
 
 @Module({
-  imports: [PrismaModule, IngredientsModule, RecipeKnowledgeModule, AiModule, ExpiryReminderModule, BasketModule, ProfileModule, ShelfLifeModule, AuthModule],
+  imports: [PrismaModule, IngredientsModule, RecipeKnowledgeModule, AiModule, ExpiryReminderModule, BasketModule, ProfileModule, ShelfLifeModule, AuthModule, FavoritesModule, MealPlansModule],
   controllers: [AppController],
   providers: [AppService],
 })

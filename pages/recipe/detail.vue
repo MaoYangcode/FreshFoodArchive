@@ -23,8 +23,10 @@
 			<view v-if="hasIngredientSection" class="recipe-banner">
 				<view class="banner-title-row">
 					<text class="banner-title">所需食材</text>
-					<text class="banner-count" :class="{ missing: missingIngredientCount > 0 }">{{ missingIngredientCount > 0 ? `还需${missingIngredientCount}种` : '食材齐全' }}</text>
+					<text class="banner-count" :class="{ missing: missingIngredientCount > 0 }">{{ ingredientAvailabilityText }}</text>
 				</view>
+				<text v-if="pantryLoadState === 'loading'" class="ingredient-status-text">正在核对冰箱库存…</text>
+				<text v-else-if="pantryLoadState === 'error'" class="ingredient-status-text error">暂时无法读取冰箱库存，请稍后重试</text>
 				<view v-if="availableIngredientItems.length" class="ingredient-group available">
 					<text class="ingredient-group-label">冰箱已有</text>
 					<text class="ingredient-group-text">{{ formatIngredientItems(availableIngredientItems) }}</text>
@@ -32,18 +34,18 @@
 				<view v-if="missingIngredientItems.length" class="ingredient-group missing">
 					<text class="ingredient-group-label">还需准备</text>
 					<text class="ingredient-group-text">{{ formatIngredientItems(missingIngredientItems) }}</text>
+					<button class="ingredient-basket-btn" @click.stop="addMissingToBasket"><text class="basket-action-icon">&#xe61b;</text><text>加入菜篮子</text></button>
 				</view>
 			</view>
 			<view v-if="stepsLoading" class="detail-loading-card">
 				<view class="detail-loading-dot"></view>
 				<view>
-					<text class="detail-loading-title">正在生成详细步骤</text>
-					<text class="detail-loading-meta">正在结合知识库校验火候、时间和食材使用…</text>
+					<text class="detail-loading-title">{{ detailAutoRetryCount ? '正在重新生成详细步骤' : '正在生成详细步骤' }}</text>
+					<text class="detail-loading-meta">{{ detailAutoRetryCount ? '系统正在自动调整内容，请稍候…' : '正在结合知识库校验火候、时间和食材使用…' }}</text>
 				</view>
 			</view>
 			<view v-else-if="stepsError" class="detail-error-card">
 				<text class="detail-error-text">{{ stepsError }}</text>
-				<button class="detail-retry-btn" @click="retryLoadDetail">重新生成</button>
 			</view>
 			<view v-if="hasRecipeDetail" class="step-card">
 				<view class="step-head">
@@ -71,7 +73,6 @@
 			</view>
 			<view v-if="hasRecipeDetail && nutritionError" class="detail-error-card">
 				<text class="detail-error-text">{{ nutritionError }}</text>
-				<button class="detail-retry-btn" @click="retryLoadDetail">重新生成</button>
 			</view>
 			<view v-if="hasRecipeDetail && hasNutrition" class="nutrition-card">
 				<view class="nutrition-head">
@@ -90,13 +91,59 @@
 				<text class="nutrition-disclaimer">营养数据为 AI 估算值，仅供日常饮食参考。</text>
 			</view>
 		</view>
-		<view v-if="isRecipeContentReady" class="favorite-wrap">
-			<view class="action-grid single">
-				<button v-if="!fromFavorite" class="btn" :class="favorited ? 'done' : 'primary'" @click="favorite">{{ favorited ? '已收藏' : '收藏该菜谱' }}</button>
-				<button v-if="fromFavorite" class="btn complete-btn" @click="completeRecipe">{{ completeButtonText }}</button>
+		<view v-if="hasRecipeDetail" class="favorite-wrap">
+			<view class="action-grid">
+				<button v-if="!fromFavorite" class="recipe-action-btn favorite-action" :class="{ active: favorited }" @click="favorite"><text class="action-symbol favorite-symbol">&#xe62e;</text><text>{{ favorited ? '已收藏' : '收藏菜谱' }}</text></button>
+				<button v-else-if="!fromPlan" class="recipe-action-btn plan-action" @click="openPlanModal"><text class="action-symbol">＋</text><text>加入计划</text></button>
+				<button class="recipe-action-btn complete-cook-action" :disabled="completionSubmitting || completionDone" @click="openCompletionModal">
+					<text class="complete-cook-icon">&#xe66a;</text>
+					<text>{{ completionDone ? '已完成制作' : '完成制作' }}</text>
+				</button>
 			</view>
-			<button class="btn basket-btn" @click="addMissingToBasket">加入缺少食材到菜篮子</button>
+			<button v-if="!fromFavorite && !fromPlan" class="recipe-action-btn plan-action plan-wide-action" @click="openPlanModal"><text class="action-symbol">＋</text><text>加入计划</text></button>
 			<text v-if="fromFavorite && lastCompletedAt" class="complete-meta">最近完成：{{ formatDateTime(lastCompletedAt) }}</text>
+		</view>
+		<view v-if="planModalVisible" class="modal-mask" @click="closePlanModal">
+			<view class="plan-modal" @click.stop>
+				<view class="modal-head">
+					<text class="modal-title">加入饮食计划</text>
+					<text class="modal-close" @click="closePlanModal">×</text>
+				</view>
+				<RecipeDateCalendar v-model="planDate" label="用餐日期" />
+				<text class="field-label">选择餐次</text>
+				<view class="meal-options">
+					<view v-for="item in planMealOptions" :key="item.value" class="meal-option" :class="{ active: planMeal === item.value }" @click="planMeal = item.value">
+						<image class="meal-option-icon" :src="item.icon" mode="aspectFit" /><text>{{ item.label }}</text>
+					</view>
+				</view>
+				<button class="confirm-plan-btn" @click="confirmAddPlan">确认加入</button>
+			</view>
+		</view>
+		<view v-if="completionModalVisible" class="modal-mask completion-mask" @click="closeCompletionModal">
+			<view class="completion-modal" @click.stop>
+				<text class="completion-title">食材取出数量</text>
+				<text class="completion-modal-sub">仅扣减本次使用的主要食材，调料不计入</text>
+				<scroll-view class="completion-list" scroll-y :show-scrollbar="false">
+					<view v-for="(item, index) in completionItems" :key="item.id" class="completion-item">
+						<view class="completion-item-main">
+							<text class="completion-item-name">{{ item.name }}</text>
+							<text class="completion-item-meta">现有 {{ formatPlainNumber(item.stock) }}{{ item.unit }}</text>
+						</view>
+						<view class="completion-quantity">
+							<button class="quantity-step" @click="adjustCompletionQuantity(index, -1)">−</button>
+							<input class="quantity-input" type="digit" :value="item.quantity" @input="onCompletionQuantityInput(index, $event)" />
+							<button class="quantity-step" @click="adjustCompletionQuantity(index, 1)">＋</button>
+							<text class="quantity-unit">{{ item.unit }}</text>
+						</view>
+					</view>
+					<view v-if="!completionItems.length" class="completion-empty">菜谱食材暂时没有匹配到冰箱库存，本次只标记为已完成。</view>
+					<view v-if="completionUnmatchedNames.length" class="completion-unmatched">以下食材未自动扣减，请在冰箱中手动处理：{{ completionUnmatchedNames.join('、') }}</view>
+				</scroll-view>
+				<view class="completion-actions">
+					<button class="completion-cancel-btn" :disabled="completionSubmitting" @click="closeCompletionModal">取消</button>
+					<button class="confirm-completion-btn" :loading="completionSubmitting" :disabled="completionSubmitting" @click="confirmCompletion">确认取出</button>
+				</view>
+			</view>
 		</view>
 		<BottomNav current="recipe" />
 	</view>
@@ -108,9 +155,11 @@ import {
 	getFavoriteRecipeByName,
 	markFavoriteRecipeCompleted,
 	removeFavoriteRecipe,
-	upsertBasketItems as upsertBasketItemsLocal
+	upsertBasketItems as upsertBasketItemsLocal,
+	addMealPlan,
+	markMealPlanCompleted
 } from '@/store/app-store'
-import { getIngredientList } from '@/api/modules/ingredients'
+import { consumeIngredientsBatch, getIngredientList } from '@/api/modules/ingredients'
 import { upsertBasketItems as upsertBasketItemsApi } from '@/api/modules/basket'
 import { getRecipeNutrition, getRecipeSteps } from '@/api/modules/recipes'
 import { synthesizeAssistantSpeech } from '@/api/modules/ai'
@@ -118,16 +167,30 @@ import { configureSpeechAudio, playSpeechAudio } from '@/utils/speech-audio'
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import NutritionIcon from '@/components/nutrition-icon.vue'
+import RecipeDateCalendar from '@/components/recipe-date-calendar.vue'
 import { toSmartBasketItem } from '@/utils/smart-purchase'
+import {
+	completeFavoriteOnServer,
+	completeMealPlanOnServer,
+	deleteFavoriteFromServer,
+	saveFavoriteToServer,
+	saveMealPlanToServer,
+	syncFavoriteRecipes
+} from '@/utils/user-data-sync'
 
 const RECIPE_DETAIL_QUALITY_VERSION = 4
 const RECIPE_DETAIL_CACHE_PREFIX = `FFA_RECIPE_DETAIL_V${RECIPE_DETAIL_QUALITY_VERSION}_`
+const DETAIL_AUTO_RETRY_LIMIT = 2
 
 export default {
-	components: { BottomNav, IngredientIcon, NutritionIcon },
+	components: { BottomNav, IngredientIcon, NutritionIcon, RecipeDateCalendar },
 	data() {
 		return {
 			fromFavorite: false,
+			fromPlan: false,
+			fromResult: false,
+			planSourceId: '',
+			planSourceDate: '',
 			favorited: false,
 			stepsLoading: false,
 			nutritionLoading: false,
@@ -135,6 +198,8 @@ export default {
 			nutritionError: '',
 			pendingNutrition: null,
 			nutritionRevealTimer: null,
+			detailRetryTimer: null,
+			detailAutoRetryCount: 0,
 			detailRequestId: 0,
 			completedCount: 0,
 			lastCompletedAt: '',
@@ -142,6 +207,21 @@ export default {
 			isRecipeSpeaking: false,
 			recipeAudioContext: null,
 			pantryNames: [],
+			pantryItems: [],
+			pantryLoadState: 'loading',
+			completionModalVisible: false,
+			completionItems: [],
+			completionUnmatchedNames: [],
+			completionSubmitting: false,
+			completionDone: false,
+			planModalVisible: false,
+			planDate: '',
+			planMeal: 'dinner',
+			planMealOptions: [
+				{ value: 'breakfast', label: '早餐', icon: '/static/meal-icons/breakfast.svg' },
+				{ value: 'lunch', label: '午餐', icon: '/static/meal-icons/lunch.svg' },
+				{ value: 'dinner', label: '晚餐', icon: '/static/meal-icons/dinner.svg' }
+			],
 			recipe: {
 				name: '番茄炒蛋',
 				duration: 12,
@@ -156,8 +236,10 @@ export default {
 		}
 	},
 	computed: {
-		completeButtonText() {
-			return this.completedCount > 0 ? `已完成 ${this.completedCount}次` : '标记已完成'
+		planDateText() {
+			if (!this.planDate) return '请选择日期'
+			const date = new Date(`${this.planDate}T00:00:00`)
+			return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
 		},
 		hasRecipeDetail() {
 			return Array.isArray(this.recipe.steps) && this.recipe.steps.length > 0
@@ -169,29 +251,34 @@ export default {
 			return this.hasRecipeDetail && this.hasNutrition && this.ingredientDisplayItems.length > 0
 		},
 		hasIngredientSection() {
-			return this.ingredientDisplayItems.length > 0
+			return this.hasRecipeDetail && this.ingredientDisplayItems.length > 0
 		},
 		availableIngredientItems() {
-			return this.ingredientDisplayItems.filter((item) => !item.isMissing)
+			return this.ingredientDisplayItems.filter((item) => item.isMissing === false)
 		},
 		missingIngredientItems() {
-			return this.ingredientDisplayItems.filter((item) => item.isMissing)
+			return this.ingredientDisplayItems.filter((item) => item.isMissing === true)
 		},
 		missingIngredientCount() {
 			return this.missingIngredientItems.length
 		},
+		ingredientAvailabilityText() {
+			if (this.pantryLoadState === 'loading') return '核对中'
+			if (this.pantryLoadState === 'error') return '库存暂不可用'
+			return this.missingIngredientCount > 0 ? `还需${this.missingIngredientCount}种` : '食材齐全'
+		},
 		ingredientDisplayItems() {
-			const pantrySet = new Set(this.pantryNames.map((name) => this.normalizeName(name)).filter(Boolean))
+			const canComparePantry = this.pantryLoadState === 'ready' || this.pantryLoadState === 'fallback'
 			const withAvailability = (item) => ({
 				...item,
-				isMissing: pantrySet.size > 0 && !pantrySet.has(this.normalizeName(item.name))
+				isMissing: canComparePantry ? !this.isIngredientAvailableNow(item) : null
 			})
 			const rawItems = Array.isArray(this.recipe?.raw?.ingredients)
 				? this.recipe.raw.ingredients.map((item) => {
 					const name = `${item?.name || ''}`.trim()
 					const quantity = item?.quantity === undefined || item?.quantity === null ? '' : `${item.quantity}`.trim()
 					const unit = `${item?.unit || ''}`.trim()
-					return { name, amount: `${quantity}${unit}`.trim() }
+					return { name, quantity, unit, amount: `${quantity}${unit}`.trim() }
 				}).filter((item) => !!item.name).map(withAvailability)
 				: []
 			if (rawItems.length) return rawItems
@@ -215,8 +302,11 @@ export default {
 	onLoad(query) {
 		this.ensureShareMenu()
 		this.initRecipeAudio()
-		this.loadPantryNames()
 		this.fromFavorite = !!(query && query.fromFavorite === '1')
+		this.fromPlan = !!(query && query.fromPlan === '1')
+		this.fromResult = !!(query && query.fromResult === '1')
+		this.planSourceId = query?.planId ? decodeURIComponent(query.planId) : ''
+		this.planSourceDate = query?.planDate ? decodeURIComponent(query.planDate) : ''
 		const cached = uni.getStorageSync('latestRecipeDetail')
 		if (cached && typeof cached === 'object') this.applyRecipeFromRaw(cached)
 		if (query && query.name) this.recipe.name = decodeURIComponent(query.name)
@@ -225,10 +315,13 @@ export default {
 	},
 	onShow() {
 		this.ensureShareMenu()
+		this.loadPantryNames()
+		this.refreshFavoriteFromServer()
 	},
 	onUnload() {
 		this.detailRequestId += 1
 		if (this.nutritionRevealTimer) clearTimeout(this.nutritionRevealTimer)
+		if (this.detailRetryTimer) clearTimeout(this.detailRetryTimer)
 		if (this.recipeAudioContext) {
 			this.recipeAudioContext.stop()
 			this.recipeAudioContext.destroy()
@@ -248,6 +341,38 @@ export default {
 		}
 	},
 	methods: {
+		formatLocalDate(date) {
+			const pad = (n) => `${n}`.padStart(2, '0')
+			return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+		},
+		openPlanModal() {
+			const today = new Date()
+			this.planDate = this.formatLocalDate(today)
+			this.planMeal = 'dinner'
+			this.planModalVisible = true
+		},
+		closePlanModal() { this.planModalVisible = false },
+		async confirmAddPlan() {
+			const added = addMealPlan({
+				date: this.planDate,
+				meal: this.planMeal,
+				servings: Math.max(1, Number(this.recipe.servings || 1)),
+				recipeName: this.recipe.name,
+				duration: this.recipe.duration,
+				difficulty: this.recipe.difficulty,
+				recipe: this.recipe.raw || null
+			})
+			if (!added) { uni.showToast({ title: '加入失败，请重试', icon: 'none' }); return }
+			try { await saveMealPlanToServer({ ...added, clientId: `${added.id}` }) } catch (_) {}
+			this.planModalVisible = false
+			uni.showModal({
+				title: '已加入计划',
+				content: `${this.planDateText} · ${this.planMealOptions.find((item) => item.value === this.planMeal)?.label || ''}`,
+				confirmText: '查看计划',
+				cancelText: '继续浏览',
+				success: (res) => { if (res.confirm) uni.redirectTo({ url: `/pages/recipe/generate?tab=plan&date=${this.planDate}` }) }
+			})
+		},
 		copyVideoSearchKeyword() {
 			const name = `${this.recipe?.name || ''}`.trim()
 			if (!name) {
@@ -326,20 +451,23 @@ export default {
 				.join('、')
 		},
 		async loadPantryNames() {
+			this.pantryLoadState = 'loading'
 			try {
 				const res = await getIngredientList()
 				const items = this.unwrapListPayload(res)
 				const names = items.map((item) => `${item?.name || ''}`.trim()).filter(Boolean)
-				if (names.length) {
-					this.pantryNames = names
-					return
-				}
+				this.pantryItems = items
+				this.pantryNames = names
+				this.pantryLoadState = 'ready'
+				return
 			} catch (_) {}
 			const storedIngredients = uni.getStorageSync('latestPantryIngredients')
 			const storedTags = uni.getStorageSync('latestPantryTags')
+			this.pantryItems = []
 			this.pantryNames = Array.isArray(storedIngredients) && storedIngredients.length
 				? storedIngredients.map((item) => `${item?.name || ''}`.trim()).filter(Boolean)
 				: (Array.isArray(storedTags) ? storedTags.map((name) => `${name || ''}`.trim()).filter(Boolean) : [])
+			this.pantryLoadState = this.pantryNames.length ? 'fallback' : 'error'
 		},
 		formatNutritionValue(value) {
 			const number = Number(value || 0)
@@ -432,32 +560,38 @@ export default {
 			this.pendingNutrition = null
 			if (this.nutritionRevealTimer) clearTimeout(this.nutritionRevealTimer)
 			const requestId = ++this.detailRequestId
+			let stepsFailed = false
+			let nutritionFailed = false
 
 			const stepsRequest = getRecipeSteps({ recipe: summary })
 				.then((res) => {
 					if (requestId !== this.detailRequestId) return
 					const detail = res?.data?.recipe || res?.recipe
 					if (!this.isStepsComplete(detail)) throw new Error('菜谱步骤生成失败，请重试')
+					const detailIngredients = Array.isArray(detail?.ingredients) ? detail.ingredients : []
 					const summaryIngredients = Array.isArray(summary?.ingredients) ? summary.ingredients : []
 					const resolved = {
 						...(detail || {}),
-						ingredients: summaryIngredients.length ? summaryIngredients : detail.ingredients,
-						nutrition: this.recipe?.nutrition || null
+						ingredients: detailIngredients.length ? detailIngredients : summaryIngredients,
+						nutrition: null
 					}
 					this.applyRecipeFromRaw(resolved)
-					this.revealPendingNutrition()
+					return resolved
 				})
 				.catch((error) => {
 					if (requestId !== this.detailRequestId) return
-					this.stepsError = this.errorMessage(error, '菜谱步骤暂时无法加载，请重试')
+					console.warn('菜谱步骤生成失败', error)
+					stepsFailed = true
 				})
 				.finally(() => {
 					if (requestId !== this.detailRequestId) return
 					this.stepsLoading = false
 				})
 
-			const nutritionRequest = getRecipeNutrition({ recipe: summary })
-				.then((res) => {
+			const nutritionRequest = stepsRequest
+				.then(async (resolved) => {
+					if (!resolved || requestId !== this.detailRequestId) return
+					const res = await getRecipeNutrition({ recipe: resolved })
 					if (requestId !== this.detailRequestId) return
 					const nutrition = res?.data?.nutrition || res?.nutrition
 					if (!this.isNutritionComplete(nutrition)) throw new Error('营养数据生成失败，请重试')
@@ -466,14 +600,34 @@ export default {
 				})
 				.catch((error) => {
 					if (requestId !== this.detailRequestId) return
-					this.nutritionError = this.errorMessage(error, '营养数据暂时无法加载，请重试')
+					console.warn('营养数据生成失败', error)
+					nutritionFailed = true
 					this.nutritionLoading = false
 				})
 
 			await Promise.allSettled([stepsRequest, nutritionRequest])
-		},
-		errorMessage(error, fallback) {
-			return `${error?.message || error?.msg || error?.data?.message || ''}`.trim() || fallback
+			if (requestId !== this.detailRequestId) return
+			if (stepsFailed || nutritionFailed) {
+				if (this.detailAutoRetryCount < DETAIL_AUTO_RETRY_LIMIT) {
+					this.detailAutoRetryCount += 1
+					this.stepsLoading = true
+					this.nutritionLoading = true
+					this.stepsError = ''
+					this.nutritionError = ''
+					this.detailRetryTimer = setTimeout(() => {
+						this.detailRetryTimer = null
+						if (requestId !== this.detailRequestId) return
+						this.ensureRecipeDetail(true)
+					}, 450)
+					return
+				}
+				this.stepsLoading = false
+				this.nutritionLoading = false
+				if (stepsFailed) this.stepsError = '这份菜谱暂时无法完成生成，请稍后再查看'
+				if (nutritionFailed && this.hasRecipeDetail) this.nutritionError = '营养信息暂时无法完成生成，请稍后再查看'
+				return
+			}
+			this.detailAutoRetryCount = 0
 		},
 		revealPendingNutrition() {
 			if (!this.hasRecipeDetail || !this.pendingNutrition || !this.isNutritionComplete(this.pendingNutrition)) return
@@ -494,9 +648,6 @@ export default {
 					uni.setStorageSync('latestRecipeDetail', completed)
 				}
 			}, 180)
-		},
-		retryLoadDetail() {
-			this.ensureRecipeDetail(true)
 		},
 		ensureShareMenu() {
 			if (typeof uni === 'undefined' || typeof uni.showShareMenu !== 'function') return
@@ -551,19 +702,20 @@ export default {
 				ingredientsText: text || this.recipe.ingredientsText
 			}
 		},
-		favorite() {
+		async favorite() {
 			if (this.favorited) {
 				uni.showToast({ title: '已在收藏中', icon: 'none' })
 				return
 			}
-			const ok = addFavoriteRecipe({
+			const payload = {
 				name: this.recipe.name,
 				available: this.recipe.ingredients.slice(0, 2),
 				missing: [],
 				duration: this.recipe.duration,
 				difficulty: this.recipe.difficulty,
 				raw: this.recipe.raw || null
-			})
+			}
+			const ok = addFavoriteRecipe(payload)
 			if (!ok) {
 				this.favorited = true
 				uni.showToast({ title: '已在收藏中', icon: 'none' })
@@ -571,21 +723,179 @@ export default {
 			}
 			this.favorited = true
 			this.syncFavoriteState()
+			try {
+				const synced = await saveFavoriteToServer(payload)
+				if (synced) this.syncFavoriteState()
+			} catch (_) {}
 			uni.showToast({ title: '已加入收藏', icon: 'success' })
 		},
-		completeRecipe() {
-			if (!this.favorited) {
-				uni.showToast({ title: '请先收藏菜谱', icon: 'none' })
-				return
+		async refreshFavoriteFromServer() {
+			try {
+				await syncFavoriteRecipes()
+				this.favorited = false
+				this.completedCount = 0
+				this.lastCompletedAt = ''
+				this.syncFavoriteState(this.fromFavorite)
+			} catch (_) {}
+		},
+		canonicalIngredientName(text) {
+			const name = this.normalizeName(text)
+			const aliases = {
+				西红柿: '番茄',
+				马铃薯: '土豆',
+				洋芋: '土豆',
+				生抽: '酱油',
+				植物油: '食用油',
+				烹调油: '食用油'
 			}
-			const updated = markFavoriteRecipeCompleted(this.recipe.name)
-			if (!updated) {
-				uni.showToast({ title: '标记失败，请重试', icon: 'none' })
-				return
+			return aliases[name] || name
+		},
+		isIngredientAvailableNow(recipeItem, pantryItems = this.pantryItems, fallbackNames = this.pantryNames) {
+			const recipeName = this.canonicalIngredientName(recipeItem?.name)
+			if (!recipeName) return false
+			const pantry = Array.isArray(pantryItems) ? pantryItems : []
+			const matches = pantry.filter((item) =>
+				Number(item?.quantity) > 0 && this.canonicalIngredientName(item?.name) === recipeName
+			)
+			if (!matches.length) {
+				return (Array.isArray(fallbackNames) ? fallbackNames : [])
+					.some((name) => this.canonicalIngredientName(name) === recipeName)
 			}
-			this.completedCount = Number(updated.completedCount || 0)
-			this.lastCompletedAt = updated.lastCompletedAt || ''
-			uni.showToast({ title: '已标记完成', icon: 'success' })
+			const requestedQuantity = Number(recipeItem?.quantity)
+			const requestedUnit = this.normalizeIngredientUnit(recipeItem?.unit)
+			if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0 || !requestedUnit || requestedUnit === '份' || requestedUnit === '适量') {
+				return true
+			}
+			const compatible = matches.filter((item) => this.normalizeIngredientUnit(item?.unit) === requestedUnit)
+			if (!compatible.length) return true
+			const currentQuantity = compatible.reduce((sum, item) => sum + Number(item?.quantity || 0), 0)
+			return currentQuantity >= requestedQuantity
+		},
+		isCondimentIngredient(item) {
+			const category = `${item?.category || ''}`.trim()
+			if (category === '调味品' || category === '调料') return true
+			const name = `${item?.name || ''}`.trim()
+			return /(食用油|植物油|橄榄油|花生油|菜籽油|芝麻油|香油|盐|白糖|红糖|冰糖|酱油|生抽|老抽|蚝油|料酒|醋|胡椒|花椒|辣椒粉|辣椒面|孜然|鸡精|味精|十三香|咖喱粉|淀粉|蜂蜜|番茄酱|豆瓣酱|沙拉酱|芝麻酱)/.test(name)
+		},
+		normalizeIngredientUnit(unit) {
+			const value = `${unit || ''}`.trim().toLowerCase()
+			const aliases = {
+				克: 'g',
+				千克: 'kg',
+				公斤: 'kg',
+				毫升: 'ml',
+				升: 'l',
+				枚: '个',
+				只: '个'
+			}
+			return aliases[value] || value
+		},
+		formatPlainNumber(value) {
+			const number = Number(value || 0)
+			if (!Number.isFinite(number)) return '0'
+			return Number.isInteger(number) ? `${number}` : `${Math.round(number * 100) / 100}`
+		},
+		buildCompletionItems(pantryItems) {
+			const pantry = (Array.isArray(pantryItems) ? pantryItems : [])
+				.filter((item) => Number.isInteger(Number(item?.id)) && Number(item?.quantity) > 0)
+			const matchedIds = new Set()
+			const matched = []
+			const unmatched = []
+			for (const recipeItem of this.pickRecipeIngredientItems()) {
+				if (this.isCondimentIngredient(recipeItem)) continue
+				const recipeName = this.canonicalIngredientName(recipeItem.name)
+				const recipeUnit = this.normalizeIngredientUnit(recipeItem.unit)
+				const candidates = pantry.filter((item) => !matchedIds.has(item.id) && this.canonicalIngredientName(item.name) === recipeName)
+				const pantryItem = candidates.find((item) => !!recipeUnit && this.normalizeIngredientUnit(item.unit) === recipeUnit)
+				if (!pantryItem) {
+					unmatched.push(recipeItem.name)
+					continue
+				}
+				if (this.isCondimentIngredient(pantryItem)) continue
+				matchedIds.add(pantryItem.id)
+				const stock = Number(pantryItem.quantity || 0)
+				const requested = Number(recipeItem.quantity || 1)
+				const initial = Math.min(stock, requested > 0 ? requested : 1)
+				matched.push({
+					id: Number(pantryItem.id),
+					name: `${pantryItem.name || recipeItem.name}`.trim(),
+					unit: `${pantryItem.unit || ''}`.trim(),
+					stock,
+					quantity: this.formatPlainNumber(initial)
+				})
+			}
+			this.completionUnmatchedNames = [...new Set(unmatched.filter(Boolean))]
+			return matched
+		},
+		async openCompletionModal() {
+			if (this.completionSubmitting || this.completionDone) return
+			try {
+				uni.showLoading({ title: '正在核对库存' })
+				const res = await getIngredientList()
+				const items = this.unwrapListPayload(res)
+				this.pantryItems = items
+				this.pantryNames = items.map((item) => `${item?.name || ''}`.trim()).filter(Boolean)
+				this.pantryLoadState = 'ready'
+				this.completionItems = this.buildCompletionItems(items)
+				this.completionModalVisible = true
+			} catch (error) {
+				uni.showToast({ title: `${error?.message || '暂时无法读取冰箱库存'}`, icon: 'none' })
+			} finally {
+				uni.hideLoading()
+			}
+		},
+		closeCompletionModal() {
+			if (this.completionSubmitting) return
+			this.completionModalVisible = false
+		},
+		adjustCompletionQuantity(index, delta) {
+			const current = this.completionItems[index]
+			if (!current) return
+			const next = Math.min(current.stock, Math.max(0.01, Number(current.quantity || 0) + Number(delta || 0)))
+			this.completionItems.splice(index, 1, { ...current, quantity: this.formatPlainNumber(next) })
+		},
+		onCompletionQuantityInput(index, event) {
+			const current = this.completionItems[index]
+			if (!current) return
+			const raw = Number(event?.detail?.value || 0)
+			const next = Number.isFinite(raw) ? Math.min(current.stock, Math.max(0, raw)) : 0
+			this.completionItems.splice(index, 1, { ...current, quantity: `${next || ''}` })
+		},
+		async confirmCompletion() {
+			if (this.completionSubmitting) return
+			const payload = this.completionItems
+				.filter((item) => Number(item.quantity) > 0)
+				.map((item) => ({ id: item.id, quantity: Number(item.quantity) }))
+			this.completionSubmitting = true
+			try {
+				if (payload.length) await consumeIngredientsBatch(payload)
+				if (this.favorited) {
+					const updated = markFavoriteRecipeCompleted(this.recipe.name)
+					if (updated) {
+						this.completedCount = Number(updated.completedCount || 0)
+						this.lastCompletedAt = updated.lastCompletedAt || ''
+					}
+					try {
+						const synced = await completeFavoriteOnServer(this.recipe.name)
+						if (synced) {
+							this.completedCount = Number(synced.completedCount || 0)
+							this.lastCompletedAt = synced.lastCompletedAt || ''
+						}
+					} catch (_) {}
+				}
+				if (this.fromPlan && this.planSourceId) {
+					markMealPlanCompleted(this.planSourceId)
+					try { await completeMealPlanOnServer(this.planSourceId) } catch (_) {}
+				}
+				this.completionDone = true
+				this.completionModalVisible = false
+				await this.loadPantryNames()
+				uni.showToast({ title: payload.length ? '制作完成，库存已更新' : '已标记制作完成', icon: 'success' })
+			} catch (error) {
+				uni.showToast({ title: `${error?.message || '库存扣减失败，请重试'}`, icon: 'none' })
+			} finally {
+				this.completionSubmitting = false
+			}
 		},
 		unfavorite() {
 			if (!this.favorited) {
@@ -595,7 +905,7 @@ export default {
 			uni.showModal({
 				title: '取消收藏',
 				content: '确认取消收藏该菜谱吗？',
-				success: (res) => {
+				success: async (res) => {
 					if (!res.confirm) return
 					const ok = removeFavoriteRecipe(this.recipe.name)
 					if (!ok) {
@@ -605,6 +915,7 @@ export default {
 					this.favorited = false
 					this.completedCount = 0
 					this.lastCompletedAt = ''
+					try { await deleteFavoriteFromServer(this.recipe.name) } catch (_) {}
 					uni.showToast({ title: '已取消收藏', icon: 'success' })
 					if (this.fromFavorite) {
 						setTimeout(() => {
@@ -668,8 +979,7 @@ export default {
 				const tags = uni.getStorageSync('latestPantryTags')
 				pantryList = Array.isArray(tags) ? tags.map((name) => ({ name })) : []
 			}
-			const pantrySet = new Set(pantryList.map((x) => this.normalizeName(x?.name)).filter(Boolean))
-			const missing = recipeItems.filter((x) => !pantrySet.has(this.normalizeName(x.name)))
+			const missing = recipeItems.filter((item) => !this.isIngredientAvailableNow(item, pantryList, []))
 			if (!missing.length) {
 				uni.showToast({ title: '当前食材充足，无需加入', icon: 'none' })
 				return
@@ -677,15 +987,17 @@ export default {
 			let result = { added: 0, merged: 0 }
 			const payload = missing.map((x) => toSmartBasketItem(x))
 			try {
-				result = await upsertBasketItemsApi(payload, this.recipe.name, 1)
+				result = await upsertBasketItemsApi(payload, this.recipe.name, 1, 'max')
 			} catch (e) {
 				// Fallback keeps legacy local flow if backend is unavailable.
-				result = upsertBasketItemsLocal(payload, this.recipe.name)
+				result = upsertBasketItemsLocal(payload, this.recipe.name, 'max')
 			}
-			uni.showToast({ title: `已加入菜篮子（${result.added + result.merged}项）`, icon: 'success' })
+			uni.showToast({ title: '已加入菜篮子', icon: 'success' })
 		},
 		backToResult() {
 			const pages = getCurrentPages()
+			const previous = Array.isArray(pages) && pages.length > 1 ? pages[pages.length - 2] : null
+			const previousRoute = `${previous?.route || ''}`.replace(/^\//, '')
 			const openWithRedirect = (url) => {
 				uni.redirectTo({
 					url,
@@ -694,28 +1006,36 @@ export default {
 					}
 				})
 			}
-			const safeOpen = (url) => {
-				if (Array.isArray(pages) && pages.length >= 9) {
-					openWithRedirect(url)
+			if (this.fromFavorite) {
+				if (previousRoute === 'pages/profile/favorites') {
+					uni.navigateBack()
 					return
 				}
-				uni.navigateTo({
-					url,
-					fail: (err) => {
-						const msg = `${err?.errMsg || ''}`
-						if (msg.includes('webview count limit exceed')) {
-							openWithRedirect(url)
-							return
-						}
-						uni.showToast({ title: '页面跳转失败', icon: 'none' })
-					}
-				})
-			}
-			if (this.fromFavorite) {
-				safeOpen('/pages/profile/favorites')
+				openWithRedirect('/pages/profile/favorites')
 				return
 			}
-			safeOpen('/pages/recipe/result')
+			if (this.fromPlan) {
+				if (previousRoute === 'pages/recipe/generate') {
+					uni.navigateBack()
+					return
+				}
+				const dateQuery = this.planSourceDate ? `&date=${encodeURIComponent(this.planSourceDate)}` : ''
+				openWithRedirect(`/pages/recipe/generate?tab=plan${dateQuery}`)
+				return
+			}
+			if (this.fromResult) {
+				if (previousRoute === 'pages/recipe/result') {
+					uni.navigateBack()
+					return
+				}
+				openWithRedirect('/pages/recipe/result')
+				return
+			}
+			if (Array.isArray(pages) && pages.length > 1) {
+				uni.navigateBack()
+				return
+			}
+			openWithRedirect('/pages/recipe/result')
 		},
 		pickRecipeCoverName(item) {
 			const first = Array.isArray(item?.raw?.ingredients) ? item.raw.ingredients.find((x) => x?.name)?.name : ''
@@ -747,11 +1067,10 @@ export default {
 .head-unfavorite-btn::after { border: none; }
 .favorite-wrap { margin-bottom: 8rpx; }
 .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10rpx; }
-.action-grid.single { grid-template-columns: 1fr; }
 .complete-meta { display: block; font-size: 11px; color: #7f8c83; margin-top: 8rpx; padding-left: 4rpx; }
-.title-video-link { display: inline-flex; align-items: center; gap: 9rpx; max-width: 100%; }
+.title-video-link { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 9rpx; max-width: 100%; }
 .title-video-link-active { opacity: .62; }
-.title { display: inline-block; max-width: calc(100% - 42rpx); padding-bottom: 2rpx; border-bottom: 1rpx dashed #aebbb1; font-size: 18px; line-height: 1.35; font-weight: 800; color: #1f2922; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.title { display: inline; max-width: 100%; padding-bottom: 2rpx; border-bottom: 1rpx dashed #aebbb1; color: #1f2922; font-size: 18px; font-weight: 800; line-height: 1.35; overflow: visible; white-space: normal; word-break: break-all; }
 .video-play-icon { position: relative; width: 30rpx; height: 30rpx; flex-shrink: 0; border: 2rpx solid #929b95; border-radius: 50%; }
 .video-play-icon::after { content: ''; position: absolute; left: 11rpx; top: 8rpx; width: 0; height: 0; border-top: 6rpx solid transparent; border-bottom: 6rpx solid transparent; border-left: 9rpx solid #929b95; }
 .meta { display: block; margin-top: 5rpx; font-size: 12px; color: #738177; }
@@ -766,6 +1085,13 @@ export default {
 .ingredient-group-text { color: #59665d; font-size: 11px; line-height: 1.75; }
 .ingredient-group.missing .ingredient-group-label { background: #fff2e5; color: #bd7133; }
 .ingredient-group.missing .ingredient-group-text { color: #a96732; }
+.ingredient-group.missing { grid-template-columns: 98rpx minmax(0,1fr) auto; align-items: center; padding-bottom: 9rpx; }
+.ingredient-group.missing .ingredient-group-text { min-width: 0; }
+.ingredient-basket-btn { display: inline-flex; align-items: center; justify-content: center; gap: 5rpx; height: 48rpx; margin: 0; padding: 0 14rpx; border: 1rpx solid #d8e8da; border-radius: 999rpx; color: #4e9658; background: #f1f8f2; font-size: 9px; font-weight: 700; line-height: 1; box-shadow: none; white-space: nowrap; }
+.ingredient-basket-btn .basket-action-icon { font-size: 14px; }
+.ingredient-basket-btn::after { border: none; }
+.ingredient-status-text { display: block; padding: 6rpx 0 10rpx; color: #8a958d; font-size: 11px; }
+.ingredient-status-text.error { color: #a7785b; }
 .detail-loading-card,
 .detail-error-card { display: flex; align-items: center; gap: 14rpx; border: 1rpx solid #e6eee8; border-radius: 14px; padding: 20rpx 16rpx; background: #f8fbf8; margin-bottom: 12rpx; }
 .detail-loading-dot { width: 24rpx; height: 24rpx; border-radius: 50%; border: 4rpx solid #dcecdf; border-top-color: #55ad61; animation: detail-spin .8s linear infinite; flex-shrink: 0; }
@@ -815,10 +1141,51 @@ export default {
 .nutrition-analysis { display: block; margin-top: 18rpx; padding-top: 15rpx; border-top: 1rpx solid #edf2ee; color: #5f6962; font-size: 10px; line-height: 1.75; }
 .nutrition-analysis-label { color: #4eaa5c; font-weight: 700; }
 .nutrition-disclaimer { display: block; margin-top: 10rpx; color: #a0a7a2; font-size: 8px; line-height: 1.5; }
-.btn { width: 100%; border: none; border-radius: 16rpx; padding: 14rpx 12rpx; color: #fff; font-size: 14px; font-weight: 700; box-shadow: 0 8rpx 16rpx rgba(58,116,66,.22); }
-.btn::after { border: none; }
-.primary { background: linear-gradient(135deg,#70c977,#4cae57); }
-.done { background: #dfece2; color: #4f6b56; box-shadow: none; }
-.complete-btn { background: linear-gradient(135deg,#83d38a,#5bb967); }
-.basket-btn { margin-top: 10rpx; background: #eef5ef; color: #4b8f56; box-shadow: none; }
+.recipe-action-btn { display: flex; align-items: center; justify-content: center; gap: 9rpx; height: 82rpx; margin: 0; padding: 0 14rpx; border: 1rpx solid #dfe9e1; border-radius: 14px; color: #477f50; background: #f5faf6; font-size: 12px; font-weight: 800; line-height: 1; box-shadow: none; }
+.recipe-action-btn::after { border: none; }
+.favorite-action { color: #fff; border-color: #58b663; background: linear-gradient(135deg,#70c977,#4cae57); box-shadow: 0 8rpx 16rpx rgba(58,116,66,.16); }
+.favorite-action.active { color: #4f7755; border-color: #dce8de; background: #edf5ee; box-shadow: none; }
+.complete-action { color: #fff; border-color: #62bc6c; background: linear-gradient(135deg,#75ca7c,#54b55f); }
+.plan-action { color: #438d4e; border-color: #cae2ce; background: #f1f8f2; }
+.action-symbol { font-size: 17px; font-weight: 500; line-height: 1; }
+.favorite-symbol { font-family: "iconfont" !important; font-style: normal; font-weight: 400; }
+.complete-cook-action { color: #fff; border-color: #58b663; background: linear-gradient(135deg,#70c977,#4cae57); box-shadow: 0 8rpx 16rpx rgba(58,116,66,.16); }
+.complete-cook-action[disabled] { color: #66806b; background: #e8f1e9; box-shadow: none; }
+.complete-cook-action::after { border: none; }
+.complete-cook-icon { font-family: "completion-icon" !important; font-size: 17px; font-style: normal; font-weight: 400; line-height: 1; }
+.plan-wide-action { width: 100%; margin-top: 12rpx; }
+.basket-action-icon { color: #55a961; font-family: "iconfont" !important; font-size: 18px; }
+.modal-mask { position: fixed; inset: 0; z-index: 2200; display: flex; align-items: flex-end; background: rgba(20,29,23,.48); }
+.plan-modal { width: 100%; max-height: 88vh; overflow-y: auto; box-sizing: border-box; padding: 30rpx 26rpx calc(36rpx + env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; background: #fff; box-shadow: 0 -12rpx 38rpx rgba(18,37,22,.16); }
+.completion-mask { align-items: center; justify-content: center; padding: 16px; }
+.completion-modal { display: flex; width: 100%; max-width: 710rpx; max-height: 78vh; box-sizing: border-box; flex-direction: column; padding: 16px 14px; border-radius: 20px; background: #fff; box-shadow: 0 16rpx 32rpx rgba(15,28,20,.22); }
+.completion-title { display: block; color: #6f9fea; font-size: 20px; font-weight: 700; }
+.completion-modal-sub { display: block; margin-top: 6rpx; color: #8c98a7; font-size: 10px; line-height: 1.5; }
+.completion-list { max-height: 48vh; margin: 14rpx 0 18rpx; }
+.completion-item { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; padding: 18rpx 0; border-bottom: 1rpx solid #edf1f6; }
+.completion-item-main { min-width: 100rpx; flex: 1; }
+.completion-item-name { display: block; color: #1f2329; font-size: 16px; font-weight: 700; line-height: 1.35; }
+.completion-item-meta { display: block; margin-top: 5rpx; color: #8b96a3; font-size: 9px; }
+.completion-quantity { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.quantity-step { display: flex; align-items: center; justify-content: center; width: 34px; height: 40px; margin: 0; padding: 0; border: none; border-radius: 12px; color: #202b38; background: #f7faff; font-size: 20px; font-weight: 700; line-height: 40px; box-shadow: none; }
+.quantity-step::after { border: none; }
+.quantity-input { width: 58px; height: 40px; box-sizing: border-box; border: 1rpx solid #dfe6f3; border-radius: 12px; color: #202b38; background: #fff; font-size: 18px; text-align: center; }
+.quantity-unit { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 40px; box-sizing: border-box; padding: 0 7px; border-radius: 12px; color: #fff; background: linear-gradient(135deg,#83b4ff,#5f95f2); font-size: 13px; font-weight: 700; }
+.completion-empty,.completion-unmatched { margin-top: 10rpx; padding: 14rpx; border-radius: 11px; color: #7e8998; background: #f7faff; font-size: 10px; line-height: 1.6; }
+.completion-unmatched { color: #96714f; background: #fff8f1; }
+.completion-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.confirm-completion-btn,.completion-cancel-btn { width: 100%; height: 46px; margin: 0; padding: 0; border: none; border-radius: 999rpx; font-size: 16px; font-weight: 700; line-height: 46px; box-shadow: none; }
+.confirm-completion-btn { color: #fff; background: linear-gradient(135deg,#83b4ff,#5f95f2); }
+.completion-cancel-btn { color: #596579; border: 1rpx solid #dce5f2; background: #f7faff; }
+.confirm-completion-btn::after,.completion-cancel-btn::after { border: none; }
+.modal-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28rpx; }
+.modal-title { display: block; color: #202a22; font-size: 18px; font-weight: 800; }
+.modal-close { padding: 0 8rpx; color: #9ba39d; font-size: 28px; line-height: 1; }
+.field-label { display: block; margin: 20rpx 0 12rpx; color: #4d5950; font-size: 12px; font-weight: 700; }
+.meal-options { display: grid; grid-template-columns: repeat(3,1fr); gap: 12rpx; }
+.meal-option { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8rpx; height: 98rpx; border: 1rpx solid #e3e9e5; border-radius: 13px; color: #6f7a72; background: #fafbfa; font-size: 11px; }
+.meal-option.active { color: #439450; border-color: #8ed09a; background: #edf8ef; font-weight: 700; }
+.meal-option-icon { display: block; width: 44rpx; height: 44rpx; }
+.confirm-plan-btn { width: 88%; margin: 28rpx auto 0; padding: 13px 12px; border: none; border-radius: 14px; color: #fff; background: linear-gradient(135deg,#70c977,#4cae57); box-shadow: 0 9rpx 18rpx rgba(58,116,66,.19); font-size: 14px; font-weight: 800; }
+.confirm-plan-btn::after { border: none; }
 </style>

@@ -23,23 +23,24 @@ model User {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @default(now()) @updatedAt
 
-  ingredients Ingredient[]
-  favorites   FavoriteRecipe[]
-  basketItems BasketItem[]
+  ingredients           Ingredient[]
+  favorites             FavoriteRecipe[]
+  mealPlans             MealPlan[]
+  basketItems           BasketItem[]
   expiryReminderSetting ExpiryReminderSetting?
   expiryReminderLogs    ExpiryReminderLog[]
   shelfLifeSetting      ShelfLifeSetting?
 }
 
 model Ingredient {
-  id         Int      @id @default(autoincrement())
+  id         Int       @id @default(autoincrement())
   name       String
   category   String?
   quantity   Float
   unit       String?
   location   String?
   expireDate DateTime?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   userId Int
   user   User @relation(fields: [userId], references: [id])
@@ -48,9 +49,9 @@ model Ingredient {
 }
 
 model TakeoutRecord {
-  id        Int      @id @default(autoincrement())
-  quantity  Float
-  time      DateTime @default(now())
+  id       Int      @id @default(autoincrement())
+  quantity Float
+  time     DateTime @default(now())
 
   ingredientId Int
   ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
@@ -88,22 +89,49 @@ model FavoriteRecipe {
   user   User   @relation(fields: [userId], references: [id])
   recipe Recipe @relation(fields: [recipeId], references: [id])
 
+  snapshot        Json?
+  completedCount  Int       @default(0)
+  lastCompletedAt DateTime?
+  favoritedAt     DateTime  @default(now())
+
   @@unique([userId, recipeId])
 }
 
-model BasketItem {
-  id             Int      @id @default(autoincrement())
+model MealPlan {
+  id             Int       @id @default(autoincrement())
   userId         Int
-  name           String
-  normalizedName String
-  quantity       Float
-  unit           String?
-  category       String?
-  status         String   @default("todo")
+  clientId       String?   @db.VarChar(128)
+  date           String    @db.VarChar(10)
+  meal           String    @default("dinner") @db.VarChar(20)
+  servings       Int       @default(1)
+  recipeName     String
+  duration       Int       @default(0)
+  difficulty     String?
+  recipeSnapshot Json?
+  status         String    @default("pending") @db.VarChar(20)
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, clientId])
+  @@index([userId, date, meal])
+}
+
+model BasketItem {
+  id               Int      @id @default(autoincrement())
+  userId           Int
+  name             String
+  normalizedName   String
+  quantity         Float
+  unit             String?
+  category         String?
+  status           String   @default("todo")
   sourceRecipeName String?
-  note           String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  note             String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id])
 
@@ -111,15 +139,15 @@ model BasketItem {
 }
 
 model ExpiryReminderSetting {
-  id              Int      @id @default(autoincrement())
-  userId          Int      @unique
-  enabled         Boolean  @default(true)
-  remindTime      String   @default("09:00")
-  defaultDays     Int      @default(2)
+  id              Int       @id @default(autoincrement())
+  userId          Int       @unique
+  enabled         Boolean   @default(true)
+  remindTime      String    @default("09:00")
+  defaultDays     Int       @default(2)
   rules           Json?
   lastTriggeredAt DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id])
 }

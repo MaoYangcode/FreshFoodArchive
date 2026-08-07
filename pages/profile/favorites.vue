@@ -38,7 +38,7 @@
 			<text class="meta">{{ recipes.length === 0 ? '暂无收藏，去菜谱详情点击“收藏该菜谱”。' : '当前筛选条件下暂无收藏菜谱。' }}</text>
 		</view>
 		<view class="swipe-item" v-for="item in filteredRecipes" :key="item.id">
-			<view class="recipe-card" @tap.stop="openDetail(item)" @click.stop="openDetail(item)">
+			<view class="recipe-card" @click.stop="openDetail(item)">
 				<view class="recipe-avatar">
 					<IngredientIcon :name="pickRecipeCoverName(item)" :size="44" />
 				</view>
@@ -69,6 +69,7 @@
 
 <script>
 import { getFavoriteRecipes } from '@/store/app-store'
+import { syncFavoriteRecipes } from '@/utils/user-data-sync'
 import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 
@@ -103,8 +104,13 @@ export default {
 			})
 		}
 	},
-	onShow() {
+	async onShow() {
 		this.recipes = getFavoriteRecipes()
+		try {
+			this.recipes = await syncFavoriteRecipes()
+		} catch (_) {
+			this.recipes = getFavoriteRecipes()
+		}
 	},
 	methods: {
 		safeNavigate(url) {
@@ -136,7 +142,10 @@ export default {
 			})
 		},
 		goBack() {
-			if (getCurrentPages().length > 1) {
+			const pages = getCurrentPages()
+			const previous = Array.isArray(pages) && pages.length > 1 ? pages[pages.length - 2] : null
+			const previousRoute = `${previous?.route || ''}`.replace(/^\//, '')
+			if (previousRoute === 'pages/profile/index') {
 				uni.navigateBack()
 				return
 			}

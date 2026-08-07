@@ -35,7 +35,8 @@ const defaultState = {
 	],
 	takeoutRecords: [],
 	favoriteRecipes: [],
-	basketItems: []
+	basketItems: [],
+	mealPlans: []
 }
 
 let state = JSON.parse(JSON.stringify(defaultState))
@@ -123,6 +124,25 @@ function normalizeBasketItem(item) {
 	}
 }
 
+function normalizeMealPlan(item) {
+	const normalized = item && typeof item === 'object' ? item : {}
+	const allowedMeals = ['breakfast', 'lunch', 'dinner']
+	return {
+		id: normalized.id || `plan-${Date.now()}`,
+		clientId: `${normalized.clientId || ''}`,
+		date: `${normalized.date || ''}`.slice(0, 10),
+		meal: allowedMeals.includes(normalized.meal) ? normalized.meal : 'dinner',
+		servings: Math.max(1, Number(normalized.servings || 1)),
+		recipeName: `${normalized.recipeName || normalized.name || ''}`.trim(),
+		duration: Math.max(0, Number(normalized.duration || 0)),
+		difficulty: `${normalized.difficulty || ''}`.trim(),
+		recipe: normalized.recipe && typeof normalized.recipe === 'object' ? normalized.recipe : null,
+		status: normalized.status === 'completed' ? 'completed' : 'pending',
+		completedAt: normalized.completedAt || '',
+		createdAt: normalized.createdAt || nowString()
+	}
+}
+
 function saveState() {
 	uni.setStorageSync(STORAGE_KEY, state)
 }
@@ -139,6 +159,9 @@ function loadState() {
 					: [],
 				basketItems: Array.isArray(cached.basketItems)
 					? cached.basketItems.map((item) => normalizeBasketItem(item))
+					: [],
+				mealPlans: Array.isArray(cached.mealPlans)
+					? cached.mealPlans.map((item) => normalizeMealPlan(item)).filter((item) => item.date && item.recipeName)
 					: []
 			}
 			return
@@ -255,6 +278,26 @@ export function getFavoriteRecipes() {
 	return [...state.favoriteRecipes]
 }
 
+export function replaceFavoriteRecipes(items) {
+	initStore()
+	state.favoriteRecipes = (Array.isArray(items) ? items : [])
+		.map((item) => normalizeFavoriteRecipe(item))
+		.filter((item) => item.name)
+	saveState()
+	return [...state.favoriteRecipes]
+}
+
+export function upsertFavoriteRecipeLocal(payload) {
+	initStore()
+	const item = normalizeFavoriteRecipe(payload)
+	if (!item.name) return null
+	const idx = state.favoriteRecipes.findIndex((current) => current.name === item.name)
+	if (idx === -1) state.favoriteRecipes.unshift(item)
+	else state.favoriteRecipes.splice(idx, 1, item)
+	saveState()
+	return item
+}
+
 export function removeFavoriteRecipe(name) {
 	initStore()
 	const key = `${name || ''}`.trim()
@@ -285,7 +328,7 @@ export function addBasketItem(payload) {
 	return item
 }
 
-export function upsertBasketItems(items, sourceRecipeName = '') {
+export function upsertBasketItems(items, sourceRecipeName = '', mergeMode = 'sum') {
 	initStore()
 	if (!Array.isArray(items) || !items.length) return { added: 0, merged: 0 }
 	let added = 0
@@ -313,7 +356,11 @@ export function upsertBasketItems(items, sourceRecipeName = '') {
 		const current = state.basketItems[idx]
 		state.basketItems[idx] = normalizeBasketItem({
 			...current,
-			quantity: Number(current.quantity || 0) + Number(item.quantity || 0),
+			quantity: mergeMode === 'max'
+				? (item.sourceRecipeName && current.sourceRecipeName === item.sourceRecipeName
+					? Number(item.quantity || 0)
+					: Math.max(Number(current.quantity || 0), Number(item.quantity || 0)))
+				: Number(current.quantity || 0) + Number(item.quantity || 0),
 			unit: current.unit || item.unit,
 			category: pickBasketCategory(current.category || item.category, current.name || item.name),
 			sourceRecipeName: current.sourceRecipeName || item.sourceRecipeName,
@@ -352,6 +399,71 @@ export function clearDoneBasketItems() {
 	initStore()
 	state.basketItems = state.basketItems.filter((item) => item.status !== 'done')
 	saveState()
+}
+
+export function getMealPlans(date = '') {
+	initStore()
+	const key = `${date || ''}`.slice(0, 10)
+	const list = key ? state.mealPlans.filter((item) => item.date === key) : state.mealPlans
+	return [...list].sort((a, b) => `${a.date}-${a.meal}-${a.createdAt}`.localeCompare(`${b.date}-${b.meal}-${b.createdAt}`))
+}
+
+export function replaceMealPlans(items) {
+	initStore()
+	state.mealPlans = (Array.isArray(items) ? items : [])
+		.map((item) => normalizeMealPlan(item))
+		.filter((item) => item.date && item.recipeName)
+	saveState()
+	return getMealPlans()
+}
+
+export function upsertMealPlanLocal(payload) {
+	initStore()
+	const item = normalizeMealPlan(payload)
+	if (!item.date || !item.recipeName) return null
+	const clientId = `${payload?.clientId || ''}`
+	const idx = state.mealPlans.findIndex((current) =>
+		`${current.id}` === `${item.id}` || (clientId && `${current.id}` === clientId) || (clientId && `${current.clientId || ''}` === clientId)
+	)
+	if (idx === -1) state.mealPlans.unshift(item)
+	else state.mealPlans.splice(idx, 1, item)
+	saveState()
+	return item
+}
+
+export function addMealPlan(payload) {
+	initStore()
+	const item = normalizeMealPlan({
+		...payload,
+		id: `plan-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+		createdAt: nowString()
+	})
+	if (!item.date || !item.recipeName) return null
+	state.mealPlans.unshift(item)
+	saveState()
+	return item
+}
+
+export function removeMealPlan(id) {
+	initStore()
+	const idx = state.mealPlans.findIndex((item) => item.id === id)
+	if (idx === -1) return false
+	state.mealPlans.splice(idx, 1)
+	saveState()
+	return true
+}
+
+export function markMealPlanCompleted(id) {
+	initStore()
+	const idx = state.mealPlans.findIndex((item) => `${item.id}` === `${id}`)
+	if (idx === -1) return null
+	state.mealPlans[idx] = normalizeMealPlan({
+		...state.mealPlans[idx],
+		status: 'completed',
+		completedAt: nowString()
+	})
+	saveState()
+	return state.mealPlans[idx]
 }
 
 export function getFavoriteRecipeByName(name) {

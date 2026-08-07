@@ -13,6 +13,19 @@
 				<text class="meta">普通会员</text>
 			</view>
 		</view>
+		<view class="today-plan-card" @click="goMealPlan">
+			<view class="today-plan-top">
+				<view><text class="today-plan-kicker">TODAY</text><text class="today-plan-title">今日饮食计划</text></view>
+				<text class="today-plan-arrow">›</text>
+			</view>
+			<view v-if="todayPlans.length" class="today-plan-content">
+				<view v-for="meal in todayMealSummary" :key="meal.key" class="today-meal" :class="{ arranged: meal.recipes.length }">
+					<text class="today-meal-label">{{ meal.label }}</text>
+					<text class="today-meal-name">{{ meal.recipes.length ? meal.recipes.join('、') : '未安排' }}</text>
+				</view>
+			</view>
+			<view v-else class="today-plan-empty"><text>今天还没有安排</text><text class="today-plan-add">去添加计划</text></view>
+		</view>
 
 		<view class="menu">
 			<view class="menu-item group-end" @click="goFridge">
@@ -61,6 +74,8 @@
 import BottomNav from '@/components/bottom-nav.vue'
 import { getProfile } from '@/api/modules/profile'
 import { getCurrentUserId } from '@/utils/current-user'
+import { getMealPlans } from '@/store/app-store'
+import { syncMealPlans } from '@/utils/user-data-sync'
 
 const PROFILE_HEADER_CACHE_KEY = 'FFA_PROFILE_HEADER_CACHE'
 
@@ -70,7 +85,17 @@ export default {
 		return {
 			userId: getCurrentUserId(),
 			profileName: '微信用户',
-			profileAvatar: ''
+			profileAvatar: '',
+			todayPlans: []
+		}
+	},
+	computed: {
+		todayMealSummary() {
+			return [
+				{ key: 'breakfast', label: '早餐' },
+				{ key: 'lunch', label: '午餐' },
+				{ key: 'dinner', label: '晚餐' }
+			].map((meal) => ({ ...meal, recipes: this.todayPlans.filter((item) => item.meal === meal.key).map((item) => item.recipeName) }))
 		}
 	},
 	onLoad() {
@@ -82,6 +107,7 @@ export default {
 		this.userId = getCurrentUserId()
 		this.hydrateProfileHeader()
 		this.loadProfileHeader()
+		this.loadTodayPlans()
 	},
 	onShareAppMessage() {
 		const nickname = `${this.profileName || ''}`.trim() || '微信用户'
@@ -96,6 +122,18 @@ export default {
 		}
 	},
 	methods: {
+		formatToday() {
+			const date = new Date()
+			const pad = (n) => `${n}`.padStart(2, '0')
+			return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+		},
+		async loadTodayPlans() {
+			this.todayPlans = getMealPlans(this.formatToday())
+			try {
+				await syncMealPlans()
+				this.todayPlans = getMealPlans(this.formatToday())
+			} catch (_) {}
+		},
 		ensureShareMenu() {
 			if (typeof uni === 'undefined' || typeof uni.showShareMenu !== 'function') return
 			try {
@@ -177,6 +215,9 @@ export default {
 		},
 		goProfile() {
 			this.safeNavigate('/pages/profile/profile')
+		},
+		goMealPlan() {
+			this.safeNavigate(`/pages/recipe/generate?tab=plan&date=${this.formatToday()}`)
 		}
 	}
 }
@@ -260,6 +301,101 @@ export default {
 	margin-top: 6rpx;
 	font-size: 12px;
 	color: #738177;
+}
+
+.today-plan-card {
+	margin-bottom: 14rpx;
+	padding: 22rpx;
+	border: 1rpx solid #e4eee6;
+	border-radius: 16px;
+	background: linear-gradient(145deg, #f2faf3, #fff);
+	box-shadow: 0 7rpx 20rpx rgba(42, 86, 49, .05);
+}
+
+.today-plan-top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.today-plan-kicker {
+	display: block;
+	color: #79a980;
+	font-size: 8px;
+	font-weight: 800;
+	letter-spacing: 3rpx;
+}
+
+.today-plan-title {
+	display: block;
+	margin-top: 5rpx;
+	color: #29342c;
+	font-size: 15px;
+	font-weight: 800;
+}
+
+.today-plan-arrow {
+	color: #a7b4aa;
+	font-size: 28px;
+	line-height: 1;
+}
+
+.today-plan-content {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10rpx;
+	margin-top: 18rpx;
+}
+
+.today-meal {
+	min-width: 0;
+	padding: 14rpx 12rpx;
+	border-radius: 10px;
+	background: rgba(255,255,255,.72);
+}
+
+.today-meal.arranged {
+	background: #e8f6eb;
+}
+
+.today-meal-label,
+.today-meal-name {
+	display: block;
+}
+
+.today-meal-label {
+	color: #64a16d;
+	font-size: 9px;
+	font-weight: 700;
+}
+
+.today-meal-name {
+	margin-top: 7rpx;
+	overflow: hidden;
+	color: #707b73;
+	font-size: 10px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.today-meal.arranged .today-meal-name {
+	color: #385e3e;
+	font-weight: 700;
+}
+
+.today-plan-empty {
+	display: flex;
+	justify-content: space-between;
+	margin-top: 18rpx;
+	padding-top: 16rpx;
+	border-top: 1rpx solid #e5eee7;
+	color: #89948c;
+	font-size: 11px;
+}
+
+.today-plan-add {
+	color: #4b9f58;
+	font-weight: 700;
 }
 
 .menu {
