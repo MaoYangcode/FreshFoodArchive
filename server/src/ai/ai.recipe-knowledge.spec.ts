@@ -54,6 +54,31 @@ describe('AiService recipe RAG loop', () => {
     await knowledge.onModuleDestroy()
   })
 
+  it('returns a complete validated knowledge recipe without regenerating its detail', async () => {
+    const result = await service.searchRecipes({ userId: 1, query: '咖喱鸡块', limit: 6 })
+
+    expect(result.recipes).toHaveLength(1)
+    expect(result.recipes[0]).toMatchObject({
+      name: '咖喱鸡块',
+      detailReady: true,
+      detailQualityVersion: 6,
+      ingredientSetLocked: true,
+      ingredientSetVersion: 2,
+    })
+    expect(result.recipes[0].steps.length).toBeGreaterThanOrEqual(3)
+    expect(result.recipes[0].nutrition?.calories).toBeGreaterThan(0)
+  })
+
+  it('rejects malformed knowledge contracts and does not treat potato starch as potato', async () => {
+    const malformedChicken = await service.searchRecipes({ userId: 1, query: '新疆大盘鸡', limit: 6 })
+    const malformedMeatballs = await service.searchRecipes({ userId: 1, query: '丸子汤', limit: 6 })
+    const potato = await service.searchRecipes({ userId: 1, query: '土豆', ingredients: ['土豆'], avoidances: ['辣'], limit: 12 })
+
+    expect(malformedChicken.recipes).toHaveLength(0)
+    expect(malformedMeatballs.recipes).toHaveLength(0)
+    expect(potato.recipes.map((recipe) => recipe.name)).not.toContain('生汆丸子汤')
+  })
+
   it('uses retrieved knowledge as model context instead of returning it directly', async () => {
     const modelCall = jest.spyOn(service as any, 'callDashScope').mockResolvedValue(
       JSON.stringify({

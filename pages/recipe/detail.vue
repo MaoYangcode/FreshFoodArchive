@@ -214,6 +214,7 @@ export default {
 			lastCompletedAt: '',
 			isRecipeSynthesizing: false,
 			isRecipeSpeaking: false,
+			recipeAudioPlaybackStarted: false,
 			recipeAudioContext: null,
 			pantryNames: [],
 			pantryItems: [],
@@ -406,19 +407,24 @@ export default {
 			audio.volume = 1
 			audio.obeyMuteSwitch = false
 			audio.onPlay(() => {
+				this.recipeAudioPlaybackStarted = true
 				this.isRecipeSpeaking = true
 			})
 			audio.onEnded(() => {
+				this.recipeAudioPlaybackStarted = false
 				this.isRecipeSpeaking = false
 			})
 			audio.onStop(() => {
+				this.recipeAudioPlaybackStarted = false
 				this.isRecipeSpeaking = false
 			})
 			audio.onError((error) => {
 				console.error('菜谱播放失败', error)
+				const started = this.recipeAudioPlaybackStarted || this.isRecipeSpeaking
+				this.recipeAudioPlaybackStarted = false
 				this.isRecipeSpeaking = false
 				this.isRecipeSynthesizing = false
-				uni.showToast({ title: '菜谱朗读失败，请重试', icon: 'none' })
+				if (!started) uni.showToast({ title: '菜谱朗读失败，请重试', icon: 'none' })
 			})
 			this.recipeAudioContext = audio
 		},
@@ -443,6 +449,7 @@ export default {
 			}
 			const text = this.buildRecipeSpeechText()
 			if (!text || !this.hasRecipeDetail) return
+			this.recipeAudioPlaybackStarted = false
 			this.isRecipeSynthesizing = true
 			try {
 				const res = await synthesizeAssistantSpeech(text)

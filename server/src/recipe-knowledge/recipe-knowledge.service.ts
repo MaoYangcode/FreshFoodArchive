@@ -380,7 +380,19 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
       ].join(' '))
       if (avoidances.some((value) => value && searchable.includes(value))) continue
       if (maxDuration && recipe.durationMinutes > maxDuration) continue
-      if (query && !searchable.includes(query) && !query.includes(this.normalizeIngredient(recipe.name))) continue
+      const normalizedRecipeName = this.normalizeIngredient(recipe.name)
+      const queryMatchesName = Boolean(query && (
+        normalizedRecipeName.includes(query) ||
+        query.includes(normalizedRecipeName) ||
+        (recipe.aliases || []).some((alias) => {
+          const normalizedAlias = this.normalizeIngredient(alias)
+          return normalizedAlias.includes(query) || query.includes(normalizedAlias)
+        })
+      ))
+      const queryMatchesIngredient = Boolean(query && (recipe.ingredients || []).some((item) => this.ingredientMatches(query, item.normalizedName || item.name)))
+      const queryMatchesTag = Boolean(query && [...(recipe.taste || []), ...(recipe.methods || []), ...(recipe.dietTags || [])]
+        .some((value) => this.normalizeIngredient(value) === query))
+      if (query && !queryMatchesName && !queryMatchesIngredient && !queryMatchesTag) continue
 
       const matchedPantry = pantry.filter((value) => (recipe.ingredients || []).some((item) => this.ingredientMatches(value, item.normalizedName || item.name)))
       if (pantry.length && !matchedPantry.length) continue
@@ -399,7 +411,7 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
       const difficultyScore = difficulty ? (recipe.difficulty === difficulty ? 1 : 0.4) : 1
       const tasteScore = taste && (recipe.taste || []).some((value) => this.normalizeText(value).includes(taste)) ? 1 : taste ? 0.3 : 1
       const queryScore = query
-        ? (this.normalizeIngredient(recipe.name) === query ? 1 : searchable.includes(query) ? 0.9 : 0.7)
+        ? (normalizedRecipeName === query ? 1 : queryMatchesName ? 0.9 : queryMatchesIngredient ? 0.82 : 0.7)
         : 0
       const semanticScore = query ? queryScore : (semanticScores.get(recipe.id) ?? 0.55)
       const missingPenalty = Math.min(missingIngredients.length * 0.03, 0.18)

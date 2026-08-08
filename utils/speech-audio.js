@@ -34,7 +34,9 @@ export function playSpeechAudio(audioContext, audioPath) {
 					reject(new Error(`朗读音频下载失败${statusCode ? `（${statusCode}）` : ''}`))
 					return
 				}
-				audioContext.stop()
+				// 微信在空闲状态调用 stop() 仍可能异步触发 onError，造成已经
+				// 正常播放后又弹出“朗读失败”。只有确实在播放时才停止旧音频。
+				if (audioContext.paused === false) audioContext.stop()
 				audioContext.volume = 1
 				audioContext.obeyMuteSwitch = false
 				audioContext.autoplay = false

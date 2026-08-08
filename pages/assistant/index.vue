@@ -39,6 +39,16 @@
 						<text class="intent-pill" :class="intentTone">{{ intentLabel }}</text>
 					</view>
 					<text class="assistant-reply">{{ command.reply }}</text>
+					<view v-if="command.intent === 'recipe_search' && recipeSearchResults.length" class="recipe-search-results">
+						<view v-for="item in recipeSearchResults" :key="item.id" class="recipe-search-card" @click.stop="openRecipeSearchResult(item)">
+							<view class="recipe-search-icon"><IngredientIcon :name="pickRecipeSearchIcon(item)" :size="30" /></view>
+							<view class="recipe-search-main">
+								<text class="recipe-search-name">{{ item.name }}</text>
+								<text class="recipe-search-meta">{{ item.duration }}分钟 · {{ item.difficulty }}</text>
+							</view>
+							<text class="recipe-search-arrow">›</text>
+						</view>
+					</view>
 					<view v-if="command.intent === 'inventory_read' && inventoryResult.length" class="inventory-result">
 						<view v-for="(item, index) in inventoryResult" :key="`${item.name}-${item.unit}-${index}`" class="inventory-result-row">
 							<view class="inventory-result-main">
@@ -123,7 +133,7 @@
 							</button>
 						</view>
 					</view>
-					<view v-if="command.items && command.items.length && !isPendingInventoryAdd" class="command-section">
+					<view v-if="command.items && command.items.length && !isPendingInventoryAdd && !isRecipeCommand" class="command-section">
 						<text class="field-label">涉及食材</text>
 						<view class="item-list">
 							<view v-for="(item, index) in command.items" :key="`${item.name}-${index}`" class="item-row">
@@ -131,10 +141,6 @@
 								<text class="item-meta">{{ formatItemMeta(item) }}</text>
 							</view>
 						</view>
-					</view>
-					<view v-if="recipeSummary" class="command-section">
-						<text class="field-label">菜谱条件</text>
-						<text class="summary-text">{{ recipeSummary }}</text>
 					</view>
 					<view class="safety-note">
 						<text class="safety-dot"></text>
@@ -169,16 +175,17 @@
 
 <script>
 import BottomNav from '@/components/bottom-nav.vue'
+import IngredientIcon from '@/components/ingredient-icon.vue'
 import { parseAssistantCommand, recognizeAudioByUpload, synthesizeAssistantSpeech } from '@/api/modules/ai'
 import { createIngredientsBatch, consumeIngredientsBatch, getIngredientList } from '@/api/modules/ingredients'
-import { createRecipeTask } from '@/api/modules/recipes'
+import { createRecipeTask, searchRecipes } from '@/api/modules/recipes'
 import { configureSpeechAudio, playSpeechAudio } from '@/utils/speech-audio'
 import { getShelfLifeSettings } from '@/api/modules/shelf-life'
 import { getCurrentUserId } from '@/utils/current-user'
 import { DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY, getShelfLifeDays, normalizeShelfLifeDaysByCategory } from '@/utils/shelf-life'
 
 export default {
-	components: { BottomNav },
+	components: { BottomNav, IngredientIcon },
 	data() {
 		return {
 			safeTop: 20,
@@ -189,6 +196,7 @@ export default {
 			isGeneratingRecipe: false,
 			isSynthesizing: false,
 			isSpeaking: false,
+			audioPlaybackStarted: false,
 			transcript: '',
 			manualText: '',
 			command: null,
@@ -198,6 +206,8 @@ export default {
 			pendingConsumeItems: [],
 			inventoryResult: [],
 			expiryResult: [],
+			recipeSearchResults: [],
+			isSearchingRecipe: false,
 			audioContext: null,
 			userId: getCurrentUserId(),
 			categories: ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'],
@@ -209,7 +219,8 @@ export default {
 				'今天用了2个鸡蛋',
 				'冰箱里还有什么',
 				'有什么食材快过期',
-				'用番茄推荐一道20分钟的菜'
+				'番茄炒蛋怎么做',
+				'用土豆和鸡肉能做什么'
 			]
 		}
 	},
@@ -220,7 +231,8 @@ export default {
 				inventory_consume: '准备出库',
 				inventory_read: '查询库存',
 				expiry_read: '查询临期',
-				recipe_request: '菜谱请求',
+				recipe_search: '菜谱推荐',
+				recipe_request: '菜谱推荐',
 				unknown: '需要确认'
 			}
 			return labels[this.command?.intent] || '需要确认'
@@ -253,22 +265,28 @@ export default {
 			})
 		},
 		canSpeakCurrentResult() {
-			return ['inventory_read', 'expiry_read'].includes(this.command?.intent) &&
+			return ['inventory_read', 'expiry_read', 'recipe_search'].includes(this.command?.intent) &&
 				!!`${this.command?.reply || ''}`.trim()
 		},
+		isRecipeCommand() {
+			return ['recipe_request', 'recipe_search'].includes(this.command?.intent)
+		},
 		recipeSummary() {
-			if (this.command?.intent !== 'recipe_request') return ''
+			if (!['recipe_request', 'recipe_search'].includes(this.command?.intent)) return ''
 			const recipe = this.command?.recipe || {}
 			const parts = []
+			if (recipe.query) parts.push(`菜谱：${recipe.query}`)
 			if (Array.isArray(recipe.ingredients) && recipe.ingredients.length) parts.push(`食材：${recipe.ingredients.join('、')}`)
 			if (recipe.maxDuration) parts.push(`${recipe.maxDuration}分钟内`)
 			if (recipe.difficulty) parts.push(recipe.difficulty)
 			if (recipe.taste) parts.push(recipe.taste)
+			if (Array.isArray(recipe.avoidances) && recipe.avoidances.length) parts.push(`避开：${recipe.avoidances.join('、')}`)
 			return parts.join(' · ') || '未指定额外条件'
 		},
 		safetyNote() {
 			if (this.command?.intent === 'inventory_read') return '以上结果来自你当前的真实库存'
 			if (this.command?.intent === 'expiry_read') return '临期结果按当前库存的预计过期日期计算'
+			if (['recipe_search', 'recipe_request'].includes(this.command?.intent)) return '结果会根据你的条件自动匹配，并避开已经设置的忌口'
 			if (this.command?.requiresConfirmation) return '确认无误后才会执行，取消不会修改库存'
 			return '当前先完成指令理解，后续将继续接入实际功能'
 		}
@@ -305,6 +323,8 @@ export default {
 			this.pendingConsumeItems = []
 			this.inventoryResult = []
 			this.expiryResult = []
+			this.recipeSearchResults = []
+			this.isSearchingRecipe = false
 			this.actionStatus = ''
 			this.actionMessage = ''
 			this.isSubmitting = false
@@ -448,19 +468,24 @@ export default {
 			audio.volume = 1
 			audio.obeyMuteSwitch = false
 			audio.onPlay(() => {
+				this.audioPlaybackStarted = true
 				this.isSpeaking = true
 			})
 			audio.onEnded(() => {
+				this.audioPlaybackStarted = false
 				this.isSpeaking = false
 			})
 			audio.onStop(() => {
+				this.audioPlaybackStarted = false
 				this.isSpeaking = false
 			})
 			audio.onError((error) => {
 				console.error('语音助手播放失败', error)
+				const started = this.audioPlaybackStarted || this.isSpeaking
+				this.audioPlaybackStarted = false
 				this.isSpeaking = false
 				this.isSynthesizing = false
-				uni.showToast({ title: '语音播放失败，请重试', icon: 'none' })
+				if (!started) uni.showToast({ title: '语音播放失败，请重试', icon: 'none' })
 			})
 			this.audioContext = audio
 		},
@@ -735,6 +760,46 @@ export default {
 				fail: () => uni.redirectTo({ url: targetUrl })
 			})
 		},
+		pickRecipeSearchIcon(item) {
+			const first = Array.isArray(item?.ingredients) ? item.ingredients.find((ingredient) => ingredient?.name)?.name : ''
+			return first || `${item?.name || ''}`
+		},
+		openRecipeSearchResult(item) {
+			if (!item) return
+			uni.setStorageSync('latestRecipeDetail', item)
+			const url = `/pages/recipe/detail?name=${encodeURIComponent(`${item.name || ''}`)}`
+			uni.navigateTo({ url, fail: () => uni.redirectTo({ url }) })
+		},
+		async loadRecipeSearch() {
+			if (this.isSearchingRecipe) return
+			this.isSearchingRecipe = true
+			const recipe = this.command?.recipe || {}
+			try {
+				const res = await searchRecipes({
+					userId: this.userId,
+					query: recipe.query || '',
+					ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [],
+					maxDuration: Number(recipe.maxDuration || 0) || undefined,
+					difficulty: recipe.difficulty || undefined,
+					taste: recipe.taste || undefined,
+					avoidances: Array.isArray(recipe.avoidances) ? recipe.avoidances : [],
+					limit: 6
+				})
+				const results = res?.data?.recipes || res?.recipes || []
+				this.recipeSearchResults = Array.isArray(results) ? results.slice(0, 6) : []
+				if (this.recipeSearchResults.length) {
+					this.command.reply = `为你找到${this.recipeSearchResults.length}道符合条件的菜谱：`
+					await this.autoSpeakIfRequested()
+					return
+				}
+			} catch (error) {
+				console.warn('查询现有菜谱失败，转为自动生成', error)
+			} finally {
+				this.isSearchingRecipe = false
+			}
+			this.command.reply = '暂时没有找到完全匹配的现有菜谱，正在为你生成合适的结果。'
+			await this.startRecipeRequest()
+		},
 		async startRecipeRequest() {
 			if (this.isGeneratingRecipe) return
 			this.isGeneratingRecipe = true
@@ -759,6 +824,8 @@ export default {
 					tastePreference: this.command?.recipe?.taste || '家常',
 					cookingTime: Number(this.command?.recipe?.maxDuration || 30),
 					difficulty: this.command?.recipe?.difficulty || undefined,
+					avoidances: Array.isArray(this.command?.recipe?.avoidances) ? this.command.recipe.avoidances : [],
+					targetQuery: this.command?.recipe?.query || '',
 					count: 6
 				})
 				const taskId = `${taskRes?.data?.taskId || taskRes?.taskId || ''}`.trim()
@@ -769,6 +836,11 @@ export default {
 				uni.setStorageSync('latestRecipeProfileApplied', null)
 				uni.setStorageSync('latestPantryTags', ingredients.slice(0, 6).map((item) => item.name))
 				uni.setStorageSync('latestPantryIngredients', ingredients)
+				uni.setStorageSync('latestRecipePreferences', {
+					tastePreference: this.command?.recipe?.taste || '家常',
+					cookingTime: Number(this.command?.recipe?.maxDuration || 30),
+					cookingTimeLabel: `${Number(this.command?.recipe?.maxDuration || 30)}分钟内`
+				})
 				this.command.reply = '已经开始生成菜谱，正在为你打开推荐结果。'
 				this.openRecipeResultPage(taskId)
 			} catch (error) {
@@ -791,6 +863,11 @@ export default {
 					parts.push(`${item.name}，${this.formatDaysLeft(item.daysLeft)}`)
 				})
 			}
+			if (this.command?.intent === 'recipe_search') {
+				this.recipeSearchResults.forEach((item) => {
+					parts.push(`${item.name}，${item.duration}分钟，${item.difficulty}`)
+				})
+			}
 			return parts.filter(Boolean).join('。').slice(0, 600)
 		},
 		async autoSpeakIfRequested() {
@@ -811,6 +888,7 @@ export default {
 			}
 			const text = this.buildSpeechText()
 			if (!text) return
+			this.audioPlaybackStarted = false
 			this.isSynthesizing = true
 			try {
 				const res = await synthesizeAssistantSpeech(text)
@@ -895,6 +973,7 @@ export default {
 			if (this.command?.intent === 'inventory_read') await this.loadInventoryQuery()
 			if (this.command?.intent === 'inventory_consume') await this.prepareInventoryConsume()
 			if (this.command?.intent === 'expiry_read') await this.loadExpiryQuery()
+			if (this.command?.intent === 'recipe_search') await this.loadRecipeSearch()
 			if (this.command?.intent === 'recipe_request') await this.startRecipeRequest()
 		},
 		async parseManualText() {
@@ -966,6 +1045,14 @@ export default {
 .result-bubble { flex: 1; max-width: 540rpx; }
 .result-head { display: flex; align-items: center; margin-bottom: 10rpx; }
 .assistant-reply { position: relative; z-index: 1; display: block; color: #33423a; font-size: 11px; line-height: 1.65; }
+.recipe-search-results { position: relative; z-index: 1; margin-top: 12rpx; overflow: hidden; border: 1rpx solid #dfeae2; border-radius: 12px; background: #f9fcfa; }
+.recipe-search-card { display: grid; grid-template-columns: 64rpx 1fr auto; align-items: center; gap: 12rpx; padding: 13rpx 14rpx; border-bottom: 1rpx solid #e7eee9; }
+.recipe-search-card:last-child { border-bottom: 0; }
+.recipe-search-icon { display: flex; align-items: center; justify-content: center; width: 60rpx; height: 60rpx; border-radius: 10px; background: #edf7ef; }
+.recipe-search-main { min-width: 0; }
+.recipe-search-name { display: block; overflow: hidden; color: #304038; font-size: 11px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.recipe-search-meta { display: block; margin-top: 5rpx; color: #8a968e; font-size: 8px; }
+.recipe-search-arrow { color: #a5b0a8; font-size: 19px; }
 .inventory-result { position: relative; z-index: 1; margin-top: 12rpx; overflow: hidden; border: 1rpx solid #e1ebe5; border-radius: 12px; background: #f8fbf9; }
 .inventory-result-row { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 14rpx 16rpx; border-bottom: 1rpx solid #e8efeb; }
 .inventory-result-row:last-child { border-bottom: 0; }
