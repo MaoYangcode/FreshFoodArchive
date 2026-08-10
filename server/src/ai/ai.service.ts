@@ -186,7 +186,8 @@ export class AiService {
 
   createRecipeGenerateTask(payload: any) {
     this.cleanupRecipeTasks()
-    const count = Math.min(Math.max(Number(payload?.count || 6), 1), 10)
+    const exactTarget = payload?.exactTarget === true && `${payload?.targetQuery || ''}`.trim()
+    const count = exactTarget ? 1 : Math.min(Math.max(Number(payload?.count || 6), 1), 10)
     const taskId = `recipe_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
     const now = Date.now()
     const task: RecipeGenerateTask = {
@@ -251,9 +252,12 @@ export class AiService {
     task.updatedAt = Date.now()
 
     const totalCount = task.totalCount
-    const batchSizes = this.makeRecipeBatchSizes(totalCount, 2)
-    const batchFocus = ['快炒、凉拌、快手菜', '炖焖、汤羹、蒸煮菜', '主食、馅料、烤煎菜']
-    const maxConcurrency = 2
+    const exactTarget = payload?.exactTarget === true && `${payload?.targetQuery || ''}`.trim()
+    const batchSizes = this.makeRecipeBatchSizes(totalCount, exactTarget ? 1 : 2)
+    const batchFocus = exactTarget
+      ? ['严格生成用户指定的这一道菜，不扩展成其他菜式']
+      : ['快炒、凉拌、快手菜', '炖焖、汤羹、蒸煮菜', '主食、馅料、烤煎菜']
+    const maxConcurrency = exactTarget ? 1 : 2
     let cursor = 0
     let running = 0
 
@@ -614,6 +618,7 @@ export class AiService {
     const cookingTime = Number(payload?.cookingTime || 30)
     const tastePreference = `${payload?.tastePreference || '家常'}`
     const targetQuery = `${payload?.targetQuery || ''}`.trim()
+    const exactTarget = payload?.exactTarget === true && !!targetQuery
     const excludeNames = this.normalizeStringArray(payload?.excludeNames)
     const requestNonce = `${payload?.requestNonce || ''}`.trim()
     const batchFocus = `${payload?.batchFocus || ''}`.trim()
@@ -652,7 +657,8 @@ export class AiService {
     const focusPantryNames = effectiveFocusIngredients.map((x: any) => `${x?.name || ''}`.trim()).filter(Boolean)
     const seasoningIngredients = ingredients.filter((item: any) => !effectiveFocusIngredients.includes(item))
     const knowledgeHits = await this.recipeKnowledge.search({
-      ingredients: focusPantryNames,
+      query: exactTarget ? targetQuery : undefined,
+      ingredients: exactTarget ? [] : focusPantryNames,
       limit: Math.max(count * 4, 12),
       maxDuration: cookingTime,
       taste: tastePreference,
@@ -685,7 +691,9 @@ export class AiService {
     const seasoningText = formatIngredientList(seasoningIngredients)
     const uniquePantryNames = Array.from(new Set(focusPantryNames.map((x) => this.normalizeTextForCompare(x)))).filter(Boolean)
     const isSingleIngredientMode = uniquePantryNames.length === 1
-    const singleIngredientGuidance = isSingleIngredientMode
+    const singleIngredientGuidance = exactTarget
+      ? `明确菜名模式：只生成“${targetQuery}”这一道菜，不得扩展、联想或替换成其他菜；冰箱食材仅用于后续库存核对，不能改变这道菜本身应有的配方。`
+      : isSingleIngredientMode
       ? [
           '单一库存食材场景：请围绕这个核心食材生成 6 道不同常见家常菜。',
           '允许补充常见主料、辅料和调味料来让菜成立，不要因为库存只有一种食材而反复犹豫或返回空。',
@@ -694,7 +702,9 @@ export class AiService {
       : ['多食材场景：优先覆盖不同库存食材，保持菜式多样。'].join('\n')
 
     const outputSchema = summaryOnly
-      ? '{"recipes":[{"id":"ai_001","name":"茄丁焖面","duration":30,"difficulty":"简单","servings":2,"plan":{"dishType":"面食","cookingMethod":"焖","requiredIngredients":["面条","茄子"]},"ingredients":[{"name":"面条","quantity":240,"unit":"克"},{"name":"茄子","quantity":2,"unit":"个"},{"name":"食用油","quantity":15,"unit":"毫升"},{"name":"食盐","quantity":2,"unit":"克"}]}]}'
+      ? exactTarget
+        ? `{"recipes":[{"id":"ai_001","name":"${targetQuery}","duration":45,"difficulty":"中等","servings":2,"plan":{"dishType":"按实际菜式填写","cookingMethod":"按实际做法填写","requiredIngredients":["完整核心食材"]},"ingredients":[{"name":"完整食材名","quantity":1,"unit":"合理单位"}]}]}`
+        : '{"recipes":[{"id":"ai_001","name":"茄丁焖面","duration":30,"difficulty":"简单","servings":2,"plan":{"dishType":"面食","cookingMethod":"焖","requiredIngredients":["面条","茄子"]},"ingredients":[{"name":"面条","quantity":240,"unit":"克"},{"name":"茄子","quantity":2,"unit":"个"},{"name":"食用油","quantity":15,"unit":"毫升"},{"name":"食盐","quantity":2,"unit":"克"}]}]}'
       : '{"recipes":[{"id":"ai_001","name":"番茄炒蛋","duration":15,"difficulty":"简单","plan":{"dishType":"家常菜","cookingMethod":"炒","requiredIngredients":["番茄","鸡蛋"]},"matchScore":95,"coverImage":"","ingredients":[{"name":"番茄","quantity":2,"unit":"个"},{"name":"鸡蛋","quantity":3,"unit":"个"}],"steps":["步骤1","步骤2"],"tips":"可选"}]}'
     const prompt = [
       '你是家庭烹饪助手。仅返回 JSON，不要附带解释文本。',
@@ -709,16 +719,21 @@ export class AiService {
       `已展示菜谱名（禁止重复）：${excludeNames.length ? excludeNames.join('、') : '无'}`,
       batchFocus ? `本批菜式方向：${batchFocus}` : '',
       `本次生成随机标识：${requestNonce || 'none'}`,
-      `优先使用的主要食材：${ingredientText}`,
+      exactTarget
+        ? `家中现有食材（仅用于生成后的库存核对，不要求强行加入菜谱）：${ingredientText}`
+        : `优先使用的主要食材：${ingredientText}`,
       `家中现有调味料（仅表示可以使用，不要求每道菜都使用，也不得为了使用它们而改变菜名）：${seasoningText || '未单独提供'}`,
-      targetQuery ? `用户想要的菜谱或菜式方向：${targetQuery}。如果这是明确菜名，结果必须优先围绕该菜名；如果是宽泛方向，结果都应符合该方向。` : '',
+      exactTarget
+        ? `用户指定菜名：${targetQuery}。只能返回这一道菜，recipes 数组只能有1项，name 必须写“${targetQuery}”。`
+        : targetQuery ? `用户想要的菜谱或菜式方向：${targetQuery}。所有结果都应符合该方向。` : '',
       '以下内容来自知识库检索，只能作为菜式事实和烹饪思路参考；不得原样复制其中残缺、模板化或不自然的步骤：',
       knowledgeReferenceText || '未检索到可用参考，请按可靠的家庭烹饪常识生成。',
       singleIngredientGuidance,
       '菜谱合理性要求（必须遵守）：',
       '1) 菜名必须是常见家常菜，不要生造菜名，不要出现明显违和组合（如“苹果炒土豆”）。',
+      exactTarget ? `1.0) 当前是明确菜名模式：不得生成“${targetQuery}”以外的菜，也不得为了使用库存食材改造菜名或配方。` : '',
       groundNamesToKnowledge ? '1.1) 本次是“换一批”：菜名必须直接选自知识库检索参考中的已有菜名，只允许“番茄/西红柿”等同义词规范化，不得拼接、改造或新造菜名。' : '',
-      '2) 每道菜至少命中 1 种库存食材（库存优先）。',
+      exactTarget ? '2) 明确菜名模式不要求命中库存；必须忠实还原指定菜本身需要的完整食材，缺少的食材交给后续菜篮子处理。' : '2) 每道菜至少命中 1 种库存食材（库存优先）。',
       '2.1) 不要求一道菜同时使用全部主要食材；胡椒粉、食用油、盐、酱油等调味料不能作为菜式主题，也不要出现在生造菜名中。',
       '3) ingredients 必须一次列全这道菜真正会使用的主料、辅料和调味料，不得只写冰箱已有食材；不要加入仅装饰或可有可无的食材。',
       '4) 不要为了凑数量输出不符合常理的菜。',
@@ -772,6 +787,11 @@ export class AiService {
     const recipeSource = list.length ? list : fallbackRecipes
     const normalizedCandidates = recipeSource.map((item: any, idx: number) => this.normalizeRecipe(item, idx, summaryOnly))
     let recipes = await this.repairRecipeCandidates(normalizedCandidates, summaryOnly, knowledgeReferenceText)
+    if (exactTarget) {
+      recipes = recipes
+        .filter((recipe) => this.recipeNameMatchesTarget(recipe?.name, targetQuery))
+        .map((recipe) => ({ ...recipe, name: targetQuery }))
+    }
     const groundedKnowledgeNames = new Set(knowledgeHits.map((hit) => this.normalizeRecipeNameForDedupe(hit.recipe.name)).filter(Boolean))
     if (groundNamesToKnowledge && groundedKnowledgeNames.size) {
       const beforeGrounding = recipes.length
@@ -788,7 +808,7 @@ export class AiService {
     }
     const recipesBeforeAnyStrictFilter = recipes.slice()
     const recipesBeforePantryFilter = recipes.slice()
-    const pantryFiltered = recipes.filter((x) => this.recipeUsesPantryIngredients(x, focusPantryNames))
+    const pantryFiltered = exactTarget ? recipes : recipes.filter((x) => this.recipeUsesPantryIngredients(x, focusPantryNames))
     if (!pantryFiltered.length && recipesBeforePantryFilter.length) {
       this.logger.warn(`Pantry filter removed all AI recipes, fallback to unfiltered AI candidates. pantry=[${focusPantryNames.join(',')}]`)
       recipes = recipesBeforePantryFilter
@@ -808,7 +828,7 @@ export class AiService {
       const remain = count - recipes.length
       const retryPrompt = [
         '你是家庭烹饪助手。仅返回 JSON，不要附带解释文本。',
-        `请补充生成 ${remain} 道新菜谱，且与已有菜谱不要重复。`,
+        exactTarget ? `请重新生成指定菜谱“${targetQuery}”，只能返回这一道菜。` : `请补充生成 ${remain} 道新菜谱，且与已有菜谱不要重复。`,
         `已有菜谱名：${[...excludeNames, ...recipes.map((x) => x.name)].filter(Boolean).join('、') || '无'}`,
         `以下菜名绝对禁止出现：${[...excludeNames, ...recipes.map((x) => x.name)].filter(Boolean).join('、') || '无'}`,
         batchFocus ? `本批菜式方向：${batchFocus}` : '',
@@ -819,9 +839,11 @@ export class AiService {
         `忌口食材（硬约束，必须严格避开）：${avoidances.length ? avoidances.join('、') : '无'}`,
         '规则：任何菜谱名称、食材列表、步骤、tips 中都不允许出现忌口食材或其同义表述。',
         `期望总烹饪时长（分钟）：${cookingTime}`,
-        `优先使用的主要食材：${ingredientText}`,
+        exactTarget
+          ? `家中现有食材（仅用于生成后的库存核对，不要求强行加入菜谱）：${ingredientText}`
+          : `优先使用的主要食材：${ingredientText}`,
         `家中现有调味料（仅表示可以使用，不要求每道菜都使用，也不得用于拼接菜名）：${seasoningText || '未单独提供'}`,
-        targetQuery ? `用户想要的菜谱或菜式方向：${targetQuery}。` : '',
+        exactTarget ? `用户指定菜名：${targetQuery}。name 必须写“${targetQuery}”，不得返回其他菜。` : targetQuery ? `用户想要的菜谱或菜式方向：${targetQuery}。` : '',
         '以下知识库检索内容仅供参考，不得照抄残缺或模板化表达：',
         knowledgeReferenceText || '无可用知识库参考。',
         `本次生成随机标识：${requestNonce || Date.now()}`,
@@ -829,7 +851,7 @@ export class AiService {
         '菜谱合理性要求（必须遵守）：',
         '1) 菜名必须是常见家常菜，不要生造菜名，不要出现明显违和组合（如“苹果炒土豆”）。',
         groundNamesToKnowledge ? '1.1) 本次是“换一批”：菜名必须直接选自知识库检索参考中的已有菜名，不得拼接、改造或新造菜名。' : '',
-        '2) 每道菜至少命中 1 种库存食材（库存优先）。',
+        exactTarget ? '2) 明确菜名模式不要求命中库存；必须忠实还原指定菜本身需要的完整食材。' : '2) 每道菜至少命中 1 种库存食材（库存优先）。',
         '2.1) 不要求一道菜同时使用全部主要食材；调味料不能作为菜式主题，也不要出现在生造菜名中。',
         '3) ingredients 必须一次列全这道菜真正会使用的主料、辅料和调味料，不得只写冰箱已有食材；不要加入仅装饰或可有可无的食材。',
         '4) 不要为了凑数量输出不符合常理的菜。',
@@ -869,7 +891,12 @@ export class AiService {
       const retryParsed = this.parseJson(retryContent)
       const retryList = this.pickRecipeArray(retryParsed)
       const retryCandidates = retryList.map((item: any, idx: number) => this.normalizeRecipe(item, recipes.length + idx, summaryOnly))
-      const retryNormalized = await this.repairRecipeCandidates(retryCandidates, summaryOnly, knowledgeReferenceText)
+      let retryNormalized = await this.repairRecipeCandidates(retryCandidates, summaryOnly, knowledgeReferenceText)
+      if (exactTarget) {
+        retryNormalized = retryNormalized
+          .filter((recipe) => this.recipeNameMatchesTarget(recipe?.name, targetQuery))
+          .map((recipe) => ({ ...recipe, name: targetQuery }))
+      }
       const retryGrounded = groundNamesToKnowledge && groundedKnowledgeNames.size
         ? retryNormalized.filter((recipe) => groundedKnowledgeNames.has(this.normalizeRecipeNameForDedupe(recipe.name)))
         : retryNormalized
@@ -887,7 +914,7 @@ export class AiService {
     }
     if (!summaryOnly) recipes = this.diversifyRecipes(recipes, pantryNames, count)
     let finalRecipes = recipes.slice(0, count)
-    if (!finalRecipes.length) {
+    if (!finalRecipes.length && !exactTarget) {
       if (recipesBeforeAnyStrictFilter.length) {
         this.logger.warn(`Strict filters removed all AI recipes, fallback to unfiltered AI candidates. pantry=[${pantryNames.join(',')}]`)
         finalRecipes = recipesBeforeAnyStrictFilter.slice(0, count)
@@ -1298,11 +1325,19 @@ export class AiService {
 
   private buildKnowledgeReferenceContext(hits: RecipeKnowledgeHit[], limit: number, includeSteps: boolean, stepLimit = 6) {
     return (Array.isArray(hits) ? hits : [])
+      .filter((hit) => {
+        const issues = this.getKnowledgeReferenceQualityIssues(hit)
+        if (issues.length) {
+          this.logger.warn(`recipe-reference-quality-rejected name=${hit?.recipe?.name || ''}, issues=${issues.join('；')}`)
+          return false
+        }
+        return true
+      })
       .slice(0, Math.max(1, limit))
       .map((hit, index) => {
         const recipe = hit.recipe
         const ingredients = recipe.ingredients
-          .map((item) => `${item.name}${item.rawAmount || `${item.quantity ?? ''}${item.unit || ''}`}`.trim())
+          .map((item) => `${item.name}${item.quantity ?? ''}${item.unit || ''}`.trim())
           .filter(Boolean)
           .join('、')
         const stepText = includeSteps
@@ -1324,6 +1359,30 @@ export class AiService {
           .join('；')
       })
       .join('\n')
+  }
+
+  private getKnowledgeReferenceQualityIssues(hit: RecipeKnowledgeHit) {
+    const source = hit?.recipe
+    if (!source) return ['知识库记录为空']
+    const usedIngredients = [...new Set((source.steps || []).flatMap((step) => step.ingredientsUsed || []).map((name) => `${name || ''}`.trim()).filter(Boolean))]
+    const candidate = this.normalizeRecipe({
+      id: source.id,
+      name: source.name,
+      duration: source.durationMinutes,
+      difficulty: source.difficulty,
+      servings: source.servings,
+      ingredients: (source.ingredients || []).map((item) => ({
+        name: item.name,
+        quantity: item.quantity,
+        unit: item.unit,
+      })),
+      steps: (source.steps || []).map((step) => step.description).filter(Boolean),
+      tips: (source.tips || []).join('；'),
+      usedIngredients,
+    }, 0, false)
+    return this.getKnowledgeRecipeQualityIssues(source, candidate).filter((issue) =>
+      /(食材名称不是原子字段|食材用量或单位不完整|缺少可识别的主料或辅料|包含模板话术|步骤过度拆分)/.test(issue),
+    )
   }
 
   private async repairRecipeCandidates(candidates: GeneratedRecipe[], summaryOnly: boolean, knowledgeReferenceText: string) {
@@ -1772,6 +1831,19 @@ export class AiService {
       .replace(/炒鸡蛋/g, '炒蛋')
       .replace(/馅(?=饺子)/g, '')
       .replace(/水饺/g, '饺子')
+  }
+
+  private recipeNameMatchesTarget(name: unknown, target: unknown) {
+    const recipeKey = this.normalizeRecipeNameForDedupe(name)
+      .replace(/^(家常|正宗|经典|传统)/, '')
+      .replace(/(做法|教程|食谱)$/, '')
+    const targetKey = this.normalizeRecipeNameForDedupe(target)
+      .replace(/^(家常|正宗|经典|传统)/, '')
+      .replace(/(做法|教程|食谱)$/, '')
+    if (!recipeKey || !targetKey) return false
+    if (recipeKey === targetKey) return true
+    const shorter = recipeKey.length <= targetKey.length ? recipeKey : targetKey
+    return shorter.length >= 3 && (recipeKey.includes(targetKey) || targetKey.includes(recipeKey))
   }
 
   private recipeContainsAvoidance(recipe: GeneratedRecipe, avoidances: string[]) {
@@ -2302,7 +2374,14 @@ export class AiService {
       .replace(/^(不辣的|不放辣的|不加辣的)/, '')
       .replace(/(菜谱|做法)$/, '')
       .trim()
-    const recipeNameQuery = /炒|炖|煮|蒸|煎|烤|拌|炸|汤|粥|饭|面|饼|羹|炒蛋/u.test(recipeSearchTarget) ? recipeSearchTarget : ''
+    const recipeTranscript = `${transcript || ''}`.replace(/[。！？?!]+$/, '').trim()
+    const recipeHowToMatch = recipeTranscript.match(/(?:请)?(?:帮我)?\s*(?:做|来)(?:一道|一个|一份|个)?\s*([^，。！？?]{2,20})$/)
+    const recipeHowToQuestionMatch = recipeTranscript.match(/([^，。！？?]{2,20}?)(?:怎么做|如何做|的做法)$/)
+    const explicitRecipeTarget = `${recipeHowToQuestionMatch?.[1] || recipeHowToMatch?.[1] || recipeSearchTarget || ''}`
+      .replace(/^(请|帮我|给我)/, '')
+      .replace(/(菜谱|做法)$/, '')
+      .trim()
+    const recipeNameQuery = /炒|炖|煮|蒸|煎|烤|拌|炸|汤|粥|饭|面|饼|羹|蛋|鸡|鸭|鱼|虾|肉|豆腐/u.test(explicitRecipeTarget) ? explicitRecipeTarget : ''
     const recipeIngredientMatch = transcript.match(/(?:用|拿)\s*(.+?)\s*(?:能做什么|可以做什么|做|推荐|生成|来一道|来个)/)
     const recipeIngredientText = `${recipeIngredientMatch?.[1] || ''}`.trim()
     const recipeIngredientsFromUse = recipeIngredientText
@@ -2327,7 +2406,7 @@ export class AiService {
         location: intent === 'inventory_read' ? inventoryLocation : undefined,
       },
       recipe: {
-        query: intent === 'recipe_search' ? recipeNameQuery || undefined : undefined,
+        query: intent === 'recipe_search' || intent === 'recipe_request' ? recipeNameQuery || undefined : undefined,
         ingredients: intent === 'recipe_request' || intent === 'recipe_search' ? recipeIngredients : [],
         maxDuration: (intent === 'recipe_request' || intent === 'recipe_search') && Number.isFinite(maxDuration) && Number(maxDuration) > 0 ? maxDuration : undefined,
         difficulty: intent === 'recipe_request' || intent === 'recipe_search' ? difficulty : undefined,
@@ -2343,10 +2422,11 @@ export class AiService {
   }
 
   private detectAssistantIntent(text: string): AssistantIntent {
-    const value = `${text || ''}`.replace(/\s+/g, '')
+    const value = `${text || ''}`.replace(/\s+/g, '').replace(/[，。！？?!]/g, '')
     if (!value) return 'unknown'
     if (/(临期|快过期|即将过期|已经过期|过期食材|什么时候过期|多久过期|是否过期)/.test(value)) return 'expiry_read'
     if (/(生成|重新生成|AI生成|推荐).*(菜谱|一道|几道|一批|新菜|什么菜)/i.test(value)) return 'recipe_request'
+    if (/(?:帮我)?(?:做|来)(?:一道|一个|一份|个)[^，。！？?]{2,20}$/.test(value)) return 'recipe_request'
     if (/(找|搜索|查找|查询).*(菜谱|做法|菜|饭|汤|粥|面|饼|炒蛋|鸡肉|土豆)|有没有.*(?:分钟)?.*菜|用.+(?:能|可以)?做什么|菜谱|做什么菜|吃什么|怎么做/.test(value)) return 'recipe_search'
     if (/(取出|拿出|出库|用了|用掉|吃了|吃掉|喝了|喝掉|喝完|吃完|用完|减掉|扣掉)/.test(value)) {
       return 'inventory_consume'

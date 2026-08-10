@@ -73,10 +73,13 @@ describe('AiService recipe RAG loop', () => {
     const malformedChicken = await service.searchRecipes({ userId: 1, query: '新疆大盘鸡', limit: 6 })
     const malformedMeatballs = await service.searchRecipes({ userId: 1, query: '丸子汤', limit: 6 })
     const potato = await service.searchRecipes({ userId: 1, query: '土豆', ingredients: ['土豆'], avoidances: ['辣'], limit: 12 })
+    const malformedReferenceHits = await knowledge.search({ query: '新疆大盘鸡', ingredients: [], avoidances: [], allowEmpty: true, limit: 3 })
+    const referenceContext = (service as any).buildKnowledgeReferenceContext(malformedReferenceHits, 3, true)
 
     expect(malformedChicken.recipes).toHaveLength(0)
     expect(malformedMeatballs.recipes).toHaveLength(0)
     expect(potato.recipes.map((recipe) => recipe.name)).not.toContain('生汆丸子汤')
+    expect(referenceContext).not.toContain('两个火枪腿的鸡肉')
   })
 
   it('uses retrieved knowledge as model context instead of returning it directly', async () => {
@@ -661,5 +664,59 @@ describe('AiService recipe RAG loop', () => {
     expect(snapshot?.status).toBe('done')
     expect(snapshot?.recipes).toHaveLength(6)
     expect(snapshot?.recipes.every((recipe) => recipe.retrievalSource?.startsWith('rag-model:'))).toBe(true)
+  })
+
+  it('keeps an explicit dish request to one exact RAG-grounded recipe', async () => {
+    const search = jest.spyOn(knowledge, 'search').mockResolvedValue([])
+    const modelCall = jest
+      .spyOn(service as any, 'callDashScope')
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          recipes: [
+            summary('咖喱鸡块', [
+              { name: '鸡腿肉', quantity: 500, unit: '克' },
+              { name: '咖喱块', quantity: 80, unit: '克' },
+            ]),
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        JSON.stringify({
+          recipes: [
+            summary('新疆大盘鸡', [
+              { name: '鸡腿肉', quantity: 600, unit: '克' },
+              { name: '土豆', quantity: 2, unit: '个' },
+              { name: '青椒', quantity: 1, unit: '个' },
+              { name: '食用油', quantity: 20, unit: '毫升' },
+            ]),
+          ],
+        }),
+      )
+
+    const result = await service.generateRecipeList({
+      userId: 1,
+      ingredients: [{ name: '番茄', quantity: 2, unit: '个' }],
+      targetQuery: '新疆大盘鸡',
+      exactTarget: true,
+      cookingTime: 120,
+      count: 1,
+      summaryOnly: true,
+      allowMockFallback: false,
+    })
+
+    expect(result.recipes).toHaveLength(1)
+    expect(result.recipes[0].name).toBe('新疆大盘鸡')
+    expect(result.recipes[0].ingredients.map((item) => item.name)).toContain('鸡腿肉')
+    expect(result.recipes[0].ingredients.map((item) => item.name)).not.toContain('咖喱块')
+    expect(search).toHaveBeenCalledWith(expect.objectContaining({ query: '新疆大盘鸡', ingredients: [] }))
+    expect(modelCall).toHaveBeenCalledTimes(2)
+  })
+
+  it('extracts an exact dish name from both how-to and make-one voice commands', () => {
+    const howTo = (service as any).buildAssistantCommandFallback('新疆大盘鸡怎么做？')
+    const makeOne = (service as any).buildAssistantCommandFallback('帮我做一道丸子汤。')
+
+    expect(howTo).toMatchObject({ intent: 'recipe_search', recipe: { query: '新疆大盘鸡' } })
+    expect(makeOne).toMatchObject({ intent: 'recipe_request', recipe: { query: '丸子汤' } })
   })
 })

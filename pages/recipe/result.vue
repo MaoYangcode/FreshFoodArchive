@@ -29,8 +29,8 @@
 		<view v-if="taskId || recipes.length" class="task-status">
 			<text class="task-title">{{ taskStatusText }}</text>
 			<view class="task-status-actions">
-				<text class="task-count">{{ recipes.length }}/{{ taskTotalCount }}</text>
-				<view v-if="!isTaskGenerating && recipes.length" class="change-batch-btn" :class="{ disabled: isChangingBatch }" @click="changeRecipeBatch"><text class="change-batch-icon">↻</text><text>{{ isChangingBatch ? '更换中' : '换一批' }}</text></view>
+				<text class="task-count">{{ recipes.length }}/{{ taskDisplayTotal }}</text>
+				<view v-if="!isTaskGenerating && recipes.length && !generationPreferences.exactTarget" class="change-batch-btn" :class="{ disabled: isChangingBatch }" @click="changeRecipeBatch"><text class="change-batch-icon">↻</text><text>{{ isChangingBatch ? '更换中' : '换一批' }}</text></view>
 			</view>
 		</view>
 		<view class="recipe-card" v-for="item in displayRecipes" :key="item.id" @click="openDetail(item)">
@@ -109,6 +109,9 @@ export default {
 		isTaskGenerating() {
 			return !!this.taskId && ['pending', 'generating'].includes(`${this.taskStatus || ''}`)
 		},
+		taskDisplayTotal() {
+			return this.taskId ? Number(this.taskTotalCount || 6) : this.recipes.length
+		},
 		taskStatusText() {
 			if (!this.taskId) return this.recipes.length ? '菜谱生成完成' : ''
 			const generatedCount = this.recipes.length
@@ -182,7 +185,7 @@ export default {
 			const pages = getCurrentPages()
 			const previous = Array.isArray(pages) && pages.length > 1 ? pages[pages.length - 2] : null
 			const previousRoute = `${previous?.route || ''}`.replace(/^\//, '')
-			if (previousRoute === 'pages/recipe/generate') { uni.navigateBack(); return }
+			if (['pages/recipe/generate', 'pages/assistant/index'].includes(previousRoute)) { uni.navigateBack(); return }
 			uni.redirectTo({ url: '/pages/recipe/generate', fail: () => uni.reLaunch({ url: '/pages/recipe/generate' }) })
 		},
 		ensureShareMenu() {

@@ -39,7 +39,7 @@
 						<text class="intent-pill" :class="intentTone">{{ intentLabel }}</text>
 					</view>
 					<text class="assistant-reply">{{ command.reply }}</text>
-					<view v-if="command.intent === 'recipe_search' && recipeSearchResults.length" class="recipe-search-results">
+					<view v-if="isRecipeCommand && recipeSearchResults.length" class="recipe-search-results">
 						<view v-for="item in recipeSearchResults" :key="item.id" class="recipe-search-card" @click.stop="openRecipeSearchResult(item)">
 							<view class="recipe-search-icon"><IngredientIcon :name="pickRecipeSearchIcon(item)" :size="30" /></view>
 							<view class="recipe-search-main">
@@ -48,6 +48,10 @@
 							</view>
 							<text class="recipe-search-arrow">›</text>
 						</view>
+					</view>
+					<view v-if="isInlineRecipeGenerating" class="inline-recipe-loading">
+						<view class="inline-recipe-spinner"></view>
+						<text>正在准备这道菜的完整做法…</text>
 					</view>
 					<view v-if="command.intent === 'inventory_read' && inventoryResult.length" class="inventory-result">
 						<view v-for="(item, index) in inventoryResult" :key="`${item.name}-${item.unit}-${index}`" class="inventory-result-row">
@@ -178,7 +182,7 @@ import BottomNav from '@/components/bottom-nav.vue'
 import IngredientIcon from '@/components/ingredient-icon.vue'
 import { parseAssistantCommand, recognizeAudioByUpload, synthesizeAssistantSpeech } from '@/api/modules/ai'
 import { createIngredientsBatch, consumeIngredientsBatch, getIngredientList } from '@/api/modules/ingredients'
-import { createRecipeTask, searchRecipes } from '@/api/modules/recipes'
+import { createRecipeTask, getRecipeTask, searchRecipes } from '@/api/modules/recipes'
 import { configureSpeechAudio, playSpeechAudio } from '@/utils/speech-audio'
 import { getShelfLifeSettings } from '@/api/modules/shelf-life'
 import { getCurrentUserId } from '@/utils/current-user'
@@ -208,6 +212,9 @@ export default {
 			expiryResult: [],
 			recipeSearchResults: [],
 			isSearchingRecipe: false,
+			inlineRecipeTaskId: '',
+			inlineRecipeTaskStatus: '',
+			inlineRecipeTaskTimer: null,
 			audioContext: null,
 			userId: getCurrentUserId(),
 			categories: ['水果', '蔬菜', '肉类', '蛋奶', '海鲜', '饮料', '调味品', '其他'],
@@ -265,8 +272,11 @@ export default {
 			})
 		},
 		canSpeakCurrentResult() {
-			return ['inventory_read', 'expiry_read', 'recipe_search'].includes(this.command?.intent) &&
+			return ['inventory_read', 'expiry_read', 'recipe_search', 'recipe_request'].includes(this.command?.intent) &&
 				!!`${this.command?.reply || ''}`.trim()
+		},
+		isInlineRecipeGenerating() {
+			return !!this.inlineRecipeTaskId && ['pending', 'generating'].includes(`${this.inlineRecipeTaskStatus || ''}`)
 		},
 		isRecipeCommand() {
 			return ['recipe_request', 'recipe_search'].includes(this.command?.intent)
@@ -302,6 +312,7 @@ export default {
 		this.loadShelfLifeSettings()
 	},
 	onUnload() {
+		this.stopInlineRecipeTaskPolling()
 		if (this.isRecording && this.recorderManager) this.recorderManager.stop()
 		if (this.audioContext) {
 			this.audioContext.stop()
@@ -319,6 +330,7 @@ export default {
 			}
 		},
 		resetActionState() {
+			this.stopInlineRecipeTaskPolling()
 			this.pendingItems = []
 			this.pendingConsumeItems = []
 			this.inventoryResult = []
@@ -748,8 +760,11 @@ export default {
 					unit: `${item.unit || ''}`.trim()
 				}))
 		},
-		openRecipeResultPage(taskId) {
-			const targetUrl = `/pages/recipe/result?taskId=${encodeURIComponent(taskId)}`
+		openRecipeResultPage(taskId = '') {
+			const normalizedTaskId = `${taskId || ''}`.trim()
+			const targetUrl = normalizedTaskId
+				? `/pages/recipe/result?taskId=${encodeURIComponent(normalizedTaskId)}`
+				: '/pages/recipe/result'
 			const pages = getCurrentPages()
 			if (Array.isArray(pages) && pages.length >= 9) {
 				uni.redirectTo({ url: targetUrl })
@@ -770,6 +785,88 @@ export default {
 			const url = `/pages/recipe/detail?name=${encodeURIComponent(`${item.name || ''}`)}`
 			uni.navigateTo({ url, fail: () => uni.redirectTo({ url }) })
 		},
+		isExactRecipeQuery(query) {
+			const value = `${query || ''}`.trim()
+			if (!value) return false
+			return !/(菜谱|做法|推荐|一些|几道|几种|什么|吃什么|以内|不辣|清淡|简单)/.test(value)
+		},
+		stopInlineRecipeTaskPolling() {
+			if (this.inlineRecipeTaskTimer) clearTimeout(this.inlineRecipeTaskTimer)
+			this.inlineRecipeTaskTimer = null
+			this.inlineRecipeTaskId = ''
+			this.inlineRecipeTaskStatus = ''
+		},
+		scheduleInlineRecipeTaskPoll(taskId, delay = 900) {
+			if (`${this.inlineRecipeTaskId || ''}` !== `${taskId || ''}`) return
+			if (this.inlineRecipeTaskTimer) clearTimeout(this.inlineRecipeTaskTimer)
+			this.inlineRecipeTaskTimer = setTimeout(() => this.pollInlineRecipeTask(taskId), delay)
+		},
+		startInlineRecipeTaskPolling(taskId) {
+			this.stopInlineRecipeTaskPolling()
+			this.inlineRecipeTaskId = `${taskId || ''}`.trim()
+			this.inlineRecipeTaskStatus = 'pending'
+			if (this.inlineRecipeTaskId) this.pollInlineRecipeTask(this.inlineRecipeTaskId)
+		},
+		async pollInlineRecipeTask(taskId) {
+			if (!taskId || `${this.inlineRecipeTaskId || ''}` !== `${taskId}`) return
+			try {
+				const res = await getRecipeTask(taskId)
+				if (`${this.inlineRecipeTaskId || ''}` !== `${taskId}`) return
+				const task = res?.data || res || {}
+				const recipes = Array.isArray(task?.recipes) ? task.recipes : []
+				const status = `${task?.status || 'generating'}`
+				this.inlineRecipeTaskStatus = status
+				if (recipes.length) this.recipeSearchResults = recipes.slice(0, 1)
+				if (status === 'done') {
+					const recipe = this.recipeSearchResults[0]
+					this.inlineRecipeTaskId = ''
+					this.inlineRecipeTaskStatus = 'done'
+					this.command.reply = recipe
+						? `已经为你准备好“${recipe.name}”，点击即可查看完整做法。`
+						: '这道菜暂时没有生成成功，请稍后再试。'
+					if (recipe) await this.autoSpeakIfRequested()
+					return
+				}
+				if (status === 'failed') {
+					this.inlineRecipeTaskId = ''
+					this.inlineRecipeTaskStatus = 'failed'
+					this.command.reply = `${task?.message || '这道菜暂时没有生成成功，请稍后再试。'}`
+					return
+				}
+				this.scheduleInlineRecipeTaskPoll(taskId)
+			} catch (error) {
+				console.warn('获取单道菜谱生成进度失败', error)
+				this.scheduleInlineRecipeTaskPoll(taskId, 1400)
+			}
+		},
+		async openRecipeSearchBatch(results) {
+			const recipe = this.command?.recipe || {}
+			let pantry = []
+			try {
+				const listRes = await getIngredientList()
+				pantry = this.normalizeRecipeIngredients(this.extractIngredientList(listRes))
+			} catch (_) {}
+			const requestedNames = Array.isArray(recipe.ingredients)
+				? recipe.ingredients.map((name) => `${name || ''}`.trim()).filter(Boolean)
+				: []
+			const ingredients = requestedNames.length
+				? requestedNames.map((name) => this.findInventoryMatches(pantry, name)[0] || { name, quantity: 1, unit: '' })
+				: pantry
+			uni.setStorageSync('latestGeneratedRecipes', Array.isArray(results) ? results : [])
+			uni.setStorageSync('latestGeneratedBatchId', `search_${Date.now()}`)
+			uni.setStorageSync('latestRecipeProfileApplied', null)
+			uni.setStorageSync('latestPantryTags', ingredients.slice(0, 6).map((item) => item.name))
+			uni.setStorageSync('latestPantryIngredients', ingredients)
+			uni.setStorageSync('latestRecipePreferences', {
+				tastePreference: recipe.taste || '家常',
+				cookingTime: Number(recipe.maxDuration || 0) || 30,
+				cookingTimeLabel: recipe.maxDuration ? `${recipe.maxDuration}分钟内` : '30分钟内',
+				exactTarget: false,
+				targetQuery: `${recipe.query || ''}`.trim()
+			})
+			this.command.reply = `为你找到${results.length}道符合条件的菜谱，正在打开推荐结果。`
+			this.openRecipeResultPage()
+		},
 		async loadRecipeSearch() {
 			if (this.isSearchingRecipe) return
 			this.isSearchingRecipe = true
@@ -786,10 +883,15 @@ export default {
 					limit: 6
 				})
 				const results = res?.data?.recipes || res?.recipes || []
-				this.recipeSearchResults = Array.isArray(results) ? results.slice(0, 6) : []
-				if (this.recipeSearchResults.length) {
-					this.command.reply = `为你找到${this.recipeSearchResults.length}道符合条件的菜谱：`
-					await this.autoSpeakIfRequested()
+				const found = Array.isArray(results) ? results.slice(0, 6) : []
+				if (found.length) {
+					if (this.isExactRecipeQuery(recipe.query)) {
+						this.recipeSearchResults = found.slice(0, 1)
+						this.command.reply = `已经为你找到“${this.recipeSearchResults[0].name}”，点击即可查看完整做法。`
+						await this.autoSpeakIfRequested()
+					} else {
+						await this.openRecipeSearchBatch(found)
+					}
 					return
 				}
 			} catch (error) {
@@ -818,15 +920,20 @@ export default {
 					})
 				}
 				if (!ingredients.length) throw new Error('冰箱暂无可用于推荐的食材')
+				const targetQuery = `${this.command?.recipe?.query || ''}`.trim()
+				const exactTarget = this.isExactRecipeQuery(targetQuery)
+				const requestedCookingTime = Number(this.command?.recipe?.maxDuration || 0)
+				const taskCookingTime = requestedCookingTime || (exactTarget ? 120 : 30)
 				const taskRes = await createRecipeTask({
 					userId: this.userId,
 					ingredients,
 					tastePreference: this.command?.recipe?.taste || '家常',
-					cookingTime: Number(this.command?.recipe?.maxDuration || 30),
+					cookingTime: taskCookingTime,
 					difficulty: this.command?.recipe?.difficulty || undefined,
 					avoidances: Array.isArray(this.command?.recipe?.avoidances) ? this.command.recipe.avoidances : [],
-					targetQuery: this.command?.recipe?.query || '',
-					count: 6
+					targetQuery,
+					exactTarget,
+					count: exactTarget ? 1 : 6
 				})
 				const taskId = `${taskRes?.data?.taskId || taskRes?.taskId || ''}`.trim()
 				if (!taskId) throw new Error('创建菜谱任务失败')
@@ -838,11 +945,18 @@ export default {
 				uni.setStorageSync('latestPantryIngredients', ingredients)
 				uni.setStorageSync('latestRecipePreferences', {
 					tastePreference: this.command?.recipe?.taste || '家常',
-					cookingTime: Number(this.command?.recipe?.maxDuration || 30),
-					cookingTimeLabel: `${Number(this.command?.recipe?.maxDuration || 30)}分钟内`
+					cookingTime: taskCookingTime,
+					cookingTimeLabel: requestedCookingTime ? `${requestedCookingTime}分钟内` : exactTarget ? '不限时间' : '30分钟内',
+					exactTarget,
+					targetQuery
 				})
-				this.command.reply = '已经开始生成菜谱，正在为你打开推荐结果。'
-				this.openRecipeResultPage(taskId)
+				if (exactTarget) {
+					this.command.reply = `正在为你准备“${targetQuery}”的完整做法，请稍候。`
+					this.startInlineRecipeTaskPolling(taskId)
+				} else {
+					this.command.reply = '已经开始生成菜谱，正在为你打开推荐结果。'
+					this.openRecipeResultPage(taskId)
+				}
 			} catch (error) {
 				this.command.reply = `${error?.message || '菜谱推荐失败，请稍后重试。'}`
 				uni.showToast({ title: '菜谱推荐失败', icon: 'none' })
@@ -863,7 +977,7 @@ export default {
 					parts.push(`${item.name}，${this.formatDaysLeft(item.daysLeft)}`)
 				})
 			}
-			if (this.command?.intent === 'recipe_search') {
+			if (['recipe_search', 'recipe_request'].includes(this.command?.intent)) {
 				this.recipeSearchResults.forEach((item) => {
 					parts.push(`${item.name}，${item.duration}分钟，${item.difficulty}`)
 				})
@@ -1053,6 +1167,9 @@ export default {
 .recipe-search-name { display: block; overflow: hidden; color: #304038; font-size: 11px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 .recipe-search-meta { display: block; margin-top: 5rpx; color: #8a968e; font-size: 8px; }
 .recipe-search-arrow { color: #a5b0a8; font-size: 19px; }
+.inline-recipe-loading { position: relative; z-index: 1; display: flex; align-items: center; gap: 10rpx; margin-top: 12rpx; padding: 13rpx 14rpx; border: 1rpx solid #dceadf; border-radius: 12px; color: #66806e; background: #f6fbf7; font-size: 9px; }
+.inline-recipe-spinner { width: 22rpx; height: 22rpx; flex-shrink: 0; border: 3rpx solid #d8ecd9; border-top-color: #58b963; border-radius: 50%; animation: recipe-spin .8s linear infinite; }
+@keyframes recipe-spin { to { transform: rotate(360deg); } }
 .inventory-result { position: relative; z-index: 1; margin-top: 12rpx; overflow: hidden; border: 1rpx solid #e1ebe5; border-radius: 12px; background: #f8fbf9; }
 .inventory-result-row { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 14rpx 16rpx; border-bottom: 1rpx solid #e8efeb; }
 .inventory-result-row:last-child { border-bottom: 0; }
