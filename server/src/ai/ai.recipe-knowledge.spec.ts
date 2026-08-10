@@ -80,6 +80,28 @@ describe('AiService recipe RAG loop', () => {
     expect(malformedMeatballs.recipes).toHaveLength(0)
     expect(potato.recipes.map((recipe) => recipe.name)).not.toContain('生汆丸子汤')
     expect(referenceContext).not.toContain('两个火枪腿的鸡肉')
+    expect(referenceContext).toContain('新疆大盘鸡')
+    expect(referenceContext).toContain('鸡肉')
+  })
+
+  it('normalizes combined cooking categories into one method before validating steps', () => {
+    const ingredients = [
+      { name: '番茄', quantity: 2, unit: '个' },
+      { name: '豆腐', quantity: 200, unit: '克' },
+    ]
+    const soupPlan = (service as any).normalizeRecipePlan(
+      { dishType: '汤羹', cookingMethod: '蒸煮', requiredIngredients: ['番茄', '豆腐'] },
+      '番茄豆腐羹',
+      ingredients,
+    )
+    const steamedPlan = (service as any).normalizeRecipePlan(
+      { dishType: '家常菜', cookingMethod: '蒸煮', requiredIngredients: ['鱼'] },
+      '清蒸鱼',
+      [{ name: '鱼', quantity: 1, unit: '条' }],
+    )
+
+    expect(soupPlan.cookingMethod).toBe('煮')
+    expect(steamedPlan.cookingMethod).toBe('蒸')
   })
 
   it('uses retrieved knowledge as model context instead of returning it directly', async () => {

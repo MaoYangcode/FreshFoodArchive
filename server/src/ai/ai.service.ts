@@ -1300,7 +1300,7 @@ export class AiService {
     const requiredIngredients = [...new Set([...suppliedRequired, ...nameRequired, ...inferredCore])].filter(Boolean).slice(0, 6)
     return {
       dishType: `${source?.dishType || source?.dish_type || this.inferRecipeDishType(name)}`.trim() || '家常菜',
-      cookingMethod: `${source?.cookingMethod || source?.cooking_method || this.inferRecipeCookingMethod(name)}`.trim() || '家常烹饪',
+      cookingMethod: this.normalizeRecipeCookingMethod(source?.cookingMethod || source?.cooking_method, name),
       requiredIngredients,
     }
   }
@@ -1316,7 +1316,18 @@ export class AiService {
 
   private inferRecipeCookingMethod(name: string) {
     const methods = ['炒', '焖', '炖', '煎', '烤', '蒸', '煮', '拌', '炸', '烧']
-    return methods.find((method) => name.includes(method)) || (/汤|粥/u.test(name) ? '煮' : '家常烹饪')
+    return methods.find((method) => name.includes(method)) || (/汤|羹|粥/u.test(name) ? '煮' : '家常烹饪')
+  }
+
+  private normalizeRecipeCookingMethod(value: unknown, name: string) {
+    const supplied = `${value || ''}`.trim()
+    const inferred = this.inferRecipeCookingMethod(name)
+    const methods = ['炒', '焖', '炖', '煎', '烤', '蒸', '煮', '拌', '炸', '烧']
+    const suppliedMethods = methods.filter((method) => supplied.includes(method))
+    if (suppliedMethods.length <= 1) return suppliedMethods[0] || (supplied || inferred)
+    if (inferred !== '家常烹饪' && suppliedMethods.includes(inferred)) return inferred
+    if (/汤|羹|粥/u.test(name) && suppliedMethods.includes('煮')) return '煮'
+    return suppliedMethods[0]
   }
 
   private isRecipeSeasoning(name: string) {
@@ -1341,13 +1352,13 @@ export class AiService {
       .map((hit, index) => {
         const recipe = hit.recipe
         const ingredients = recipe.ingredients
-          .map((item) => `${item.name}${item.quantity ?? ''}${item.unit || ''}`.trim())
+          .map((item) => this.formatKnowledgeReferenceIngredient(item))
           .filter(Boolean)
           .join('、')
         const stepText = includeSteps
           ? recipe.steps
               .slice(0, Math.max(1, stepLimit))
-              .map((step) => step.description)
+              .map((step) => this.sanitizeKnowledgeReferenceText(step.description))
               .filter(Boolean)
               .join('；')
           : ''
@@ -1365,28 +1376,43 @@ export class AiService {
       .join('\n')
   }
 
+  private formatKnowledgeReferenceIngredient(item: any) {
+    const rawName = `${item?.name || ''}`.trim()
+    let cleanedName = this.cleanIngredientName(rawName).split(/\s+/u)[0] || ''
+    cleanedName = cleanedName.replace(/(?:这|大约|约|根据|适量|可选|各).*/u, '').trim()
+    if (cleanedName.includes('的')) cleanedName = cleanedName.split('的').pop() || cleanedName
+    cleanedName = this.canonicalizeIngredientName(cleanedName).trim()
+    if (!cleanedName) return ''
+    const quantity = Number(item?.quantity)
+    const unit = `${item?.unit || ''}`.trim()
+    return Number.isFinite(quantity) && quantity > 0 && unit ? `${cleanedName}${quantity}${unit}` : cleanedName
+  }
+
+  private sanitizeKnowledgeReferenceText(value: unknown) {
+    return `${value || ''}`
+      .replace(/\*\*/gu, '')
+      .replace(/本步骤操作要求[：:]?/gu, '')
+      .replace(/完成后进入下一步[。；;，,]?/gu, '')
+      .replace(/详情内容不完整[。；;，,]?/gu, '')
+      .replace(/按菜式需要/gu, '按食材状态')
+      .replace(/准备并清洗所有食材/gu, '处理好本步骤所需食材')
+      .replace(/二选一/gu, '选择适合当前食材的方式')
+      .replace(/如何判断/gu, '判断')
+      .replace(/方法[一二三四][：:]?/gu, '')
+      .replace(/\b(assistant|system|user)\s*:/giu, '')
+      .replace(/\s+/gu, ' ')
+      .trim()
+      .slice(0, 220)
+  }
+
   private getKnowledgeReferenceQualityIssues(hit: RecipeKnowledgeHit) {
     const source = hit?.recipe
     if (!source) return ['知识库记录为空']
-    const usedIngredients = [...new Set((source.steps || []).flatMap((step) => step.ingredientsUsed || []).map((name) => `${name || ''}`.trim()).filter(Boolean))]
-    const candidate = this.normalizeRecipe({
-      id: source.id,
-      name: source.name,
-      duration: source.durationMinutes,
-      difficulty: source.difficulty,
-      servings: source.servings,
-      ingredients: (source.ingredients || []).map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-        unit: item.unit,
-      })),
-      steps: (source.steps || []).map((step) => step.description).filter(Boolean),
-      tips: (source.tips || []).join('；'),
-      usedIngredients,
-    }, 0, false)
-    return this.getKnowledgeRecipeQualityIssues(source, candidate).filter((issue) =>
-      /(食材名称不是原子字段|食材用量或单位不完整|缺少可识别的主料或辅料|包含模板话术|步骤过度拆分)/.test(issue),
-    )
+    if (!`${source.name || ''}`.trim()) return ['知识库菜名为空']
+    const usableIngredients = (source.ingredients || []).map((item) => this.formatKnowledgeReferenceIngredient(item)).filter(Boolean)
+    const usableSteps = (source.steps || []).map((step) => this.sanitizeKnowledgeReferenceText(step.description)).filter(Boolean)
+    if (!usableIngredients.length && !usableSteps.length) return ['知识库记录没有可参考内容']
+    return []
   }
 
   private async repairRecipeCandidates(candidates: GeneratedRecipe[], summaryOnly: boolean, knowledgeReferenceText: string) {
