@@ -100,6 +100,7 @@ type VoiceRecognizeResult = {
 }
 
 type AssistantIntent = 'inventory_add' | 'inventory_consume' | 'inventory_read' | 'expiry_read' | 'recipe_search' | 'recipe_request' | 'unknown'
+type RecipeRequestMode = 'exact' | 'explore'
 
 type AssistantCommand = {
   intent: AssistantIntent
@@ -118,6 +119,7 @@ type AssistantCommand = {
     location?: string
   }
   recipe: {
+    requestMode?: RecipeRequestMode
     query?: string
     ingredients: string[]
     maxDuration?: number
@@ -514,6 +516,7 @@ export class AiService {
         location: '冷藏 | 冷冻',
       },
       recipe: {
+        requestMode: 'exact | explore',
         query: '番茄炒蛋',
         ingredients: ['番茄'],
         maxDuration: 20,
@@ -535,6 +538,7 @@ export class AiService {
       '库存查询如果明确说了冷藏区或冷冻区，在 query.location 中原样返回“冷藏”或“冷冻”。',
       '“有什么快过期、读一下临期食材”属于 expiry_read。',
       '“找番茄炒蛋、找一些鸡肉菜谱、有没有二十分钟内能做好的菜、找不辣的土豆做法、用茄子和鸡蛋能做什么”都属于 recipe_search。',
+      '菜谱 requestMode：exact=用户明确指定一道菜；explore=用户想按食材、时间、口味等条件获得多道候选。“番茄炒蛋怎么做、我想做番茄土豆焖饭”是 exact；“用土豆和鸡肉能做什么、找一些不辣的豆腐做法”是 explore。',
       '菜谱查询要提取明确菜名到 recipe.query，原料条件到 ingredients，最长用时、难度、口味和忌口分别填写；“不辣”在 avoidances 中填写“辣”。',
       '只有明确要求“生成、重新生成、AI生成、推荐一批新菜谱”时才使用 recipe_request。',
       'reply 使用简短自然的中文，说明你理解到了什么；不要声称已经完成入库、出库或删除。',
@@ -2318,6 +2322,10 @@ export class AiService {
     const deterministicRecipe: AssistantCommand['recipe'] = intent === 'recipe_search' || intent === 'recipe_request' ? this.buildAssistantCommandFallback(transcript).recipe : { ingredients: [], avoidances: [] }
     const maxDuration = Number(source?.recipe?.maxDuration)
     const resolvedMaxDuration = Number.isFinite(maxDuration) && maxDuration > 0 ? maxDuration : Number(deterministicRecipe.maxDuration || 0)
+    const resolvedRecipeQuery = `${source?.recipe?.query || deterministicRecipe.query || ''}`.trim()
+    const requestMode = intent === 'recipe_search' || intent === 'recipe_request'
+      ? this.detectRecipeRequestMode(transcript, resolvedRecipeQuery)
+      : undefined
     const confidenceValue = Number(source?.confidence)
     const command: AssistantCommand = {
       intent,
@@ -2329,7 +2337,8 @@ export class AiService {
         location: `${source?.query?.location || ''}`.includes('冷冻') ? '冷冻' : `${source?.query?.location || ''}`.includes('冷藏') ? '冷藏' : undefined,
       },
       recipe: {
-        query: `${source?.recipe?.query || deterministicRecipe.query || ''}`.trim() || undefined,
+        requestMode,
+        query: resolvedRecipeQuery || undefined,
         ingredients: recipeIngredients.length ? recipeIngredients : deterministicRecipe.ingredients,
         maxDuration: Number.isFinite(resolvedMaxDuration) && resolvedMaxDuration > 0 ? resolvedMaxDuration : undefined,
         difficulty: `${source?.recipe?.difficulty || deterministicRecipe.difficulty || ''}`.trim() || undefined,
@@ -2371,18 +2380,21 @@ export class AiService {
     const expiryTarget = `${expiryTargetMatch?.[1] || ''}`.replace(/^(冰箱里|库存里|冰箱|库存)/, '').trim()
     const recipeSearchMatch = transcript.match(/(?:帮我)?(?:找|搜索|查找|查询)(?:一下|一些|几道|几种)?\s*([^，。！？?]+?)(?:菜谱|做法)?$/)
     const recipeSearchTarget = `${recipeSearchMatch?.[1] || ''}`
-      .replace(/^(不辣的|不放辣的|不加辣的)/, '')
+      .replace(/^(不辣的|不放辣的|不放辣椒的|不加辣的|不加辣椒的)/, '')
       .replace(/(菜谱|做法)$/, '')
       .trim()
     const recipeTranscript = `${transcript || ''}`.replace(/[。！？?!]+$/, '').trim()
-    const recipeHowToMatch = recipeTranscript.match(/(?:请)?(?:帮我)?\s*(?:做|来)(?:一道|一个|一份|个)?\s*([^，。！？?]{2,20})$/)
+    const recipeHowToMatch = recipeTranscript.match(/(?:请)?(?:帮我)?\s*(?:(?:我)?(?:想要?|要)?)?\s*(?:做|吃|来)(?:一道|一个|一份|个)?\s*([^，。！？?]{2,20})$/)
+    const recipeRecommendOneMatch = recipeTranscript.match(/(?:推荐|生成)(?:一道|一个|一份|个)\s*([^，。！？?]{2,20})$/)
     const recipeHowToQuestionMatch = recipeTranscript.match(/([^，。！？?]{2,20}?)(?:怎么做|如何做|的做法)$/)
-    const explicitRecipeTarget = `${recipeHowToQuestionMatch?.[1] || recipeHowToMatch?.[1] || recipeSearchTarget || ''}`
+    const explicitRecipeTarget = `${recipeHowToQuestionMatch?.[1] || recipeHowToMatch?.[1] || recipeRecommendOneMatch?.[1] || recipeSearchTarget || ''}`
       .replace(/^(请|帮我|给我)/, '')
+      .replace(/^(不辣的|不放辣的|不放辣椒的|不加辣的|不加辣椒的)/, '')
       .replace(/(菜谱|做法)$/, '')
       .trim()
     const recipeNameQuery = /炒|炖|煮|蒸|煎|烤|拌|炸|汤|粥|饭|面|饼|羹|蛋|鸡|鸭|鱼|虾|肉|豆腐/u.test(explicitRecipeTarget) ? explicitRecipeTarget : ''
     const recipeIngredientMatch = transcript.match(/(?:用|拿)\s*(.+?)\s*(?:能做什么|可以做什么|做|推荐|生成|来一道|来个)/)
+      || transcript.match(/([^，。！？?]{2,30}?)\s*(?:能做什么|可以做什么)/)
     const recipeIngredientText = `${recipeIngredientMatch?.[1] || ''}`.trim()
     const recipeIngredientsFromUse = recipeIngredientText
       ? recipeIngredientText
@@ -2395,7 +2407,7 @@ export class AiService {
     const maxDuration = this.normalizeVoiceQuantity(durationMatch?.[1])
     const difficulty = ['简单', '中等', '困难'].find((value) => transcript.includes(value))
     const taste = ['清淡', '香辣', '麻辣', '酸甜', '咸鲜'].find((value) => transcript.includes(value))
-    const recipeAvoidances = /(不辣|不要辣|不放辣|不加辣|不能吃辣)/.test(transcript) ? ['辣'] : []
+    const recipeAvoidances = /(不辣|不要辣|不放辣|不放辣椒|不加辣|不加辣椒|不能吃辣)/.test(transcript) ? ['辣'] : []
     const command: AssistantCommand = {
       intent,
       transcript,
@@ -2406,12 +2418,13 @@ export class AiService {
         location: intent === 'inventory_read' ? inventoryLocation : undefined,
       },
       recipe: {
+        requestMode: intent === 'recipe_search' || intent === 'recipe_request' ? this.detectRecipeRequestMode(transcript, recipeNameQuery) : undefined,
         query: intent === 'recipe_search' || intent === 'recipe_request' ? recipeNameQuery || undefined : undefined,
         ingredients: intent === 'recipe_request' || intent === 'recipe_search' ? recipeIngredients : [],
         maxDuration: (intent === 'recipe_request' || intent === 'recipe_search') && Number.isFinite(maxDuration) && Number(maxDuration) > 0 ? maxDuration : undefined,
         difficulty: intent === 'recipe_request' || intent === 'recipe_search' ? difficulty : undefined,
         taste: intent === 'recipe_request' || intent === 'recipe_search' ? taste : undefined,
-        avoidances: intent === 'recipe_search' ? recipeAvoidances : [],
+        avoidances: intent === 'recipe_search' || intent === 'recipe_request' ? recipeAvoidances : [],
       },
       reply: '',
       confidence: intent === 'unknown' ? 0.2 : 0.55,
@@ -2426,8 +2439,9 @@ export class AiService {
     if (!value) return 'unknown'
     if (/(临期|快过期|即将过期|已经过期|过期食材|什么时候过期|多久过期|是否过期)/.test(value)) return 'expiry_read'
     if (/(生成|重新生成|AI生成|推荐).*(菜谱|一道|几道|一批|新菜|什么菜)/i.test(value)) return 'recipe_request'
+    if (/(?:我想|我想要|我要|想要|想)(?:做|吃)[^，。！？?]{2,20}$/.test(value)) return 'recipe_request'
     if (/(?:帮我)?(?:做|来)(?:一道|一个|一份|个)[^，。！？?]{2,20}$/.test(value)) return 'recipe_request'
-    if (/(找|搜索|查找|查询).*(菜谱|做法|菜|饭|汤|粥|面|饼|炒蛋|鸡肉|土豆)|有没有.*(?:分钟)?.*菜|用.+(?:能|可以)?做什么|菜谱|做什么菜|吃什么|怎么做/.test(value)) return 'recipe_search'
+    if (/(找|搜索|查找|查询).*(菜谱|做法|菜|饭|汤|粥|面|饼|炒蛋|鸡肉|土豆)|有没有.*(?:分钟)?.*菜|(?:用|拿)?.+(?:能|可以)做什么|菜谱|做什么菜|吃什么|怎么做/.test(value)) return 'recipe_search'
     if (/(取出|拿出|出库|用了|用掉|吃了|吃掉|喝了|喝掉|喝完|吃完|用完|减掉|扣掉)/.test(value)) {
       return 'inventory_consume'
     }
@@ -2436,6 +2450,12 @@ export class AiService {
       return 'inventory_read'
     }
     return 'unknown'
+  }
+
+  private detectRecipeRequestMode(text: string, query?: string): RecipeRequestMode {
+    const value = `${text || ''}`.replace(/\s+/g, '').replace(/[，。！？?!]/g, '')
+    if (/(一些|几道|几种|多道|一批|换一批|能做什么|可以做什么|做什么菜|吃什么|有哪些)/.test(value)) return 'explore'
+    return `${query || ''}`.trim() ? 'exact' : 'explore'
   }
 
   private buildAssistantReply(command: AssistantCommand) {

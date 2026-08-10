@@ -785,10 +785,31 @@ export default {
 			const url = `/pages/recipe/detail?name=${encodeURIComponent(`${item.name || ''}`)}`
 			uni.navigateTo({ url, fail: () => uni.redirectTo({ url }) })
 		},
-		isExactRecipeQuery(query) {
-			const value = `${query || ''}`.trim()
-			if (!value) return false
-			return !/(菜谱|做法|推荐|一些|几道|几种|什么|吃什么|以内|不辣|清淡|简单)/.test(value)
+		isExactRecipeRequest(recipe = this.command?.recipe || {}) {
+			const requestMode = `${recipe?.requestMode || ''}`.trim()
+			if (requestMode === 'exact') return true
+			if (requestMode === 'explore') return false
+			// 兼容前端先于服务端发布的短暂窗口；新服务端返回 requestMode 后不再进入这里。
+			const query = `${recipe?.query || ''}`.trim()
+			const transcript = `${this.command?.transcript || this.transcript || ''}`.trim()
+			const requestText = `${transcript} ${query}`
+			if (!query) return false
+			return !/(推荐|一些|几道|几种|多道|一批|换一批|能做什么|可以做什么|吃什么|有哪些|以内|不辣|不放辣椒|不要辣|清淡|简单|快手)/.test(requestText)
+		},
+		normalizeRecipeNameForMatch(value) {
+			return `${value || ''}`
+				.trim()
+				.replace(/西红柿/g, '番茄')
+				.replace(/[（(][^）)]*[）)]/g, '')
+				.replace(/(怎么做|的做法|做法|菜谱|食谱|家常版|家常做法|正宗版)$/g, '')
+				.replace(/[\s·，。！？、,.!?：:《》“”'"-]/g, '')
+		},
+		isMatchingExactRecipeName(name, targetQuery) {
+			const actual = this.normalizeRecipeNameForMatch(name)
+			const target = this.normalizeRecipeNameForMatch(targetQuery)
+			if (!actual || !target) return false
+			if (actual === target) return true
+			return Math.abs(actual.length - target.length) <= 2 && (actual.includes(target) || target.includes(actual))
 		},
 		stopInlineRecipeTaskPolling() {
 			if (this.inlineRecipeTaskTimer) clearTimeout(this.inlineRecipeTaskTimer)
@@ -839,38 +860,17 @@ export default {
 				this.scheduleInlineRecipeTaskPoll(taskId, 1400)
 			}
 		},
-		async openRecipeSearchBatch(results) {
-			const recipe = this.command?.recipe || {}
-			let pantry = []
-			try {
-				const listRes = await getIngredientList()
-				pantry = this.normalizeRecipeIngredients(this.extractIngredientList(listRes))
-			} catch (_) {}
-			const requestedNames = Array.isArray(recipe.ingredients)
-				? recipe.ingredients.map((name) => `${name || ''}`.trim()).filter(Boolean)
-				: []
-			const ingredients = requestedNames.length
-				? requestedNames.map((name) => this.findInventoryMatches(pantry, name)[0] || { name, quantity: 1, unit: '' })
-				: pantry
-			uni.setStorageSync('latestGeneratedRecipes', Array.isArray(results) ? results : [])
-			uni.setStorageSync('latestGeneratedBatchId', `search_${Date.now()}`)
-			uni.setStorageSync('latestRecipeProfileApplied', null)
-			uni.setStorageSync('latestPantryTags', ingredients.slice(0, 6).map((item) => item.name))
-			uni.setStorageSync('latestPantryIngredients', ingredients)
-			uni.setStorageSync('latestRecipePreferences', {
-				tastePreference: recipe.taste || '家常',
-				cookingTime: Number(recipe.maxDuration || 0) || 30,
-				cookingTimeLabel: recipe.maxDuration ? `${recipe.maxDuration}分钟内` : '30分钟内',
-				exactTarget: false,
-				targetQuery: `${recipe.query || ''}`.trim()
-			})
-			this.command.reply = `为你找到${results.length}道符合条件的菜谱，正在打开推荐结果。`
-			this.openRecipeResultPage()
-		},
 		async loadRecipeSearch() {
 			if (this.isSearchingRecipe) return
 			this.isSearchingRecipe = true
 			const recipe = this.command?.recipe || {}
+			const exactTarget = this.isExactRecipeRequest(recipe)
+			if (!exactTarget) {
+				this.isSearchingRecipe = false
+				this.command.reply = '正在根据你的条件准备多道菜谱。'
+				await this.startRecipeRequest()
+				return
+			}
 			try {
 				const res = await searchRecipes({
 					userId: this.userId,
@@ -884,14 +884,11 @@ export default {
 				})
 				const results = res?.data?.recipes || res?.recipes || []
 				const found = Array.isArray(results) ? results.slice(0, 6) : []
-				if (found.length) {
-					if (this.isExactRecipeQuery(recipe.query)) {
-						this.recipeSearchResults = found.slice(0, 1)
-						this.command.reply = `已经为你找到“${this.recipeSearchResults[0].name}”，点击即可查看完整做法。`
-						await this.autoSpeakIfRequested()
-					} else {
-						await this.openRecipeSearchBatch(found)
-					}
+				const exactMatch = found.find((item) => this.isMatchingExactRecipeName(item?.name, recipe.query))
+				if (exactMatch) {
+					this.recipeSearchResults = [exactMatch]
+					this.command.reply = `已经为你找到“${exactMatch.name}”，点击即可查看完整做法。`
+					await this.autoSpeakIfRequested()
 					return
 				}
 			} catch (error) {
@@ -921,7 +918,7 @@ export default {
 				}
 				if (!ingredients.length) throw new Error('冰箱暂无可用于推荐的食材')
 				const targetQuery = `${this.command?.recipe?.query || ''}`.trim()
-				const exactTarget = this.isExactRecipeQuery(targetQuery)
+				const exactTarget = this.isExactRecipeRequest(this.command?.recipe || {})
 				const requestedCookingTime = Number(this.command?.recipe?.maxDuration || 0)
 				const taskCookingTime = requestedCookingTime || (exactTarget ? 120 : 30)
 				const taskRes = await createRecipeTask({

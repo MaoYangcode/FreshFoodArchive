@@ -715,8 +715,34 @@ describe('AiService recipe RAG loop', () => {
   it('extracts an exact dish name from both how-to and make-one voice commands', () => {
     const howTo = (service as any).buildAssistantCommandFallback('新疆大盘鸡怎么做？')
     const makeOne = (service as any).buildAssistantCommandFallback('帮我做一道丸子汤。')
+    const wantToMake = (service as any).buildAssistantCommandFallback('我想做番茄土豆焖饭。')
+    const nonSpicy = (service as any).buildAssistantCommandFallback('帮我生成一道不放辣椒的麻婆豆腐。')
 
-    expect(howTo).toMatchObject({ intent: 'recipe_search', recipe: { query: '新疆大盘鸡' } })
-    expect(makeOne).toMatchObject({ intent: 'recipe_request', recipe: { query: '丸子汤' } })
+    expect(howTo).toMatchObject({ intent: 'recipe_search', recipe: { requestMode: 'exact', query: '新疆大盘鸡' } })
+    expect(makeOne).toMatchObject({ intent: 'recipe_request', recipe: { requestMode: 'exact', query: '丸子汤' } })
+    expect(wantToMake).toMatchObject({ intent: 'recipe_request', recipe: { requestMode: 'exact', query: '番茄土豆焖饭' } })
+    expect(nonSpicy).toMatchObject({
+      intent: 'recipe_request',
+      recipe: { requestMode: 'exact', query: '麻婆豆腐', avoidances: ['辣'] },
+    })
+  })
+
+  it('marks ingredient, plural and avoidance recipe requests as explore mode', () => {
+    const ingredients = (service as any).buildAssistantCommandFallback('用土豆和鸡肉能做什么？')
+    const ingredientsWithoutUse = (service as any).buildAssistantCommandFallback('番茄和豆腐可以做什么？')
+    const avoidance = (service as any).buildAssistantCommandFallback('找一些不放辣椒的豆腐做法。')
+
+    expect(ingredients).toMatchObject({
+      intent: 'recipe_search',
+      recipe: { requestMode: 'explore', ingredients: ['土豆', '鸡肉'] },
+    })
+    expect(ingredientsWithoutUse).toMatchObject({
+      intent: 'recipe_search',
+      recipe: { requestMode: 'explore', ingredients: ['番茄', '豆腐'] },
+    })
+    expect(avoidance).toMatchObject({
+      intent: 'recipe_search',
+      recipe: { requestMode: 'explore', avoidances: ['辣'] },
+    })
   })
 })
