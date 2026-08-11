@@ -459,12 +459,20 @@ export default {
 				const audioPath = `${res?.data?.audioPath || res?.audioPath || ''}`.trim()
 				if (!audioPath) throw new Error('没有生成朗读音频')
 				const expiresAt = Number(res?.data?.expiresAt || res?.expiresAt || Date.now() + 9 * 60 * 1000)
-				this.$set(this.recipeSpeechAudioCache, key, { audioPath, expiresAt })
+				this.recipeSpeechAudioCache = {
+					...this.recipeSpeechAudioCache,
+					[key]: { audioPath, expiresAt }
+				}
 				return audioPath
 			}).finally(() => {
-				this.$delete(this.recipeSpeechPending, key)
+				const nextPending = { ...this.recipeSpeechPending }
+				delete nextPending[key]
+				this.recipeSpeechPending = nextPending
 			})
-			this.$set(this.recipeSpeechPending, key, pending)
+			this.recipeSpeechPending = {
+				...this.recipeSpeechPending,
+				[key]: pending
+			}
 			return pending
 		},
 		async prefetchRecipeSpeechSteps(fromIndex, sessionId) {
