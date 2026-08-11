@@ -12,9 +12,10 @@ import { AuthModule } from './auth/auth.module'
 import { RecipeKnowledgeModule } from './recipe-knowledge/recipe-knowledge.module'
 import { FavoritesModule } from './favorites/favorites.module'
 import { MealPlansModule } from './meal-plans/meal-plans.module'
+import { AssistantHistoryModule } from './assistant-history/assistant-history.module'
 
 @Module({
-  imports: [PrismaModule, IngredientsModule, RecipeKnowledgeModule, AiModule, ExpiryReminderModule, BasketModule, ProfileModule, ShelfLifeModule, AuthModule, FavoritesModule, MealPlansModule],
+  imports: [PrismaModule, IngredientsModule, RecipeKnowledgeModule, AiModule, ExpiryReminderModule, BasketModule, ProfileModule, ShelfLifeModule, AuthModule, FavoritesModule, MealPlansModule, AssistantHistoryModule],
   controllers: [AppController],
   providers: [AppService],
 })

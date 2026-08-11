@@ -5,6 +5,7 @@
 			<view class="top-copy">
 				<text class="top-title">语音助手</text>
 			</view>
+			<text v-if="historyMessages.length || command" class="clear-history" @click="confirmClearHistory">清空</text>
 		</view>
 
 		<view class="chat-row assistant-row">
@@ -21,6 +22,32 @@
 			<text class="section-title">你可以这样说</text>
 			<view class="example-list">
 				<text v-for="example in examples" :key="example" class="example-chip" @click="tryExample(example)">{{ example }}</text>
+			</view>
+		</view>
+
+		<view v-if="historyMessages.length" class="history-conversation">
+			<view v-for="message in historyMessages" :key="`history-${message.id || message.turnId}-${message.role}`">
+				<view v-if="message.role === 'user'" class="chat-row user-row history-row">
+					<view class="user-bubble history-user-bubble"><text>{{ message.content }}</text></view>
+				</view>
+				<view v-else class="chat-row assistant-row result-row history-row">
+					<view class="chat-avatar small">
+						<image class="chat-avatar-image" src="/static/assistant/fridge-assistant.png" mode="aspectFit"></image>
+					</view>
+					<view class="assistant-bubble history-assistant-bubble">
+						<text class="assistant-reply">{{ message.content }}</text>
+						<view v-if="historyRecipes(message).length" class="recipe-search-results history-recipes">
+							<view v-for="item in historyRecipes(message)" :key="`history-recipe-${message.turnId}-${item.id || item.name}`" class="recipe-search-card" @click.stop="openRecipeSearchResult(item)">
+								<view class="recipe-search-icon"><IngredientIcon :name="pickRecipeSearchIcon(item)" :size="30" /></view>
+								<view class="recipe-search-main">
+									<text class="recipe-search-name">{{ item.name }}</text>
+									<text class="recipe-search-meta">{{ item.duration || 0 }}分钟 · {{ item.difficulty || '家常' }}</text>
+								</view>
+								<text class="recipe-search-arrow">›</text>
+							</view>
+						</view>
+					</view>
+				</view>
 			</view>
 		</view>
 
@@ -186,6 +213,7 @@ import { createRecipeTask, getRecipeTask, searchRecipes } from '@/api/modules/re
 import { configureSpeechAudio, playSpeechAudio } from '@/utils/speech-audio'
 import { getShelfLifeSettings } from '@/api/modules/shelf-life'
 import { getCurrentUserId } from '@/utils/current-user'
+import { clearAssistantHistory, getAssistantHistory, saveAssistantTurn } from '@/api/modules/assistant-history'
 import { DEFAULT_SHELF_LIFE_DAYS_BY_CATEGORY, getShelfLifeDays, normalizeShelfLifeDaysByCategory } from '@/utils/shelf-life'
 
 export default {
@@ -204,6 +232,9 @@ export default {
 			transcript: '',
 			manualText: '',
 			command: null,
+			currentTurnId: '',
+			historyMessages: [],
+			isHistoryLoading: false,
 			actionStatus: '',
 			actionMessage: '',
 			pendingItems: [],
@@ -310,6 +341,7 @@ export default {
 		this.initRecorder()
 		this.initAudioPlayer()
 		this.loadShelfLifeSettings()
+		this.loadAssistantHistory()
 	},
 	onUnload() {
 		this.stopInlineRecipeTaskPolling()
@@ -320,6 +352,102 @@ export default {
 		}
 	},
 	methods: {
+		createTurnId() {
+			return `turn_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+		},
+		historyRecipes(message) {
+			const recipes = message?.metadata?.recipes
+			return Array.isArray(recipes) ? recipes.slice(0, 6) : []
+		},
+		normalizeHistoryMessages(payload) {
+			const rows = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : [])
+			return rows
+				.filter((item) => ['user', 'assistant'].includes(`${item?.role || ''}`) && `${item?.content || ''}`.trim())
+				.slice(-20)
+		},
+		async loadAssistantHistory() {
+			if (this.isHistoryLoading) return
+			this.isHistoryLoading = true
+			try {
+				const res = await getAssistantHistory(20)
+				this.historyMessages = this.normalizeHistoryMessages(res)
+			} catch (error) {
+				console.warn('读取语音助手聊天记录失败', error)
+			} finally {
+				this.isHistoryLoading = false
+			}
+		},
+		getCurrentAssistantHistoryContent() {
+			return [`${this.command?.reply || ''}`.trim(), `${this.actionMessage || ''}`.trim()]
+				.filter(Boolean)
+				.join('\n')
+		},
+		buildHistoryRecipeSnapshots() {
+			return (Array.isArray(this.recipeSearchResults) ? this.recipeSearchResults : [])
+				.slice(0, 6)
+				.map((item) => ({
+					id: item?.id || '',
+					name: `${item?.name || ''}`,
+					duration: Number(item?.duration || 0),
+					difficulty: `${item?.difficulty || ''}`,
+					ingredients: Array.isArray(item?.ingredients) ? item.ingredients.slice(0, 12) : []
+				}))
+				.filter((item) => item.name)
+		},
+		async persistCurrentTurn() {
+			const transcript = `${this.command?.transcript || this.transcript || ''}`.trim()
+			const reply = this.getCurrentAssistantHistoryContent()
+			if (!this.currentTurnId || !transcript || !reply) return
+			try {
+				await saveAssistantTurn({
+					turnId: this.currentTurnId,
+					transcript,
+					reply,
+					intent: `${this.command?.intent || ''}`,
+					metadata: { recipes: this.buildHistoryRecipeSnapshots() }
+				})
+			} catch (error) {
+				console.warn('保存语音助手聊天记录失败', error)
+			}
+		},
+		archiveCurrentTurnLocally() {
+			const transcript = `${this.command?.transcript || this.transcript || ''}`.trim()
+			const reply = this.getCurrentAssistantHistoryContent()
+			if (this.currentTurnId && transcript && reply) {
+				this.historyMessages = this.historyMessages
+					.filter((item) => `${item?.turnId || ''}` !== this.currentTurnId)
+					.concat([
+						{ id: `${this.currentTurnId}-user`, turnId: this.currentTurnId, role: 'user', content: transcript },
+						{ id: `${this.currentTurnId}-assistant`, turnId: this.currentTurnId, role: 'assistant', content: reply, metadata: { recipes: this.buildHistoryRecipeSnapshots() } }
+					])
+					.slice(-20)
+			}
+			this.command = null
+			this.currentTurnId = ''
+			this.resetActionState()
+		},
+		confirmClearHistory() {
+			uni.showModal({
+				title: '清空聊天记录',
+				content: '只会清空语音助手对话，不会删除冰箱、收藏或饮食计划。',
+				confirmText: '清空',
+				confirmColor: '#d85b50',
+				success: async (res) => {
+					if (!res.confirm) return
+					try {
+						await clearAssistantHistory()
+						this.historyMessages = []
+						this.command = null
+						this.currentTurnId = ''
+						this.transcript = ''
+						this.resetActionState()
+						uni.showToast({ title: '聊天记录已清空', icon: 'none' })
+					} catch (error) {
+						uni.showToast({ title: `${error?.message || '清空失败，请重试'}`, icon: 'none' })
+					}
+				}
+			})
+		},
 		async loadShelfLifeSettings() {
 			try {
 				const res = await getShelfLifeSettings(this.userId)
@@ -439,6 +567,7 @@ export default {
 			if (this.isSubmitting) return
 			this.actionStatus = 'cancelled'
 			this.actionMessage = '好的，已取消这次入库，没有修改库存。'
+			this.persistCurrentTurn()
 		},
 		async confirmInventoryAdd() {
 			if (!this.canConfirmInventoryAdd) {
@@ -470,6 +599,7 @@ export default {
 			} finally {
 				this.isSubmitting = false
 				uni.hideLoading()
+				this.persistCurrentTurn()
 			}
 		},
 		initAudioPlayer() {
@@ -713,6 +843,7 @@ export default {
 			if (this.isSubmitting) return
 			this.actionStatus = 'cancelled'
 			this.actionMessage = '好的，已取消这次出库，没有修改库存。'
+			this.persistCurrentTurn()
 		},
 		buildConsumeAllocations() {
 			const allocations = []
@@ -749,6 +880,7 @@ export default {
 			} finally {
 				this.isSubmitting = false
 				uni.hideLoading()
+				this.persistCurrentTurn()
 			}
 		},
 		normalizeRecipeIngredients(list) {
@@ -846,12 +978,14 @@ export default {
 						? `已经为你准备好“${recipe.name}”，点击即可查看完整做法。`
 						: '这道菜暂时没有生成成功，请稍后再试。'
 					if (recipe) await this.autoSpeakIfRequested()
+					await this.persistCurrentTurn()
 					return
 				}
 				if (status === 'failed') {
 					this.inlineRecipeTaskId = ''
 					this.inlineRecipeTaskStatus = 'failed'
 					this.command.reply = `${task?.message || '这道菜暂时没有生成成功，请稍后再试。'}`
+					await this.persistCurrentTurn()
 					return
 				}
 				this.scheduleInlineRecipeTaskPoll(taskId)
@@ -1038,8 +1172,7 @@ export default {
 				this.recorderManager.stop()
 				return
 			}
-			this.command = null
-			this.resetActionState()
+			this.archiveCurrentTurnLocally()
 			this.isRecording = true
 			this.recorderManager.start({
 				duration: 20000,
@@ -1077,6 +1210,9 @@ export default {
 			const value = `${text || ''}`.trim()
 			if (!value) return
 			this.isUnderstanding = true
+			this.archiveCurrentTurnLocally()
+			this.currentTurnId = this.createTurnId()
+			this.transcript = value
 			const result = await parseAssistantCommand(value)
 			this.command = result?.data?.command || null
 			this.prepareCommand(this.command)
@@ -1086,6 +1222,7 @@ export default {
 			if (this.command?.intent === 'expiry_read') await this.loadExpiryQuery()
 			if (this.command?.intent === 'recipe_search') await this.loadRecipeSearch()
 			if (this.command?.intent === 'recipe_request') await this.startRecipeRequest()
+			await this.persistCurrentTurn()
 		},
 		async parseManualText() {
 			if (this.isUnderstanding) return
@@ -1134,7 +1271,9 @@ export default {
 .top { display: flex; align-items: center; gap: 8rpx; margin-bottom: 18rpx; }
 .back { width: 30px; height: 34px; display: flex; align-items: center; justify-content: center; }
 .back-arrow { color: #b7c1ba; font-size: 30px; line-height: 1; }
+.top-copy { flex: 1; min-width: 0; }
 .top-title { color: #202c29; font-size: 20px; font-weight: 800; }
+.clear-history { flex-shrink: 0; padding: 10rpx 4rpx; color: #8b9890; font-size: 13px; }
 .chat-row { display: flex; align-items: flex-start; gap: 12rpx; }
 .assistant-row { justify-content: flex-start; }
 .user-row { justify-content: flex-end; margin-top: 24rpx; }
@@ -1151,6 +1290,12 @@ export default {
 .example-list { display: flex; flex-wrap: wrap; gap: 9rpx; }
 .example-chip { padding: 10rpx 14rpx; border: 1rpx solid #d7e5dc; border-radius: 999rpx; color: #65746b; background: #f8fcf9; font-size: 10px; }
 .conversation { margin-top: 6rpx; }
+.history-conversation { margin-top: 14rpx; padding-top: 4rpx; border-top: 1rpx solid #e5ebe7; }
+.history-row { opacity: .94; }
+.history-row.user-row { margin-top: 18rpx; }
+.history-user-bubble { background: #edf3ff; }
+.history-assistant-bubble { flex: 1; max-width: 540rpx; padding: 16rpx 18rpx; }
+.history-recipes { margin-top: 10rpx; }
 .user-bubble { max-width: 500rpx; padding: 16rpx 20rpx; border-radius: 18px 7px 18px 18px; color: #385b91; background: #e8f0ff; font-size: 11px; line-height: 1.6; }
 .result-row { margin-top: 14rpx; }
 .result-bubble { flex: 1; max-width: 540rpx; }

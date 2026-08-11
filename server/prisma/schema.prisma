@@ -30,6 +30,24 @@ model User {
   expiryReminderSetting ExpiryReminderSetting?
   expiryReminderLogs    ExpiryReminderLog[]
   shelfLifeSetting      ShelfLifeSetting?
+  assistantMessages     AssistantMessage[]
+}
+
+model AssistantMessage {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  turnId    String   @db.VarChar(64)
+  role      String   @db.VarChar(16)
+  content   String   @db.Text
+  intent    String?  @db.VarChar(40)
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, turnId, role])
+  @@index([userId, createdAt])
 }
 
 model Ingredient {
