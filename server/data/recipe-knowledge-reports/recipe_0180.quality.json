@@ -1,0 +1,37 @@
+{
+  "id": "recipe_0180",
+  "name": "泰国手标红茶",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 0.962,
+  "errorCount": 0,
+  "warningCount": 1,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 6,
+    "stepCount": 6,
+    "knownQuantityRatio": 0.833,
+    "linkedStepRatio": 1
+  },
+  "issues": [
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：冰块（6-8颗）",
+      "path": "ingredients[5].quantity",
+      "autoFixed": false
+    }
+  ],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "production_ready",
+        "score": 0.962,
+        "errors": 0,
+        "warnings": 1
+      }
+    ]
+  }
+}

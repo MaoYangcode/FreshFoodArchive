@@ -966,6 +966,7 @@ export class AiService {
       difficulty: `${payload?.difficulty || ''}`.trim() || undefined,
       taste: `${payload?.taste || ''}`.trim() || undefined,
       avoidances,
+      qualityScope: 'direct',
     })
     const recipes: GeneratedRecipe[] = []
     for (const hit of hits) {

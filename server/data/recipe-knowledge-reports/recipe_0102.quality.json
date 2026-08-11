@@ -1,0 +1,29 @@
+{
+  "id": "recipe_0102",
+  "name": "啤酒鸭",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 1,
+  "errorCount": 0,
+  "warningCount": 0,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 15,
+    "stepCount": 6,
+    "knownQuantityRatio": 1,
+    "linkedStepRatio": 1
+  },
+  "issues": [],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "production_ready",
+        "score": 1,
+        "errors": 0,
+        "warnings": 0
+      }
+    ]
+  }
+}

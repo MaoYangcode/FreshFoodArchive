@@ -1,0 +1,17 @@
+{
+  "id": "recipe_0033",
+  "name": "扬州炒饭",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 1,
+  "errorCount": 0,
+  "warningCount": 0,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 8,
+    "stepCount": 3,
+    "knownQuantityRatio": 1,
+    "linkedStepRatio": 1
+  },
+  "issues": []
+}

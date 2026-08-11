@@ -1,0 +1,37 @@
+{
+  "id": "recipe_0240",
+  "name": "空气炸锅鸡翅中",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 0.935,
+  "errorCount": 0,
+  "warningCount": 1,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 2,
+    "stepCount": 3,
+    "knownQuantityRatio": 0.5,
+    "linkedStepRatio": 1
+  },
+  "issues": [
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：罗勒碎（适量罗勒碎）",
+      "path": "ingredients[1].quantity",
+      "autoFixed": false
+    }
+  ],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "production_ready",
+        "score": 0.935,
+        "errors": 0,
+        "warnings": 1
+      }
+    ]
+  }
+}

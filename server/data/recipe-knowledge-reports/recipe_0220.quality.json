@@ -1,0 +1,37 @@
+{
+  "id": "recipe_0220",
+  "name": "牛油果拉西",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 0.964,
+  "errorCount": 0,
+  "warningCount": 1,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 7,
+    "stepCount": 6,
+    "knownQuantityRatio": 0.857,
+    "linkedStepRatio": 1
+  },
+  "issues": [
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：薄荷叶（几片）",
+      "path": "ingredients[5].quantity",
+      "autoFixed": false
+    }
+  ],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "production_ready",
+        "score": 0.964,
+        "errors": 0,
+        "warnings": 1
+      }
+    ]
+  }
+}

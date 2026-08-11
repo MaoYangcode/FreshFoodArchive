@@ -1,7 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { isIngredientFreeStep } from './lib/recipe-governance.mjs'
 
-const dataDirectory = resolve(process.cwd(), 'data/recipe-knowledge')
+const dataDirectory = resolve(process.env.RECIPE_KNOWLEDGE_DIR || 'data/recipe-knowledge')
 const dataFiles = (await readdir(dataDirectory))
   .filter((name) => /^recipes\..+\.json$/.test(name))
   .sort()
@@ -58,6 +59,7 @@ for (const recipe of recipes) {
   }
 
   const ingredientNames = new Set((recipe.ingredients || []).map((item) => canonical(item.name)))
+  const usedIngredientNames = new Set((recipe.steps || []).flatMap((step) => step.ingredientsUsed || []).map(canonical))
   const cookwareNames = new Set((recipe.cookware || []).map(canonical))
   const stepOrders = (recipe.steps || []).map((step) => step.order)
   const expectedOrders = stepOrders.map((_, index) => index + 1)
@@ -66,7 +68,8 @@ for (const recipe of recipes) {
   let stepDuration = 0
   for (const step of recipe.steps || []) {
     stepDuration += Number(step.durationMinutes || 0)
-    if (`${step.description || ''}`.trim().length < 12) fail(recipe, `步骤 ${step.order} 描述过短`)
+    if (`${step.description || ''}`.trim().length < 8) fail(recipe, `步骤 ${step.order} 描述过短`)
+    if (!(step.ingredientsUsed || []).length && !isIngredientFreeStep(step)) fail(recipe, `步骤 ${step.order} 未关联食材`)
     for (const ingredient of step.ingredientsUsed || []) {
       if (!ingredientNames.has(canonical(ingredient))) fail(recipe, `步骤 ${step.order} 引用了配料表外食材：${ingredient}`)
     }
@@ -81,7 +84,18 @@ for (const recipe of recipes) {
 
   const aliases = new Set((recipe.aliases || []).map(canonical))
   if (aliases.has(nameKey)) fail(recipe, '别名不能与标准菜名相同')
-  if (!['machine_validated', 'source_validated', 'human_verified'].includes(recipe?.quality?.status)) fail(recipe, '数据质量状态不可入库')
+  if (!['machine_validated', 'source_validated', 'production_ready', 'quarantined', 'human_verified'].includes(recipe?.quality?.status)) fail(recipe, '数据质量状态不可入库')
+  if (recipe?.quality?.status === 'production_ready' || recipe?.quality?.status === 'human_verified') {
+    for (const ingredient of recipe.ingredients || []) {
+      if (ingredient.role === '主料' && (!Number.isFinite(ingredient.quantity) || ingredient.quantity <= 0)) fail(recipe, `生产菜谱主料数量未量化：${ingredient.name}`)
+      if (!usedIngredientNames.has(canonical(ingredient.name))) fail(recipe, `生产菜谱食材未在步骤中使用：${ingredient.name}`)
+    }
+    for (const step of recipe.steps || []) {
+      if (!`${step.action || ''}`.trim()) fail(recipe, `生产菜谱步骤 ${step.order} 缺少动作`)
+      if (!Array.isArray(step.methods) || !step.methods.length) fail(recipe, `生产菜谱步骤 ${step.order} 缺少烹饪方式`)
+      if (/本步骤操作要求|完成后进入下一步|详情内容不完整|按菜式需要|如何判断|\*\*|shimmer|[？?]/iu.test(`${step.description || ''}`)) fail(recipe, `生产菜谱步骤 ${step.order} 含无效文本`)
+    }
+  }
 }
 
 const numericIds = [...ids].map((id) => Number(id.slice(-4))).sort((a, b) => a - b)

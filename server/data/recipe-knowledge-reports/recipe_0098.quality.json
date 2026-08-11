@@ -1,0 +1,37 @@
+{
+  "id": "recipe_0098",
+  "name": "咖喱肥牛",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 0.966,
+  "errorCount": 0,
+  "warningCount": 1,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 9,
+    "stepCount": 8,
+    "knownQuantityRatio": 0.889,
+    "linkedStepRatio": 1
+  },
+  "issues": [
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：清水（冷水至淹没所有食材）",
+      "path": "ingredients[8].quantity",
+      "autoFixed": false
+    }
+  ],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "production_ready",
+        "score": 0.966,
+        "errors": 0,
+        "warnings": 1
+      }
+    ]
+  }
+}

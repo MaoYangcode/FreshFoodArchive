@@ -33,7 +33,9 @@
         "heat": { "type": ["string", "null"] },
         "temperatureCelsius": { "type": ["number", "null"], "minimum": 0, "maximum": 300 },
         "ingredientsUsed": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-        "cookwareUsed": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+        "cookwareUsed": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "action": { "type": ["string", "null"] },
+        "methods": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
       }
     },
     "nutrition": {
@@ -56,7 +58,7 @@
       "additionalProperties": false,
       "required": ["status", "score", "version", "curationMethod"],
       "properties": {
-        "status": { "enum": ["draft", "source_validated", "machine_validated", "human_verified"] },
+        "status": { "enum": ["draft", "source_validated", "machine_validated", "production_ready", "quarantined", "human_verified"] },
         "score": { "type": "number", "minimum": 0, "maximum": 1 },
         "version": { "type": "integer", "minimum": 1 },
         "curationMethod": { "type": "string", "minLength": 1 }

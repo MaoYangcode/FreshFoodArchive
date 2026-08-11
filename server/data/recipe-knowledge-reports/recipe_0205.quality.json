@@ -1,0 +1,44 @@
+{
+  "id": "recipe_0205",
+  "name": "烙饼",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 0.918,
+  "errorCount": 0,
+  "warningCount": 2,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 5,
+    "stepCount": 9,
+    "knownQuantityRatio": 0.6,
+    "linkedStepRatio": 1
+  },
+  "issues": [
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：食用油（适量）",
+      "path": "ingredients[3].quantity",
+      "autoFixed": false
+    },
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：盐（适量）",
+      "path": "ingredients[4].quantity",
+      "autoFixed": false
+    }
+  ],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "production_ready",
+        "score": 0.918,
+        "errors": 0,
+        "warnings": 2
+      }
+    ]
+  }
+}

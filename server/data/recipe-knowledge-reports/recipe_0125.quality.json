@@ -1,0 +1,44 @@
+{
+  "id": "recipe_0125",
+  "name": "尖椒炒牛肉",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 0.966,
+  "errorCount": 0,
+  "warningCount": 1,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 9,
+    "stepCount": 13,
+    "knownQuantityRatio": 0.889,
+    "linkedStepRatio": 1
+  },
+  "issues": [
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：食用油（适量）",
+      "path": "ingredients[8].quantity",
+      "autoFixed": false
+    }
+  ],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "quarantined",
+        "score": 0.846,
+        "errors": 1,
+        "warnings": 1
+      },
+      {
+        "attempt": 2,
+        "status": "production_ready",
+        "score": 0.966,
+        "errors": 0,
+        "warnings": 1
+      }
+    ]
+  }
+}

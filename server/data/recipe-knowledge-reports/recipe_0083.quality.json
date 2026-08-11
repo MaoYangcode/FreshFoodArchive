@@ -1,0 +1,51 @@
+{
+  "id": "recipe_0083",
+  "name": "南派红烧肉",
+  "originalStatus": "quarantined",
+  "status": "production_ready",
+  "score": 1,
+  "errorCount": 0,
+  "warningCount": 0,
+  "autoFixCount": 2,
+  "metrics": {
+    "ingredientCount": 15,
+    "stepCount": 15,
+    "knownQuantityRatio": 1,
+    "linkedStepRatio": 1
+  },
+  "issues": [
+    {
+      "severity": "info",
+      "code": "INGREDIENT_NORMALIZED",
+      "message": "大蒜 已规范为 蒜",
+      "path": "ingredients[14]",
+      "autoFixed": true
+    },
+    {
+      "severity": "info",
+      "code": "RECIPE_DURATION_RECALCULATED",
+      "message": "总用时已按完整步骤由 157 分钟重算为 167 分钟",
+      "path": "durationMinutes",
+      "autoFixed": true
+    }
+  ],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "quarantined",
+        "score": 0.819,
+        "errors": 1,
+        "warnings": 2
+      },
+      {
+        "attempt": 2,
+        "status": "quarantined",
+        "score": 0.88,
+        "errors": 1,
+        "warnings": 0
+      }
+    ]
+  }
+}

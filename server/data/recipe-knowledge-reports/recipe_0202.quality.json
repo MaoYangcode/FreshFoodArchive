@@ -1,0 +1,37 @@
+{
+  "id": "recipe_0202",
+  "name": "炸串酱料",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 0.97,
+  "errorCount": 0,
+  "warningCount": 1,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 15,
+    "stepCount": 4,
+    "knownQuantityRatio": 0.933,
+    "linkedStepRatio": 1
+  },
+  "issues": [
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：食用油（适量）",
+      "path": "ingredients[10].quantity",
+      "autoFixed": false
+    }
+  ],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "production_ready",
+        "score": 0.97,
+        "errors": 0,
+        "warnings": 1
+      }
+    ]
+  }
+}

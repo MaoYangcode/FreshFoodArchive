@@ -1,0 +1,65 @@
+{
+  "id": "recipe_0241",
+  "name": "简易版炒糖色",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 0.854,
+  "errorCount": 0,
+  "warningCount": 4,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 7,
+    "stepCount": 11,
+    "knownQuantityRatio": 0.429,
+    "linkedStepRatio": 1
+  },
+  "issues": [
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：葱（适量）",
+      "path": "ingredients[3].quantity",
+      "autoFixed": false
+    },
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：姜（适量）",
+      "path": "ingredients[4].quantity",
+      "autoFixed": false
+    },
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：蒜（适量）",
+      "path": "ingredients[5].quantity",
+      "autoFixed": false
+    },
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：花椒（适量）",
+      "path": "ingredients[6].quantity",
+      "autoFixed": false
+    }
+  ],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "quarantined",
+        "score": 0.785,
+        "errors": 0,
+        "warnings": 6
+      },
+      {
+        "attempt": 2,
+        "status": "production_ready",
+        "score": 0.854,
+        "errors": 0,
+        "warnings": 4
+      }
+    ]
+  }
+}

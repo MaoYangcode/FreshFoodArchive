@@ -56,3 +56,11 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 /generated/prisma
+
+# Recipe governance working data (final curated batches and per-recipe reports
+# remain versioned under data/recipe-knowledge-curated and reports/*.quality.json)
+/data/recipe-knowledge-reports/enrichment-checkpoints/
+/data/recipe-knowledge-reports/recipes/
+/data/recipe-knowledge-reports/quality-report.json
+/data/recipe-knowledge-reports/quality-report.enriched.json
+/data/recipe-knowledge-reports/quarantine.json

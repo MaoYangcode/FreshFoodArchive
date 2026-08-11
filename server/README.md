@@ -57,6 +57,30 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
+## Recipe knowledge governance
+
+The production recipe corpus lives in `data/recipe-knowledge-curated`. Direct
+recipe answers only use records marked `production_ready` or
+`human_verified`; quarantined records remain weak generation references.
+
+```bash
+# Audit and deterministically normalize the source corpus
+npm run govern:recipes
+
+# Semantically repair quarantined recipes, with resumable checkpoints
+npm run enrich:recipes
+
+# Apply the production quality gates
+npm run validate:recipes:curated
+
+# Regenerate embeddings and synchronize recipes, steps and graph relations
+npm run sync:recipe-knowledge
+```
+
+The audit summary and one quality report per recipe are stored in
+`data/recipe-knowledge-reports`. See that directory's README for the current
+corpus totals and quality rules.
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.

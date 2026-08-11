@@ -1,0 +1,51 @@
+{
+  "id": "recipe_0174",
+  "name": "汤面",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 0.885,
+  "errorCount": 0,
+  "warningCount": 3,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 6,
+    "stepCount": 6,
+    "knownQuantityRatio": 0.5,
+    "linkedStepRatio": 1
+  },
+  "issues": [
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：盐（适量）",
+      "path": "ingredients[3].quantity",
+      "autoFixed": false
+    },
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：胡椒粉（适量）",
+      "path": "ingredients[4].quantity",
+      "autoFixed": false
+    },
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：香油（适量）",
+      "path": "ingredients[5].quantity",
+      "autoFixed": false
+    }
+  ],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "production_ready",
+        "score": 0.885,
+        "errors": 0,
+        "warnings": 3
+      }
+    ]
+  }
+}

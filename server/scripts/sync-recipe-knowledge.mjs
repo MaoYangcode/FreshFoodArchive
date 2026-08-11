@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import { readFile, readdir } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import neo4j from 'neo4j-driver'
 
@@ -13,7 +14,8 @@ const apiKey = `${process.env.DASHSCOPE_API_KEY || ''}`.trim()
 const embeddingEndpoint = `${process.env.DASHSCOPE_EMBEDDING_ENDPOINT || 'https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings'}`.trim()
 const embeddingModel = `${process.env.DASHSCOPE_EMBEDDING_MODEL || 'text-embedding-v4'}`.trim()
 const dimensions = Math.max(64, Math.min(2048, Number(process.env.DASHSCOPE_EMBEDDING_DIMENSIONS || 1024)))
-const dataDirectory = resolve(process.env.RECIPE_KNOWLEDGE_DIR || 'data/recipe-knowledge')
+const curatedDirectory = resolve('data/recipe-knowledge-curated')
+const dataDirectory = resolve(process.env.RECIPE_KNOWLEDGE_DIR || (existsSync(curatedDirectory) ? curatedDirectory : 'data/recipe-knowledge'))
 
 if (!uri || !password) throw new Error('请先配置 NEO4J_URI、NEO4J_USER 和 NEO4J_PASSWORD')
 if (!skipEmbeddings && !apiKey) throw new Error('生成向量需要 DASHSCOPE_API_KEY；只导入图数据可加 --skip-embeddings')
@@ -40,6 +42,8 @@ try {
   await driver.executeQuery('CREATE CONSTRAINT recipe_id_unique IF NOT EXISTS FOR (r:Recipe) REQUIRE r.id IS UNIQUE', {}, { database })
   await driver.executeQuery('CREATE CONSTRAINT ingredient_name_unique IF NOT EXISTS FOR (i:Ingredient) REQUIRE i.normalizedName IS UNIQUE', {}, { database })
   await driver.executeQuery('CREATE CONSTRAINT cookware_name_unique IF NOT EXISTS FOR (c:Cookware) REQUIRE c.name IS UNIQUE', {}, { database })
+  await driver.executeQuery('CREATE CONSTRAINT recipe_step_key_unique IF NOT EXISTS FOR (s:RecipeStep) REQUIRE s.stepKey IS UNIQUE', {}, { database })
+  await driver.executeQuery('CREATE CONSTRAINT cooking_method_name_unique IF NOT EXISTS FOR (m:CookingMethod) REQUIRE m.name IS UNIQUE', {}, { database })
   await driver.executeQuery("CREATE FULLTEXT INDEX recipe_fulltext_index IF NOT EXISTS FOR (r:Recipe) ON EACH [r.name, r.aliasText, r.embeddingText]", {}, { database })
   if (!skipEmbeddings) {
     await driver.executeQuery(
@@ -54,17 +58,39 @@ try {
   for (let offset = 0; offset < recipes.length; offset += batchSize) {
     const batch = recipes.slice(offset, offset + batchSize)
     const embeddings = skipEmbeddings ? batch.map(() => null) : await embed(batch.map((recipe) => recipe.embeddingText))
-    const values = batch.map((recipe, index) => ({
-      ...recipe,
-      fullRecipeJson: JSON.stringify(recipe),
-      nutritionJson: recipe.nutritionPerServing ? JSON.stringify(recipe.nutritionPerServing) : null,
-      sourceJson: recipe.source ? JSON.stringify(recipe.source) : null,
-      ingredientNames: recipe.ingredients.flatMap((item) => [item.name, item.normalizedName]),
-      aliasText: (recipe.aliases || []).join(' '),
-      embedding: embeddings[index],
-      embeddingModel: embeddings[index] ? embeddingModel : null,
-      embeddingDimensions: embeddings[index] ? dimensions : null,
-    }))
+    const values = batch.map((recipe, index) => {
+      const ingredientByName = new Map(recipe.ingredients.flatMap((item) => [[item.name, item], [item.normalizedName, item]]))
+      const usageCounts = new Map()
+      for (const step of recipe.steps) for (const name of step.ingredientsUsed || []) usageCounts.set(name, (usageCounts.get(name) || 0) + 1)
+      const steps = recipe.steps.map((step) => ({
+        ...step,
+        action: step.action || null,
+        methods: step.methods || [],
+        ingredientLinks: (step.ingredientsUsed || []).map((name) => {
+          const ingredient = ingredientByName.get(name)
+          const onlyUse = (usageCounts.get(name) || 0) === 1
+          return ingredient ? {
+            normalizedName: ingredient.normalizedName,
+            displayName: ingredient.name,
+            quantity: onlyUse ? ingredient.quantity : null,
+            unit: ingredient.unit,
+            quantityBasis: onlyUse ? 'single_step_total' : 'recipe_total_not_allocated',
+          } : null
+        }).filter(Boolean),
+      }))
+      const normalizedRecipe = { ...recipe, steps }
+      return {
+        ...normalizedRecipe,
+        fullRecipeJson: JSON.stringify(normalizedRecipe),
+        nutritionJson: recipe.nutritionPerServing ? JSON.stringify(recipe.nutritionPerServing) : null,
+        sourceJson: recipe.source ? JSON.stringify(recipe.source) : null,
+        ingredientNames: recipe.ingredients.flatMap((item) => [item.name, item.normalizedName]),
+        aliasText: (recipe.aliases || []).join(' '),
+        embedding: embeddings[index],
+        embeddingModel: embeddings[index] ? embeddingModel : null,
+        embeddingDimensions: embeddings[index] ? dimensions : null,
+      }
+    })
 
     await driver.executeQuery(
       `UNWIND $recipes AS item
@@ -145,10 +171,43 @@ try {
          recipeId: item.id, stepKey: item.id + '_' + toString(value.order), order: value.order,
          title: value.title, description: value.description, durationMinutes: value.durationMinutes,
          heat: value.heat, temperatureCelsius: value.temperatureCelsius,
-         ingredientsUsed: value.ingredientsUsed, cookwareUsed: value.cookwareUsed
+         ingredientsUsed: value.ingredientsUsed, cookwareUsed: value.cookwareUsed,
+         action: value.action, methods: value.methods
        })
        MERGE (recipe)-[:HAS_STEP]->(step)`,
-      { recipes: batch },
+      { recipes: values },
+      { database },
+    )
+    await driver.executeQuery(
+      `UNWIND $recipes AS item
+       UNWIND item.steps AS value
+       MATCH (step:RecipeStep {stepKey: item.id + '_' + toString(value.order)})
+       UNWIND value.ingredientLinks AS link
+       MATCH (ingredient:Ingredient {normalizedName: link.normalizedName})
+       MERGE (step)-[rel:USES]->(ingredient)
+       SET rel.displayName = link.displayName, rel.quantity = link.quantity,
+           rel.unit = link.unit, rel.quantityBasis = link.quantityBasis`,
+      { recipes: values },
+      { database },
+    )
+    await driver.executeQuery(
+      `UNWIND $recipes AS item
+       UNWIND item.steps AS value
+       MATCH (step:RecipeStep {stepKey: item.id + '_' + toString(value.order)})
+       UNWIND value.cookwareUsed AS name
+       MERGE (node:Cookware {name: name})
+       MERGE (step)-[:USES_COOKWARE]->(node)`,
+      { recipes: values },
+      { database },
+    )
+    await driver.executeQuery(
+      `UNWIND $recipes AS item
+       UNWIND item.steps AS value
+       MATCH (step:RecipeStep {stepKey: item.id + '_' + toString(value.order)})
+       UNWIND value.methods AS name
+       MERGE (node:CookingMethod {name: name})
+       MERGE (step)-[:USES_METHOD]->(node)`,
+      { recipes: values },
       { database },
     )
     console.log(`已同步 ${Math.min(offset + batch.length, recipes.length)}/${recipes.length}`)

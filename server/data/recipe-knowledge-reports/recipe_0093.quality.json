@@ -1,0 +1,37 @@
+{
+  "id": "recipe_0093",
+  "name": "台式卤肉饭",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 0.969,
+  "errorCount": 0,
+  "warningCount": 1,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 14,
+    "stepCount": 16,
+    "knownQuantityRatio": 0.929,
+    "linkedStepRatio": 1
+  },
+  "issues": [
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：清水（足量（没过肉面约 2 厘米）+ 100 ml（补液用））",
+      "path": "ingredients[13].quantity",
+      "autoFixed": false
+    }
+  ],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "production_ready",
+        "score": 0.969,
+        "errors": 0,
+        "warnings": 1
+      }
+    ]
+  }
+}

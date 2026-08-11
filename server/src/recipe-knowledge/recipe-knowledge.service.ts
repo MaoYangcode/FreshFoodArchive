@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common'
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import neo4j, { Driver } from 'neo4j-driver'
 
@@ -34,6 +34,8 @@ export type RecipeKnowledgeDocument = {
     temperatureCelsius: number | null
     ingredientsUsed: string[]
     cookwareUsed: string[]
+    action?: string | null
+    methods?: string[]
   }>
   tips: string[]
   nutritionPerServing: null | {
@@ -65,6 +67,7 @@ export type RecipeKnowledgeSearchOptions = {
   taste?: string
   avoidances?: string[]
   excludeNames?: string[]
+  qualityScope?: 'direct' | 'reference' | 'all'
 }
 
 export type RecipeKnowledgeHit = {
@@ -197,7 +200,8 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
   }
 
   private loadRecipes() {
-    const directory = resolve(process.env.RECIPE_KNOWLEDGE_DIR || resolve(process.cwd(), 'data/recipe-knowledge'))
+    const curatedDirectory = resolve(process.cwd(), 'data/recipe-knowledge-curated')
+    const directory = resolve(process.env.RECIPE_KNOWLEDGE_DIR || (existsSync(curatedDirectory) ? curatedDirectory : resolve(process.cwd(), 'data/recipe-knowledge')))
     const files = readdirSync(directory).filter((name) => /^recipes\..+\.json$/u.test(name)).sort()
     return files.flatMap((name) => {
       const value = JSON.parse(readFileSync(resolve(directory, name), 'utf8'))
@@ -218,9 +222,9 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
     const candidateLimit = Math.min(Math.max(options.limit * 6, 30), 100)
     const queryText = `可用食材：${options.ingredients.join('、')}；口味：${options.taste || '家常'}；时长：${options.maxDuration || '不限'}分钟；难度：${options.difficulty || '不限'}`
     const routes = await Promise.allSettled([
-      this.apiKey ? this.withTimeout(this.searchNeo4jVector(driver, queryText, candidateLimit), 'vector') : Promise.resolve([]),
+      this.apiKey ? this.withTimeout(this.searchNeo4jVector(driver, queryText, candidateLimit, options.qualityScope || 'reference'), 'vector') : Promise.resolve([]),
       this.withTimeout(this.searchNeo4jGraph(driver, terms, options, candidateLimit), 'graph'),
-      this.withTimeout(this.searchNeo4jFulltext(driver, [...options.ingredients, options.taste || ''].filter(Boolean), candidateLimit), 'fulltext'),
+      this.withTimeout(this.searchNeo4jFulltext(driver, [...options.ingredients, options.taste || ''].filter(Boolean), candidateLimit, options.qualityScope || 'reference'), 'fulltext'),
     ])
     const names = ['vector', 'graph', 'fulltext'] as const
     const values = routes.map((route, index) => {
@@ -261,14 +265,15 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
     return this.rankRecipes(candidates, options, fusionScores, mode)
   }
 
-  private async searchNeo4jVector(driver: Driver, queryText: string, limit: number): Promise<Neo4jCandidate[]> {
+  private async searchNeo4jVector(driver: Driver, queryText: string, limit: number, qualityScope: 'direct' | 'reference' | 'all'): Promise<Neo4jCandidate[]> {
     const embedding = await this.createQueryEmbedding(queryText)
     const result = await driver.executeQuery(
       `CALL db.index.vector.queryNodes('recipe_embedding_index', $limit, $embedding)
        YIELD node, score
+       WHERE $qualityScope <> 'direct' OR node.qualityStatus IN ['production_ready', 'human_verified']
        RETURN node.id AS id, node.fullRecipeJson AS recipeJson, score
        ORDER BY score DESC`,
-      { limit: neo4j.int(limit), embedding },
+      { limit: neo4j.int(qualityScope === 'direct' ? Math.min(limit * 3, 300) : limit), embedding, qualityScope },
       { database: this.neo4jDatabase },
     )
     return this.recordsToCandidates(result.records)
@@ -281,6 +286,7 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
        WITH recipe, size([term IN $terms WHERE any(name IN ingredientNames
          WHERE name CONTAINS term OR term CONTAINS name)]) AS matchedCount, ingredientNames
        WHERE matchedCount > 0
+         AND ($qualityScope <> 'direct' OR recipe.qualityStatus IN ['production_ready', 'human_verified'])
          AND ($maxDuration <= 0 OR recipe.durationMinutes <= $maxDuration)
          AND none(blocked IN $avoidances WHERE any(name IN ingredientNames
            WHERE name CONTAINS blocked OR blocked CONTAINS name))
@@ -294,13 +300,14 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
         avoidances: options.avoidances.map((value) => this.normalizeIngredient(value)),
         excludeNames: options.excludeNames.map((value) => this.normalizeText(value)),
         limit: neo4j.int(limit),
+        qualityScope: options.qualityScope || 'reference',
       },
       { database: this.neo4jDatabase },
     )
     return this.recordsToCandidates(result.records)
   }
 
-  private async searchNeo4jFulltext(driver: Driver, values: string[], limit: number): Promise<Neo4jCandidate[]> {
+  private async searchNeo4jFulltext(driver: Driver, values: string[], limit: number, qualityScope: 'direct' | 'reference' | 'all'): Promise<Neo4jCandidate[]> {
     const query = this.uniqueStrings(values)
       .map((value) => this.normalizeText(value).replace(/[+\-&|!(){}\[\]^"~*?:\\/]/gu, ''))
       .filter(Boolean)
@@ -310,9 +317,10 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
     const result = await driver.executeQuery(
       `CALL db.index.fulltext.queryNodes('recipe_fulltext_index', $query, {limit: $limit})
        YIELD node, score
+       WHERE $qualityScope <> 'direct' OR node.qualityStatus IN ['production_ready', 'human_verified']
        RETURN node.id AS id, node.fullRecipeJson AS recipeJson, score
        ORDER BY score DESC`,
-      { query, limit: neo4j.int(limit) },
+      { query, limit: neo4j.int(limit), qualityScope },
       { database: this.neo4jDatabase },
     )
     return this.recordsToCandidates(result.records)
@@ -368,6 +376,9 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
     const hits: RecipeKnowledgeHit[] = []
 
     for (const recipe of recipes) {
+      const qualityStatus = `${recipe.quality?.status || ''}`
+      const qualityScope = options.qualityScope || 'reference'
+      if (qualityScope === 'direct' && !['production_ready', 'human_verified'].includes(qualityStatus)) continue
       if (excluded.has(this.normalizeText(recipe.name))) continue
       const searchable = this.normalizeIngredient([
         recipe.name,
@@ -415,7 +426,13 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
         : 0
       const semanticScore = query ? queryScore : (semanticScores.get(recipe.id) ?? 0.55)
       const missingPenalty = Math.min(missingIngredients.length * 0.03, 0.18)
-      const total = pantryCoverage * 0.28 + recipeCoverage * 0.2 + semanticScore * 0.2 + timeScore * 0.1 + difficultyScore * 0.05 + tasteScore * 0.04 + Number(recipe.quality?.score || 0.8) * 0.13 - missingPenalty
+      const qualityWeight = qualityStatus === 'human_verified' ? 1
+        : qualityStatus === 'production_ready' ? 0.96
+        : qualityStatus === 'machine_validated' ? 0.72
+        : qualityStatus === 'source_validated' ? 0.45
+        : qualityStatus === 'quarantined' ? 0.12
+        : 0.25
+      const total = pantryCoverage * 0.28 + recipeCoverage * 0.2 + semanticScore * 0.2 + timeScore * 0.1 + difficultyScore * 0.05 + tasteScore * 0.04 + Number(recipe.quality?.score || 0.8) * 0.08 + qualityWeight * 0.05 - missingPenalty
       hits.push({
         recipe,
         score: Math.max(0, Math.min(100, Math.round(total * 100))),
@@ -463,6 +480,7 @@ export class RecipeKnowledgeService implements OnModuleDestroy {
       taste: this.normalizeText(options.taste),
       avoidances: [...options.avoidances].map((value) => this.normalizeIngredient(value)).sort(),
       excludeNames: [...options.excludeNames].map((value) => this.normalizeText(value)).sort(),
+      qualityScope: options.qualityScope || 'reference',
       limit: options.limit,
       model: this.embeddingModel,
       dimensions: this.embeddingDimensions,

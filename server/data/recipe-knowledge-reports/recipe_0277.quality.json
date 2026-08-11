@@ -1,0 +1,37 @@
+{
+  "id": "recipe_0277",
+  "name": "芹菜拌茶树菇",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 0.964,
+  "errorCount": 0,
+  "warningCount": 1,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 7,
+    "stepCount": 10,
+    "knownQuantityRatio": 0.857,
+    "linkedStepRatio": 1
+  },
+  "issues": [
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：清水（足量）",
+      "path": "ingredients[6].quantity",
+      "autoFixed": false
+    }
+  ],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "production_ready",
+        "score": 0.964,
+        "errors": 0,
+        "warnings": 1
+      }
+    ]
+  }
+}

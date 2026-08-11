@@ -1,0 +1,17 @@
+{
+  "id": "recipe_0024",
+  "name": "西芹炒牛肉",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 1,
+  "errorCount": 0,
+  "warningCount": 0,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 6,
+    "stepCount": 3,
+    "knownQuantityRatio": 1,
+    "linkedStepRatio": 1
+  },
+  "issues": []
+}

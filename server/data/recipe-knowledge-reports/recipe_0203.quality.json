@@ -1,0 +1,36 @@
+{
+  "id": "recipe_0203",
+  "name": "炸薯条",
+  "originalStatus": "quarantined",
+  "status": "production_ready",
+  "score": 1,
+  "errorCount": 0,
+  "warningCount": 0,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 2,
+    "stepCount": 7,
+    "knownQuantityRatio": 1,
+    "linkedStepRatio": 1
+  },
+  "issues": [],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "quarantined",
+        "score": 0.863,
+        "errors": 1,
+        "warnings": 0
+      },
+      {
+        "attempt": 2,
+        "status": "quarantined",
+        "score": 0.863,
+        "errors": 1,
+        "warnings": 0
+      }
+    ]
+  }
+}

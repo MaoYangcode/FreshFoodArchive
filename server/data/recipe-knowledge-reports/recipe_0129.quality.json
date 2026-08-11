@@ -1,0 +1,37 @@
+{
+  "id": "recipe_0129",
+  "name": "干煎阿根廷红虾",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 0.967,
+  "errorCount": 0,
+  "warningCount": 1,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 10,
+    "stepCount": 12,
+    "knownQuantityRatio": 0.9,
+    "linkedStepRatio": 1
+  },
+  "issues": [
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：黑胡椒（适量）",
+      "path": "ingredients[2].quantity",
+      "autoFixed": false
+    }
+  ],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "production_ready",
+        "score": 0.967,
+        "errors": 0,
+        "warnings": 1
+      }
+    ]
+  }
+}

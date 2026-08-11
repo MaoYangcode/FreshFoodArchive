@@ -1,0 +1,31 @@
+{
+  "generatedAt": "2026-08-10T18:14:44.782Z",
+  "recipeCount": 379,
+  "productionReadyCount": 379,
+  "quarantinedCount": 0,
+  "productionReadyRatio": 1,
+  "humanVerifiedCount": 0,
+  "graphStats": {
+    "stepCount": 3274,
+    "ingredientCount": 3338,
+    "stepIngredientEdges": 8590,
+    "stepCookwareEdges": 3841,
+    "stepMethodEdges": 5634
+  },
+  "warningCounts": {
+    "INGREDIENT_QUANTITY_UNKNOWN": 28
+  },
+  "qualityGates": [
+    "食材名称原子化且标准化",
+    "主料数量必须量化",
+    "配料表中的每项食材必须被步骤使用",
+    "每个食品操作步骤必须关联原始食材",
+    "步骤必须包含动作、烹饪方式、时间与所需厨具",
+    "禁止模板话术、问句、异常单位和隐藏基础液体"
+  ],
+  "semanticEnrichment": {
+    "model": "qwen-plus",
+    "checkpointCount": 338,
+    "processedThisRun": 0
+  }
+}

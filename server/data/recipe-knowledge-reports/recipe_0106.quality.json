@@ -1,0 +1,36 @@
+{
+  "id": "recipe_0106",
+  "name": "奇异果菠菜特调",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 1,
+  "errorCount": 0,
+  "warningCount": 0,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 5,
+    "stepCount": 8,
+    "knownQuantityRatio": 1,
+    "linkedStepRatio": 1
+  },
+  "issues": [],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "quarantined",
+        "score": 0.76,
+        "errors": 1,
+        "warnings": 3
+      },
+      {
+        "attempt": 2,
+        "status": "production_ready",
+        "score": 1,
+        "errors": 0,
+        "warnings": 0
+      }
+    ]
+  }
+}

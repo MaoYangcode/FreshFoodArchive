@@ -1,0 +1,36 @@
+{
+  "id": "recipe_0105",
+  "name": "太阳蛋",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 1,
+  "errorCount": 0,
+  "warningCount": 0,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 3,
+    "stepCount": 9,
+    "knownQuantityRatio": 1,
+    "linkedStepRatio": 1
+  },
+  "issues": [],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "quarantined",
+        "score": 0.77,
+        "errors": 0,
+        "warnings": 6
+      },
+      {
+        "attempt": 2,
+        "status": "production_ready",
+        "score": 1,
+        "errors": 0,
+        "warnings": 0
+      }
+    ]
+  }
+}

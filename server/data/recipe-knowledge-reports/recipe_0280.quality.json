@@ -1,0 +1,37 @@
+{
+  "id": "recipe_0280",
+  "name": "茄子肉煎饼",
+  "originalStatus": "production_ready",
+  "status": "production_ready",
+  "score": 0.965,
+  "errorCount": 0,
+  "warningCount": 1,
+  "autoFixCount": 0,
+  "metrics": {
+    "ingredientCount": 8,
+    "stepCount": 6,
+    "knownQuantityRatio": 0.875,
+    "linkedStepRatio": 1
+  },
+  "issues": [
+    {
+      "severity": "warning",
+      "code": "INGREDIENT_QUANTITY_UNKNOWN",
+      "message": "食材使用定性用量：清水（适量）",
+      "path": "ingredients[7].quantity",
+      "autoFixed": false
+    }
+  ],
+  "enrichment": {
+    "model": "qwen-plus",
+    "attempts": [
+      {
+        "attempt": 1,
+        "status": "production_ready",
+        "score": 0.965,
+        "errors": 0,
+        "warnings": 1
+      }
+    ]
+  }
+}

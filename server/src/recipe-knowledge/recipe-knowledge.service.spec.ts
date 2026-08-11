@@ -38,6 +38,19 @@ describe('RecipeKnowledgeService', () => {
     expect(hits.some((hit) => hit.recipe.ingredients.some((item) => item.normalizedName.includes('猪肉')))).toBe(false)
   })
 
+  it('keeps quarantined recipes out of direct answers while allowing weak-reference retrieval', async () => {
+    const target = service.findByIdOrName('番茄炒蛋') as any
+    const originalStatus = target.quality.status
+    target.quality.status = 'quarantined'
+
+    const direct = await service.search({ ingredients: ['番茄', '鸡蛋'], query: '番茄炒蛋', qualityScope: 'direct', limit: 12 })
+    const reference = await service.search({ ingredients: ['番茄', '鸡蛋'], query: '番茄炒蛋', qualityScope: 'reference', limit: 12 })
+
+    expect(direct.some((hit) => hit.recipe.id === target.id)).toBe(false)
+    expect(reference.some((hit) => hit.recipe.id === target.id)).toBe(true)
+    target.quality.status = originalStatus
+  })
+
   it('fuses vector, graph and full-text candidates and caches identical searches', async () => {
     const recipes = ['番茄炒蛋', '番茄牛肉蛋花汤', '西红柿鸡蛋挂面']
       .map((name) => service.findByIdOrName(name))
