@@ -24,9 +24,9 @@
 			</view>
 		</view>
 
-		<view class="history-toolbar">
-			<text class="history-toolbar-title">聊天记录</text>
-			<text class="clear-history" @click="confirmClearHistory">清空记录</text>
+		<view v-if="historyMessages.length" class="history-header">
+			<text class="history-title">最近对话</text>
+			<text class="clear-history" @click="confirmClearHistory">清空</text>
 		</view>
 
 		<view v-if="historyMessages.length" class="history-conversation">
@@ -1332,9 +1332,7 @@ export default {
 .back-arrow { color: #b7c1ba; font-size: 30px; line-height: 1; }
 .top-copy { flex: 1; min-width: 0; }
 .top-title { color: #202c29; font-size: 20px; font-weight: 800; }
-.history-toolbar { display: flex; align-items: center; justify-content: space-between; margin-top: 22rpx; padding: 0 4rpx 10rpx; border-bottom: 1rpx solid #e2e9e4; }
-.history-toolbar-title { color: #526159; font-size: 12px; font-weight: 700; }
-.clear-history { flex-shrink: 0; padding: 9rpx 16rpx; border: 1rpx solid #dbe6df; border-radius: 999rpx; color: #678071; background: #f8fbf9; font-size: 10px; }
+.clear-history { flex-shrink: 0; padding: 8rpx 4rpx; color: #8b9890; font-size: 10px; }
 .chat-row { display: flex; align-items: flex-start; gap: 12rpx; }
 .assistant-row { justify-content: flex-start; }
 .user-row { justify-content: flex-end; margin-top: 24rpx; }
@@ -1351,7 +1349,9 @@ export default {
 .example-list { display: flex; flex-wrap: wrap; gap: 9rpx; }
 .example-chip { padding: 10rpx 14rpx; border: 1rpx solid #d7e5dc; border-radius: 999rpx; color: #65746b; background: #f8fcf9; font-size: 10px; }
 .conversation { margin-top: 6rpx; }
-.history-conversation { margin-top: 4rpx; padding-top: 4rpx; }
+.history-header { display: flex; align-items: center; justify-content: space-between; margin-top: 24rpx; padding: 0 4rpx 9rpx; border-bottom: 1rpx solid #e2e9e4; }
+.history-title { color: #526159; font-size: 12px; font-weight: 700; }
+.history-conversation { margin-top: 8rpx; padding-top: 2rpx; }
 .history-row { opacity: .94; }
 .history-row.user-row { margin-top: 18rpx; }
 .history-user-bubble { background: #edf3ff; }
@@ -1430,8 +1430,11 @@ export default {
 .execution-row { margin-top: 14rpx; }
 .execution-bubble { padding: 16rpx 18rpx; }
 .execution-bubble.success { border-color: #d8eadc; background: #f4fbf5; }
+.execution-bubble.success::before { border-color: #d8eadc; background: #f4fbf5; }
 .execution-bubble.cancelled { background: #f7f8f7; }
+.execution-bubble.cancelled::before { background: #f7f8f7; }
 .execution-bubble.failed { border-color: #f0d9d4; background: #fff7f5; }
+.execution-bubble.failed::before { border-color: #f0d9d4; background: #fff7f5; }
 .execution-message { position: relative; z-index: 1; color: #405048; font-size: 11px; line-height: 1.6; }
 .voice-entry { position: fixed; left: 50%; bottom: 122px; z-index: 20; display: flex; flex-direction: column; align-items: center; gap: 9rpx; transform: translateX(-50%); }
 .voice-btn { width: 112rpx; height: 112rpx; display: flex; align-items: center; justify-content: center; border: 1rpx solid #d8e5fb; border-radius: 50%; background: #e8f0ff; color: #4a73d9; box-shadow: 0 10rpx 24rpx rgba(74, 115, 217, .16); }
