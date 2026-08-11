@@ -5,7 +5,6 @@
 			<view class="top-copy">
 				<text class="top-title">语音助手</text>
 			</view>
-			<text v-if="historyMessages.length || command" class="clear-history" @click="confirmClearHistory">清空</text>
 		</view>
 
 		<view class="chat-row assistant-row">
@@ -23,6 +22,11 @@
 			<view class="example-list">
 				<text v-for="example in examples" :key="example" class="example-chip" @click="tryExample(example)">{{ example }}</text>
 			</view>
+		</view>
+
+		<view class="history-toolbar">
+			<text class="history-toolbar-title">聊天记录</text>
+			<text class="clear-history" @click="confirmClearHistory">清空记录</text>
 		</view>
 
 		<view v-if="historyMessages.length" class="history-conversation">
@@ -224,6 +228,7 @@ export default {
 			recorderManager: null,
 			isRecording: false,
 			isUnderstanding: false,
+			isLoadingVisible: false,
 			isSubmitting: false,
 			isGeneratingRecipe: false,
 			isSynthesizing: false,
@@ -377,10 +382,65 @@ export default {
 				this.isHistoryLoading = false
 			}
 		},
+		formatHistoryInventoryItems(items, limit = 12) {
+			return (Array.isArray(items) ? items : [])
+				.slice(0, limit)
+				.map((item) => {
+					const name = `${item?.name || ''}`.trim()
+					const quantity = Number(item?.quantity)
+					const amount = Number.isFinite(quantity) && quantity > 0
+						? `${this.formatQuantity(quantity)}${item?.unit || ''}`
+						: ''
+					return `${name}${amount}`
+				})
+				.filter(Boolean)
+				.join('、')
+		},
+		formatHistoryExpiryItems(items, limit = 12) {
+			return (Array.isArray(items) ? items : [])
+				.slice(0, limit)
+				.map((item) => {
+					const name = `${item?.name || ''}`.trim()
+					if (!name) return ''
+					const quantity = Number(item?.quantity)
+					const amount = Number.isFinite(quantity) && quantity > 0
+						? `${this.formatQuantity(quantity)}${item?.unit || ''}`
+						: ''
+					return `${name}${amount}（${this.formatDaysLeft(Number(item?.daysLeft))}）`
+				})
+				.filter(Boolean)
+				.join('、')
+		},
 		getCurrentAssistantHistoryContent() {
-			return [`${this.command?.reply || ''}`.trim(), `${this.actionMessage || ''}`.trim()]
+			const intent = `${this.command?.intent || ''}`
+			const actionMessage = `${this.actionMessage || ''}`.trim()
+			if (intent === 'inventory_add' && this.actionStatus === 'success' && actionMessage) {
+				return actionMessage.replace(/^已成功入库[：:]\s*/, '已入库：').replace(/[。.]$/, '')
+			}
+			if (intent === 'inventory_consume' && this.actionStatus === 'success' && actionMessage) {
+				return actionMessage.replace(/^已成功出库[：:]\s*/, '已出库：').replace(/[。.]$/, '')
+			}
+			if (intent === 'inventory_read' && this.inventoryResult.length) {
+				return `冰箱目前有：${this.formatHistoryInventoryItems(this.inventoryResult)}`
+			}
+			if (intent === 'expiry_read' && this.expiryResult.length) {
+				return `需要留意：${this.formatHistoryExpiryItems(this.expiryResult)}`
+			}
+			return [`${this.command?.reply || ''}`.trim(), actionMessage]
 				.filter(Boolean)
 				.join('\n')
+		},
+		safeShowLoading(title) {
+			this.isLoadingVisible = true
+			uni.showLoading({ title: `${title || ''}` })
+		},
+		safeHideLoading() {
+			if (!this.isLoadingVisible) return
+			this.isLoadingVisible = false
+			try {
+				const result = uni.hideLoading()
+				if (result && typeof result.catch === 'function') result.catch(() => {})
+			} catch (_) {}
 		},
 		buildHistoryRecipeSnapshots() {
 			return (Array.isArray(this.recipeSearchResults) ? this.recipeSearchResults : [])
@@ -575,7 +635,7 @@ export default {
 				return
 			}
 			this.isSubmitting = true
-			uni.showLoading({ title: '正在入库…' })
+			this.safeShowLoading('正在入库…')
 			try {
 				const items = this.pendingItems.map((item) => ({
 					name: `${item.name || ''}`.trim(),
@@ -598,7 +658,7 @@ export default {
 				uni.showToast({ title: '入库失败', icon: 'none' })
 			} finally {
 				this.isSubmitting = false
-				uni.hideLoading()
+				this.safeHideLoading()
 				this.persistCurrentTurn()
 			}
 		},
@@ -716,7 +776,7 @@ export default {
 					return
 				}
 				const scope = query.location ? `${query.location}区` : '冰箱里'
-				this.command.reply = `${scope}目前共有${this.inventoryResult.length}种食材：`
+				this.command.reply = `${scope}目前有：${this.formatHistoryInventoryItems(this.inventoryResult)}`
 				await this.autoSpeakIfRequested()
 			} catch (error) {
 				this.inventoryResult = []
@@ -761,8 +821,7 @@ export default {
 						? `目前没有找到${this.command?.query?.target}的临期或过期库存。`
 						: '目前没有3天内到期或已经过期的食材。'
 				} else {
-					const expiredCount = this.expiryResult.filter((item) => item.daysLeft < 0).length
-					this.command.reply = `发现${this.expiryResult.length}项需要留意的食材${expiredCount ? `，其中${expiredCount}项已过期` : ''}：`
+					this.command.reply = `需要留意：${this.formatHistoryExpiryItems(this.expiryResult)}`
 				}
 				await this.autoSpeakIfRequested()
 			} catch (error) {
@@ -864,7 +923,7 @@ export default {
 				return
 			}
 			this.isSubmitting = true
-			uni.showLoading({ title: '正在出库…' })
+			this.safeShowLoading('正在出库…')
 			try {
 				await consumeIngredientsBatch(this.buildConsumeAllocations())
 				const summary = this.pendingConsumeItems
@@ -879,7 +938,7 @@ export default {
 				uni.showToast({ title: '出库失败', icon: 'none' })
 			} finally {
 				this.isSubmitting = false
-				uni.hideLoading()
+				this.safeHideLoading()
 				this.persistCurrentTurn()
 			}
 		},
@@ -1036,7 +1095,7 @@ export default {
 		async startRecipeRequest() {
 			if (this.isGeneratingRecipe) return
 			this.isGeneratingRecipe = true
-			uni.showLoading({ title: '正在准备菜谱…' })
+			this.safeShowLoading('正在准备菜谱…')
 			try {
 				const listRes = await getIngredientList()
 				const pantry = this.normalizeRecipeIngredients(this.extractIngredientList(listRes))
@@ -1093,7 +1152,7 @@ export default {
 				uni.showToast({ title: '菜谱推荐失败', icon: 'none' })
 			} finally {
 				this.isGeneratingRecipe = false
-				uni.hideLoading()
+				this.safeHideLoading()
 			}
 		},
 		buildSpeechText() {
@@ -1155,7 +1214,7 @@ export default {
 			manager.onError(() => {
 				this.isRecording = false
 				this.isUnderstanding = false
-				uni.hideLoading()
+				this.safeHideLoading()
 				uni.showToast({ title: '录音失败，请重试', icon: 'none' })
 			})
 			this.recorderManager = manager
@@ -1168,7 +1227,7 @@ export default {
 			}
 			if (this.isRecording) {
 				this.isUnderstanding = true
-				uni.showLoading({ title: '正在理解…' })
+				this.safeShowLoading('正在理解…')
 				this.recorderManager.stop()
 				return
 			}
@@ -1187,7 +1246,7 @@ export default {
 			const filePath = res?.tempFilePath
 			if (!filePath) {
 				this.isUnderstanding = false
-				uni.hideLoading()
+				this.safeHideLoading()
 				uni.showToast({ title: '没有录到声音', icon: 'none' })
 				return
 			}
@@ -1203,7 +1262,7 @@ export default {
 				uni.showToast({ title: message || '语音理解失败，请重试', icon: 'none' })
 			} finally {
 				this.isUnderstanding = false
-				uni.hideLoading()
+				this.safeHideLoading()
 			}
 		},
 		async parseText(text) {
@@ -1228,14 +1287,14 @@ export default {
 			if (this.isUnderstanding) return
 			const value = `${this.manualText || ''}`.trim()
 			if (!value) return
-			uni.showLoading({ title: '正在理解…' })
+			this.safeShowLoading('正在理解…')
 			try {
 				await this.parseText(value)
 			} catch (error) {
 				uni.showToast({ title: `${error?.message || '指令解析失败'}`, icon: 'none' })
 			} finally {
 				this.isUnderstanding = false
-				uni.hideLoading()
+				this.safeHideLoading()
 			}
 		},
 		tryExample(example) {
@@ -1273,7 +1332,9 @@ export default {
 .back-arrow { color: #b7c1ba; font-size: 30px; line-height: 1; }
 .top-copy { flex: 1; min-width: 0; }
 .top-title { color: #202c29; font-size: 20px; font-weight: 800; }
-.clear-history { flex-shrink: 0; padding: 10rpx 4rpx; color: #8b9890; font-size: 13px; }
+.history-toolbar { display: flex; align-items: center; justify-content: space-between; margin-top: 22rpx; padding: 0 4rpx 10rpx; border-bottom: 1rpx solid #e2e9e4; }
+.history-toolbar-title { color: #526159; font-size: 12px; font-weight: 700; }
+.clear-history { flex-shrink: 0; padding: 9rpx 16rpx; border: 1rpx solid #dbe6df; border-radius: 999rpx; color: #678071; background: #f8fbf9; font-size: 10px; }
 .chat-row { display: flex; align-items: flex-start; gap: 12rpx; }
 .assistant-row { justify-content: flex-start; }
 .user-row { justify-content: flex-end; margin-top: 24rpx; }
@@ -1290,7 +1351,7 @@ export default {
 .example-list { display: flex; flex-wrap: wrap; gap: 9rpx; }
 .example-chip { padding: 10rpx 14rpx; border: 1rpx solid #d7e5dc; border-radius: 999rpx; color: #65746b; background: #f8fcf9; font-size: 10px; }
 .conversation { margin-top: 6rpx; }
-.history-conversation { margin-top: 14rpx; padding-top: 4rpx; border-top: 1rpx solid #e5ebe7; }
+.history-conversation { margin-top: 4rpx; padding-top: 4rpx; }
 .history-row { opacity: .94; }
 .history-row.user-row { margin-top: 18rpx; }
 .history-user-bubble { background: #edf3ff; }
