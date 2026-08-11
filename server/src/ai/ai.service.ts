@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
 import { RecipeKnowledgeHit, RecipeKnowledgeService } from '../recipe-knowledge/recipe-knowledge.service'
 
@@ -145,10 +145,12 @@ export class AiService {
     {
       sourceUrl: string
       expiresAt: number
+      cacheKey: string
       buffer?: Buffer
       contentType?: string
     }
   >()
+  private readonly speechAudioByText = new Map<string, string>()
 
   private readonly apiKey = process.env.DASHSCOPE_API_KEY || ''
   private readonly endpoint = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
@@ -572,25 +574,37 @@ export class AiService {
     const value = `${text || ''}`.replace(/\s+/g, ' ').trim().slice(0, 600)
     if (!value) throw new Error('朗读文字为空')
     if (!this.apiKey) throw new Error('语音合成服务未配置')
+    const model = process.env.AI_TTS_MODEL || 'qwen3-tts-flash'
+    const voice = process.env.AI_TTS_VOICE || 'Cherry'
+    const cacheKey = createHash('sha256').update(`${model}|${voice}|${value}`).digest('hex')
+    for (const [key, audio] of this.speechAudio.entries()) {
+      if (audio.expiresAt > Date.now()) continue
+      this.speechAudio.delete(key)
+      if (this.speechAudioByText.get(audio.cacheKey) === key) this.speechAudioByText.delete(audio.cacheKey)
+    }
+    const cachedAudioId = this.speechAudioByText.get(cacheKey)
+    const cachedAudio = cachedAudioId ? this.speechAudio.get(cachedAudioId) : null
+    if (cachedAudioId && cachedAudio && cachedAudio.expiresAt > Date.now()) {
+      return { audioPath: `/ai/speech-audio/${cachedAudioId}`, expiresAt: cachedAudio.expiresAt, cached: true }
+    }
     const payload = await this.postDashScopeJson('https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation', {
-      model: process.env.AI_TTS_MODEL || 'qwen3-tts-flash',
+      model,
       input: {
         text: value,
-        voice: process.env.AI_TTS_VOICE || 'Cherry',
+        voice,
         language_type: 'Chinese',
       },
     })
     const rawUrl = `${payload?.output?.audio?.url || ''}`.trim()
     if (!rawUrl) throw new Error(payload?.message || '语音合成未返回音频')
-    for (const [key, audio] of this.speechAudio.entries()) {
-      if (audio.expiresAt <= Date.now()) this.speechAudio.delete(key)
-    }
     const audioId = randomUUID()
     const expiresAt = Date.now() + 10 * 60 * 1000
     this.speechAudio.set(audioId, {
       sourceUrl: rawUrl.replace(/^http:\/\//i, 'https://'),
       expiresAt,
+      cacheKey,
     })
+    this.speechAudioByText.set(cacheKey, audioId)
     return { audioPath: `/ai/speech-audio/${audioId}`, expiresAt }
   }
 
@@ -598,6 +612,7 @@ export class AiService {
     const key = `${audioId || ''}`.trim()
     const current = this.speechAudio.get(key)
     if (!current || current.expiresAt <= Date.now()) {
+      if (current && this.speechAudioByText.get(current.cacheKey) === key) this.speechAudioByText.delete(current.cacheKey)
       this.speechAudio.delete(key)
       throw new Error('朗读音频已失效')
     }

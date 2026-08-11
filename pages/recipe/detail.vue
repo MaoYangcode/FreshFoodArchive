@@ -216,6 +216,11 @@ export default {
 			isRecipeSpeaking: false,
 			recipeAudioPlaybackStarted: false,
 			recipeAudioContext: null,
+			recipeSpeechSessionId: 0,
+			recipeSpeechCurrentStep: -1,
+			recipeSpeechStepTexts: [],
+			recipeSpeechAudioCache: {},
+			recipeSpeechPending: {},
 			pantryNames: [],
 			pantryItems: [],
 			pantryLoadState: 'loading',
@@ -334,6 +339,7 @@ export default {
 	},
 	onUnload() {
 		this.detailRequestId += 1
+		this.recipeSpeechSessionId += 1
 		if (this.nutritionRevealTimer) clearTimeout(this.nutritionRevealTimer)
 		if (this.recipeAudioContext) {
 			this.recipeAudioContext.stop()
@@ -412,7 +418,13 @@ export default {
 			})
 			audio.onEnded(() => {
 				this.recipeAudioPlaybackStarted = false
-				this.isRecipeSpeaking = false
+				const sessionId = this.recipeSpeechSessionId
+				const nextStep = this.recipeSpeechCurrentStep + 1
+				if (nextStep < this.recipeSpeechStepTexts.length) {
+					this.playRecipeSpeechStep(nextStep, sessionId)
+					return
+				}
+				this.finishRecipeSpeech()
 			})
 			audio.onStop(() => {
 				this.recipeAudioPlaybackStarted = false
@@ -428,39 +440,98 @@ export default {
 			})
 			this.recipeAudioContext = audio
 		},
-		buildRecipeSpeechText() {
-			const steps = (Array.isArray(this.recipe?.steps) ? this.recipe.steps : [])
-				.map((step, index) => `第${index + 1}步，${this.formatStepText(step)}`)
-			return [
-				`${this.recipe?.name || '这道菜'}。`,
-				`所需食材，${this.recipe?.ingredientsText || ''}。`,
-				...steps
-			].filter(Boolean).join('').slice(0, 600)
+		buildRecipeSpeechSteps() {
+			return (Array.isArray(this.recipe?.steps) ? this.recipe.steps : [])
+				.map((step, index) => `第${index + 1}步，${this.formatStepText(step)}`.slice(0, 600))
+				.filter((text) => !!text.replace(/^第\d+步，?/, '').trim())
+		},
+		getRecipeSpeechCacheKey(index) {
+			return `${this.recipe?.name || ''}|${this.recipeSpeechStepTexts[index] || ''}`
+		},
+		async ensureRecipeStepAudio(index) {
+			const text = this.recipeSpeechStepTexts[index]
+			if (!text) throw new Error('朗读步骤为空')
+			const key = this.getRecipeSpeechCacheKey(index)
+			const cached = this.recipeSpeechAudioCache[key]
+			if (cached?.audioPath && Number(cached.expiresAt || 0) > Date.now() + 5000) return cached.audioPath
+			if (this.recipeSpeechPending[key]) return this.recipeSpeechPending[key]
+			const pending = synthesizeAssistantSpeech(text).then((res) => {
+				const audioPath = `${res?.data?.audioPath || res?.audioPath || ''}`.trim()
+				if (!audioPath) throw new Error('没有生成朗读音频')
+				const expiresAt = Number(res?.data?.expiresAt || res?.expiresAt || Date.now() + 9 * 60 * 1000)
+				this.$set(this.recipeSpeechAudioCache, key, { audioPath, expiresAt })
+				return audioPath
+			}).finally(() => {
+				this.$delete(this.recipeSpeechPending, key)
+			})
+			this.$set(this.recipeSpeechPending, key, pending)
+			return pending
+		},
+		async prefetchRecipeSpeechSteps(fromIndex, sessionId) {
+			for (let index = fromIndex; index < this.recipeSpeechStepTexts.length; index += 1) {
+				if (sessionId !== this.recipeSpeechSessionId) return
+				try {
+					await this.ensureRecipeStepAudio(index)
+				} catch (error) {
+					console.warn(`第${index + 1}步语音预取失败`, error)
+				}
+			}
+		},
+		async playRecipeSpeechStep(index, sessionId) {
+			if (sessionId !== this.recipeSpeechSessionId || !this.recipeAudioContext) return false
+			this.recipeSpeechCurrentStep = index
+			this.isRecipeSynthesizing = true
+			try {
+				const audioPath = await this.ensureRecipeStepAudio(index)
+				if (sessionId !== this.recipeSpeechSessionId) return
+				this.isRecipeSynthesizing = false
+				await playSpeechAudio(this.recipeAudioContext, audioPath)
+				return true
+			} catch (error) {
+				if (sessionId !== this.recipeSpeechSessionId) return false
+				console.error(`第${index + 1}步朗读失败`, error)
+				this.finishRecipeSpeech()
+				uni.showToast({ title: `${error?.message || '菜谱朗读失败，请重试'}`, icon: 'none' })
+				return false
+			}
+		},
+		finishRecipeSpeech() {
+			this.recipeAudioPlaybackStarted = false
+			this.isRecipeSpeaking = false
+			this.isRecipeSynthesizing = false
+			this.recipeSpeechCurrentStep = -1
+		},
+		stopRecipeSpeech() {
+			this.recipeSpeechSessionId += 1
+			this.finishRecipeSpeech()
+			if (this.recipeAudioContext && this.recipeAudioContext.paused === false) this.recipeAudioContext.stop()
 		},
 		async toggleRecipeSpeech() {
-			if (this.isRecipeSynthesizing) return
-			if (this.isRecipeSpeaking && this.recipeAudioContext) {
-				this.recipeAudioContext.stop()
+			if (this.isRecipeSynthesizing || this.isRecipeSpeaking) {
+				this.stopRecipeSpeech()
 				return
 			}
 			if (!this.recipeAudioContext) {
 				uni.showToast({ title: '当前环境不支持语音播放', icon: 'none' })
 				return
 			}
-			const text = this.buildRecipeSpeechText()
-			if (!text || !this.hasRecipeDetail) return
+			const steps = this.buildRecipeSpeechSteps()
+			if (!steps.length || !this.hasRecipeDetail) return
+			const sessionId = this.recipeSpeechSessionId + 1
+			this.recipeSpeechSessionId = sessionId
+			this.recipeSpeechStepTexts = steps
+			this.recipeSpeechCurrentStep = 0
 			this.recipeAudioPlaybackStarted = false
 			this.isRecipeSynthesizing = true
 			try {
-				const res = await synthesizeAssistantSpeech(text)
-				const audioPath = `${res?.data?.audioPath || res?.audioPath || ''}`.trim()
-				if (!audioPath) throw new Error('没有生成朗读音频')
-				await playSpeechAudio(this.recipeAudioContext, audioPath)
+				const started = await this.playRecipeSpeechStep(0, sessionId)
+				if (started && sessionId === this.recipeSpeechSessionId) this.prefetchRecipeSpeechSteps(1, sessionId)
 			} catch (error) {
-				console.error('菜谱朗读失败', error)
-				uni.showToast({ title: `${error?.message || '菜谱朗读失败，请重试'}`, icon: 'none' })
-			} finally {
-				this.isRecipeSynthesizing = false
+				if (sessionId === this.recipeSpeechSessionId) {
+					console.error('菜谱朗读失败', error)
+					this.finishRecipeSpeech()
+					uni.showToast({ title: `${error?.message || '菜谱朗读失败，请重试'}`, icon: 'none' })
+				}
 			}
 		},
 		formatIngredientItems(items) {
